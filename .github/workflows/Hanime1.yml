@@ -1,4 +1,4 @@
-name: CI
+name: hanime1.me
 
 on:
   workflow_dispatch:
