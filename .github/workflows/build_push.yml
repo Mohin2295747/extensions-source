@@ -1,15 +1,7 @@
 name: CI
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - '**'
-      - '!**.md'
-      - '!.github/**'
-      - '.github/scripts/**'
-      - '.github/workflows/build_push.yml'
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}
