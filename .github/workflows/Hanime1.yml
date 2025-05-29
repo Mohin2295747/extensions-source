@@ -1,14 +1,42 @@
-name: Build hanime1
+name: Build APKs
 
 on:
   workflow_dispatch:
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
 
+env:
+  CI_CHUNK_SIZE: 65
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - name: Checkout
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Count modules and generate matrix
+        id: set-matrix
+        run: |
+          projects=(src/*/*)
+          total=${#projects[@]}
+          chunk_size=${{ env.CI_CHUNK_SIZE }}
+          chunks=$(( (total + chunk_size - 1) / chunk_size ))
+
+          matrix_json=$(jq -n --argjson chunks "$chunks" '{chunk: [range(0; $chunks)]}')
+          echo "matrix=$matrix_json" >> $GITHUB_OUTPUT
+
+  build:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Set up JDK
@@ -17,23 +45,15 @@ jobs:
           java-version: 17
           distribution: temurin
 
-      - name: Grant Gradle permissions
-        run: chmod +x ./gradlew
-
-      - name: Patch settings.gradle.kts to include only hanime1
+      - name: Build APKs (chunk ${{ matrix.chunk }})
+        env:
+          CI_CHUNK_NUM: ${{ matrix.chunk }}
         run: |
-          echo """
-          rootProject.name = "extensions"
+          chmod +x ./gradlew
+          ./gradlew -p src assembleRelease
 
-          include(":src:zh:hanime1")
-          project(":src:zh:hanime1").projectDir = file("src/zh/hanime1")
-          """ > settings.gradle.kts
-
-      - name: Build hanime1
-        run: ./gradlew assembleRelease
-
-      - name: Upload APK
+      - name: Upload APKs (chunk ${{ matrix.chunk }})
         uses: actions/upload-artifact@v4
         with:
-          name: hanime1-apk
-          path: src/zh/hanime1/build/outputs/apk/release/*.apk
+          name: apks-chunk-${{ matrix.chunk }}
+          path: '**/*.apk'
