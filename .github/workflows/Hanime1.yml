@@ -6,6 +6,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,11 +20,17 @@ jobs:
       - name: Grant Gradle permissions
         run: chmod +x ./gradlew
 
+      - name: Patch settings.gradle.kts to include only hanime1
+        run: |
+          echo """
+          rootProject.name = "extensions"
+
+          include(":src:zh:hanime1")
+          project(":src:zh:hanime1").projectDir = file("src/zh/hanime1")
+          """ > settings.gradle.kts
+
       - name: Build hanime1
-        env:
-          CI_CHUNK_SIZE: 1     # Prevent getenv() null error
-          CI_CHUNK_NUM: 0      # Any value, not used for single module
-        run: ./gradlew -p src/zh/hanime1 assembleRelease
+        run: ./gradlew assembleRelease
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
