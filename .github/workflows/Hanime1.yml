@@ -1,6 +1,7 @@
 name: hanime1
 
-on: workflow_dispatch:
+on: 
+workflow_dispatch:
 
 concurrency: group: ${{ github.workflow }} cancel-in-progress: true
 
@@ -21,7 +22,10 @@ jobs: prepare: name: Prepare job runs-on: ubuntu-latest outputs: individualMatri
         const numIndividualChunks = Math.ceil(numIndividualModules / chunkSize);
         core.setOutput('individualMatrix', JSON.stringify({ chunk: [...Array(numIndividualChunks).keys()] }));
 
-build_individual: name: Build Hanime1 manually needs: prepare runs-on: ubuntu-latest strategy: matrix: ${{ fromJSON(needs.prepare.outputs.individualMatrix) }} steps: - name: Checkout uses: actions/checkout@v4
+build_individual: 
+name: Build Hanime1 manually 
+needs: prepare 
+runs-on: ubuntu-latest strategy: matrix: ${{ fromJSON(needs.prepare.outputs.individualMatrix) }} steps: - name: Checkout uses: actions/checkout@v4
 
 - name: Set up JDK
     uses: actions/setup-java@v4
