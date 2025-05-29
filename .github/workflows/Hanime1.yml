@@ -1,47 +1,63 @@
-name: hanime1
+name: CI
 
-on: 
-workflow_dispatch:
+on:
+  workflow_dispatch:
 
-concurrency: group: ${{ github.workflow }} cancel-in-progress: true
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
 
-env: CI_CHUNK_SIZE: 65 NUM_INDIVIDUAL_MODULES: 1  # Set statically to avoid env null error
+env:
+  CI_CHUNK_SIZE: 65
+  NUM_INDIVIDUAL_MODULES: 1  # Set statically to avoid env null error
 
-jobs: prepare: name: Prepare job runs-on: ubuntu-latest outputs: individualMatrix: ${{ steps.generate-matrices.outputs.individualMatrix }} steps: - name: Checkout uses: actions/checkout@v4
+jobs:
+  prepare:
+    name: Prepare job
+    runs-on: ubuntu-latest
+    outputs:
+      individualMatrix: ${{ steps.generate-matrices.outputs.individualMatrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-- name: Set fake env var for modules count
-    run: echo "NUM_INDIVIDUAL_MODULES=1" >> $GITHUB_ENV
+      - name: Set fake env var for modules count
+        run: echo "NUM_INDIVIDUAL_MODULES=1" >> $GITHUB_ENV
 
-  - id: generate-matrices
-    name: Generate matrix
-    uses: actions/github-script@v7
-    with:
-      script: |
-        const chunkSize = parseInt(process.env.CI_CHUNK_SIZE);
-        const numIndividualModules = parseInt(process.env.NUM_INDIVIDUAL_MODULES);
-        const numIndividualChunks = Math.ceil(numIndividualModules / chunkSize);
-        core.setOutput('individualMatrix', JSON.stringify({ chunk: [...Array(numIndividualChunks).keys()] }));
+      - id: generate-matrices
+        name: Generate matrix
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const chunkSize = parseInt(process.env.CI_CHUNK_SIZE);
+            const numIndividualModules = parseInt(process.env.NUM_INDIVIDUAL_MODULES);
+            const numIndividualChunks = Math.ceil(numIndividualModules / chunkSize);
+            core.setOutput('individualMatrix', JSON.stringify({ chunk: [...Array(numIndividualChunks).keys()] }));
 
-build_individual: 
-name: Build Hanime1 manually 
-needs: prepare 
-runs-on: ubuntu-latest strategy: matrix: ${{ fromJSON(needs.prepare.outputs.individualMatrix) }} steps: - name: Checkout uses: actions/checkout@v4
+  build_individual:
+    name: Build Hanime1 manually
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJSON(needs.prepare.outputs.individualMatrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-- name: Set up JDK
-    uses: actions/setup-java@v4
-    with:
-      java-version: 17
-      distribution: temurin
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
 
-  - name: Grant Gradle permissions
-    run: chmod +x ./gradlew
+      - name: Grant Gradle permissions
+        run: chmod +x ./gradlew
 
-  - name: Build Hanime1
-    run: ./gradlew -p src/zh/hanime1 assembleRelease
+      - name: Build Hanime1
+        run: ./gradlew -p src/zh/hanime1 assembleRelease
 
-  - name: Upload APK
-    uses: actions/upload-artifact@v4
-    with:
-      name: hanime1-apk
-      path: src/zh/hanime1/build/outputs/apk/release/*.apk
-
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: hanime1-apk
+          path: src/zh/hanime1/build/outputs/apk/release/*.apk
