@@ -44,88 +44,116 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import kotlin.coroutines.resume
 
-// Add ML Kit Translator class
 class ChineseTranslator(private val context: Context) {
     private var translator: com.google.mlkit.nl.translate.Translator? = null
+    private val languageIdentifier = LanguageIdentification.getClient()
+    private val translationCache = mutableMapOf<String, String>()
 
     suspend fun translate(text: String): String {
         if (text.isBlank()) return text
-        
-        // Detect language first
+
+        translationCache[text]?.let { return it }
+
         val detectedLang = detectLanguage(text)
-        if (!detectedLang.startsWith("zh")) return text
-        
-        // Initialize translator if needed
+        if (detectedLang != "zh" && detectedLang != "zh-CN" && detectedLang != "zh-TW") {
+            return text
+        }
+
         if (translator == null) {
             val options = TranslatorOptions.Builder()
                 .setSourceLanguage(TranslateLanguage.CHINESE)
                 .setTargetLanguage(TranslateLanguage.ENGLISH)
                 .build()
             translator = Translation.getClient(options)
-            
+
             try {
                 translator!!.downloadModelIfNeeded().await()
             } catch (e: Exception) {
-                return text // Return original if model fails to download
+                return text
             }
         }
-        
-        // Perform translation
+
         return try {
-            translator!!.translate(text).await()
+            val translated = translator!!.translate(text).await()
+            translationCache[text] = translated
+            translated
         } catch (e: Exception) {
-            text // Return original if translation fails
+            text
         }
     }
 
     private suspend fun detectLanguage(text: String): String {
         return suspendCancellableCoroutine { continuation ->
-            LanguageIdentification.getClient().identifyLanguage(text)
+            languageIdentifier.identifyLanguage(text)
                 .addOnSuccessListener { languageCode ->
                     continuation.resume(languageCode)
                 }
                 .addOnFailureListener {
-                    continuation.resume("und") // undetermined
+                    continuation.resume("und")
                 }
         }
+    }
+
+    fun cleanup() {
+        translator?.close()
+        languageIdentifier.close()
     }
 }
 
 class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
-    // ... [Keep existing properties and constants] ...
-
-    // Add translator instance
-    private val translator by lazy { 
-        ChineseTranslator(Injekt.get<Application>().applicationContext) 
+    private val translator by lazy {
+        ChineseTranslator(Injekt.get<Application>().applicationContext)
     }
 
-    // ... [Keep existing methods until parsing functions] ...
+    override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        super.setupPreferenceScreen(screen)
+
+        val translatePref = ListPreference(screen.context).apply {
+            key = PREF_TRANSLATE_KEY
+            title = "Translation"
+            entries = arrayOf("Disabled", "English")
+            entryValues = arrayOf("false", "true")
+            summary = "%s"
+            setDefaultValue("false")
+        }
+
+        screen.addPreference(translatePref)
+    }
+
+    companion object {
+        private const val PREF_TRANSLATE_KEY = "pref_translate_enabled"
+    }
+
+    private suspend fun translateIfEnabled(text: String): String {
+        val prefs = Injekt.get<SharedPreferences>()
+        return if (prefs.getBoolean(PREF_TRANSLATE_KEY, false)) {
+            translator.translate(text)
+        } else {
+            text
+        }
+    }
 
     override suspend fun animeDetailsParse(response: Response): SAnime {
         val jsoup = response.asJsoup()
         return SAnime.create().apply {
-            // Translate genre
             genre = jsoup.select(".single-video-tag")
                 .not("[data-toggle]")
                 .eachText()
-                .joinToString { runBlocking { translator.translate(it) } }
+                .joinToString { runBlocking { translateIfEnabled(it) } }
 
-            // Translate author
-            author = runBlocking { 
-                translator.translate(jsoup.select("#video-artist-name").text()) 
+            author = runBlocking {
+                translateIfEnabled(jsoup.select("#video-artist-name").text())
             }
 
             jsoup.select("script[type=application/ld+json]").first()?.data()?.let {
                 val info = json.decodeFromString<JsonElement>(it).jsonObject
-                
-                // Translate title
-                title = runBlocking { 
-                    translator.translate(info["name"]!!.jsonPrimitive.content) 
+
+                title = runBlocking {
+                    translateIfEnabled(info["name"]!!.jsonPrimitive.content)
                 }
-                
-                // Translate description
-                description = runBlocking { 
-                    translator.translate(info["description"]!!.jsonPrimitive.content) 
+
+                description = runBlocking {
+                    translateIfEnabled(info["description"]!!.jsonPrimitive.content)
                 }
             }
         }
@@ -139,15 +167,13 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 SAnime.create().apply {
                     setUrlWithoutDomain(it.select("a[class=overlay]").attr("href"))
                     thumbnail_url = it.select("img + img").attr("src")
-                    
-                    // Translate title
-                    title = runBlocking { 
-                        translator.translate(it.select("div.card-mobile-title").text())
+
+                    title = runBlocking {
+                        translateIfEnabled(it.select("div.card-mobile-title").text())
                     }.appendInvisibleChar()
-                    
-                    // Translate author
-                    author = runBlocking { 
-                        translator.translate(it.select(".card-mobile-user").text()) 
+
+                    author = runBlocking {
+                        translateIfEnabled(it.select(".card-mobile-user").text())
                     }
                 }
             }
@@ -156,10 +182,9 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 SAnime.create().apply {
                     setUrlWithoutDomain(it.parent()!!.attr("href"))
                     thumbnail_url = it.select("img").attr("src")
-                    
-                    // Translate title
-                    title = runBlocking { 
-                        translator.translate(it.select(".home-rows-videos-title").text())
+
+                    title = runBlocking {
+                        translateIfEnabled(it.select(".home-rows-videos-title").text())
                     }.appendInvisibleChar()
                 }
             }
@@ -167,6 +192,4 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         val nextPage = jsoup.select("li.page-item a.page-link[rel=next]")
         return AnimesPage(list, nextPage.isNotEmpty())
     }
-
-    // ... [Keep the rest of the existing code unchanged] ...
 }
