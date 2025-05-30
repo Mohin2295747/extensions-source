@@ -20,10 +20,7 @@ import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.awaitSuccess
 import eu.kanade.tachiyomi.util.asJsoup
-import kotlinx.coroutines.CoroutineExceptionHandler
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -32,12 +29,15 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.Headers
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import uy.kohesive.injekt.injectLazy
+import java.text.SimpleDateFormat
 import java.util.Locale
-import kotlin.coroutines.resume
 
 class ChineseTranslator(private val context: Context) {
     private var translator: com.google.mlkit.nl.translate.Translator? = null
@@ -101,19 +101,16 @@ class ChineseTranslator(private val context: Context) {
 }
 
 class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
-    private val translator by lazy {
-        ChineseTranslator(Injekt.get<Application>().applicationContext)
-    }
-
     override val name = "Hanime1"
     override val baseUrl = "https://hanime1.me"
     override val lang = "zh"
     override val supportsLatest = true
 
-    private val json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
+    private val translator by lazy {
+        ChineseTranslator(Injekt.get<Application>().applicationContext)
     }
+
+    private val json by lazy { Json { ignoreUnknownKeys = true } }
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         super.setupPreferenceScreen(screen)
@@ -134,25 +131,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         private const val PREF_TRANSLATE_KEY = "pref_translate_enabled"
     }
 
-    override fun getFilterList(): AnimeFilterList {
-        return AnimeFilterList(
-            SortFilter(translator),
-            GenreFilter(translator),
-            DateFilter(
-                translator,
-                YearFilter(translator),
-                MonthFilter(translator)
-            ),
-            CategoryFilter(
-                runBlocking { translator.translate("分類") },
-                listOf(
-                    HotFilter(translator),
-                    BroadMatchFilter(translator)
-                )
-            )
-        )
-    }
-
     private suspend fun translateIfEnabled(text: String): String {
         val prefs = Injekt.get<SharedPreferences>()
         return if (prefs.getBoolean(PREF_TRANSLATE_KEY, false)) {
@@ -162,83 +140,55 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         }
     }
 
-    override suspend fun getPopularAnime(page: Int): AnimesPage {
-        val response = client.newCall(popularAnimeRequest(page)).awaitSuccess()
-        return popularAnimeParse(response)
+    // Popular Anime
+    override suspend fun popularAnimeRequest(page: Int): Request {
+        return GET("$baseUrl/ranking?type=weekly&page=$page")
     }
 
-    override suspend fun getLatestUpdates(page: Int): AnimesPage {
-        val response = client.newCall(latestUpdatesRequest(page)).awaitSuccess()
-        return latestUpdatesParse(response)
-    }
-
-    override suspend fun searchAnime(page: Int, query: String, filters: AnimeFilterList): AnimesPage {
-        val response = client.newCall(searchAnimeRequest(page, query, filters)).awaitSuccess()
-        return searchAnimeParse(response)
-    }
-
-    override suspend fun getAnimeDetails(anime: SAnime): SAnime {
-        val response = client.newCall(animeDetailsRequest(anime)).awaitSuccess()
-        return animeDetailsParse(response)
-    }
-
-    override suspend fun getEpisodeList(anime: SAnime): List<SEpisode> {
-        val response = client.newCall(episodeListRequest(anime)).awaitSuccess()
-        return episodeListParse(response)
-    }
-
-    override suspend fun getVideoList(episode: SEpisode): List<Video> {
-        val response = client.newCall(videoListRequest(episode)).awaitSuccess()
-        return videoListParse(response)
-    }
-
-    // Request builders
-    private fun popularAnimeRequest(page: Int): Request {
-        return GET("$baseUrl/ranking?page=$page", headers)
-    }
-
-    private fun latestUpdatesRequest(page: Int): Request {
-        return GET("$baseUrl/latest?page=$page", headers)
-    }
-
-    private fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
-        val url = "$baseUrl/search".toHttpUrl().newBuilder()
-            .addQueryParameter("query", query)
-            .addQueryParameter("page", page.toString())
-            .apply {
-                filters.forEach { filter ->
-                    when (filter) {
-                        is QueryFilter -> addQueryParameter(filter.key, filter.selected)
-                        is TagFilter -> if (filter.state) addQueryParameter(filter.key, "true")
-                    }
-                }
-            }
-            .build()
-        return GET(url, headers)
-    }
-
-    private fun animeDetailsRequest(anime: SAnime): Request {
-        return GET(baseUrl + anime.url, headers)
-    }
-
-    private fun episodeListRequest(anime: SAnime): Request {
-        return GET(baseUrl + anime.url, headers)
-    }
-
-    private fun videoListRequest(episode: SEpisode): Request {
-        return GET(baseUrl + episode.url, headers)
-    }
-
-    // Parsers
     override suspend fun popularAnimeParse(response: Response): AnimesPage {
-        return searchAnimeParse(response)
+        return parseAnimeList(response)
+    }
+
+    // Latest Updates
+    override suspend fun latestUpdatesRequest(page: Int): Request {
+        return GET("$baseUrl/latest?page=$page")
     }
 
     override suspend fun latestUpdatesParse(response: Response): AnimesPage {
-        return searchAnimeParse(response)
+        return parseAnimeList(response)
+    }
+
+    // Search Anime
+    override suspend fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
+        val url = "$baseUrl/search".toHttpUrl().newBuilder().apply {
+            addQueryParameter("query", query)
+            addQueryParameter("page", page.toString())
+            
+            filters.forEach { filter ->
+                when (filter) {
+                    is QueryFilter -> {
+                        if (filter.selected.isNotEmpty()) {
+                            addQueryParameter(filter.key, filter.selected)
+                        }
+                    }
+                    is TagFilter -> {
+                        if (filter.state) {
+                            addQueryParameter(filter.key, "true")
+                        }
+                    }
+                }
+            }
+        }.build()
+        
+        return GET(url.toString())
     }
 
     override suspend fun searchAnimeParse(response: Response): AnimesPage {
+        return parseAnimeList(response)
+    }
+
+    // Common anime list parser
+    private suspend fun parseAnimeList(response: Response): AnimesPage {
         val jsoup = response.asJsoup()
         val nodes = jsoup.select("div.search-doujin-videos.hidden-xs")
         val list = if (nodes.isNotEmpty()) {
@@ -272,6 +222,11 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         return AnimesPage(list, nextPage.isNotEmpty())
     }
 
+    // Anime Details
+    override suspend fun animeDetailsRequest(anime: SAnime): Request {
+        return GET(baseUrl + anime.url)
+    }
+
     override suspend fun animeDetailsParse(response: Response): SAnime {
         val jsoup = response.asJsoup()
         return SAnime.create().apply {
@@ -298,35 +253,60 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         }
     }
 
+    // Episode List
+    override suspend fun episodeListRequest(anime: SAnime): Request {
+        return GET(baseUrl + anime.url)
+    }
+
     override suspend fun episodeListParse(response: Response): List<SEpisode> {
         val jsoup = response.asJsoup()
-        return jsoup.select(".episode-list a").map {
+        return jsoup.select(".playlist-episode").map {
             SEpisode.create().apply {
                 name = runBlocking {
-                    translateIfEnabled(it.select(".episode-title").text())
+                    translateIfEnabled(it.select(".playlist-episode-title").text())
                 }
-                episode_number = it.select(".episode-number").text().toFloatOrNull() ?: 0f
-                date_upload = parseDate(it.select(".episode-date").text())
+                episode_number = it.select(".playlist-episode-number").text().toFloatOrNull() ?: 0f
                 setUrlWithoutDomain(it.attr("href"))
             }
         }
     }
 
-    override suspend fun videoListParse(response: Response): List<Video> {
-        // Implementation depends on the video extraction method
-        // This is just a placeholder
-        return emptyList()
+    // Video List
+    override suspend fun videoListRequest(episode: SEpisode): Request {
+        return GET(baseUrl + episode.url)
     }
 
-    private fun parseDate(dateStr: String): Long {
-        return try {
-            SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(dateStr)?.time ?: 0L
-        } catch (e: Exception) {
-            0L
+    override suspend fun videoListParse(response: Response): List<Video> {
+        val jsoup = response.asJsoup()
+        return jsoup.select("source").map {
+            Video(
+                url = it.attr("src"),
+                quality = it.attr("title"),
+                videoUrl = it.attr("src"),
+            )
         }
     }
 
+    override fun videoUrlParse(response: Response): String {
+        throw UnsupportedOperationException("Not used")
+    }
+
+    // Filters
+    override fun getFilterList(): AnimeFilterList {
+        val translator = ChineseTranslator(Injekt.get<Application>().applicationContext)
+        return AnimeFilterList(
+            SortFilter(translator),
+            GenreFilter(translator),
+            DateFilter(
+                translator,
+                YearFilter(translator),
+                MonthFilter(translator),
+            ),
+            HotFilter(translator),
+        )
+    }
+
     private fun String.appendInvisibleChar(): String {
-        return "$this\u200B" // Zero-width space to prevent title truncation
+        return "$this\u200B"
     }
 }
