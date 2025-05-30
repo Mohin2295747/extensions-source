@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- ML Kit Requirements -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/> <!-- Optional but recommended -->
+
+    <application>
+        <!-- ML Kit Translator Initialization -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="translate" />
+
+        <!-- (Keep this if Hanime1 needs deep linking like Anizm) -->
+        <activity
+            android:name=".Hanime1UrlActivity" <!-- Update with your actual activity if needed -->
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <!-- Update host/scheme for Hanime1 -->
+                <data
+                    android:host="hanime1.me"
+                    android:pathPattern="/..*"
+                    android:scheme="https" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
