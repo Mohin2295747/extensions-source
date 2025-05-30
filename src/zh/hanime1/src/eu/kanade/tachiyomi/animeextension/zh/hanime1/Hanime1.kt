@@ -23,8 +23,8 @@ import eu.kanade.tachiyomi.util.asJsoup
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonObject
@@ -135,6 +135,8 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             text
         }
     }
+
+    // Popular Anime
     override suspend fun popularAnimeRequest(page: Int): Request {
         return GET("$baseUrl/ranking?type=weekly&page=$page")
     }
@@ -142,6 +144,8 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override suspend fun popularAnimeParse(response: Response): AnimesPage {
         return parseAnimeList(response)
     }
+
+    // Latest Updates
     override suspend fun latestUpdatesRequest(page: Int): Request {
         return GET("$baseUrl/latest?page=$page")
     }
@@ -149,6 +153,8 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override suspend fun latestUpdatesParse(response: Response): AnimesPage {
         return parseAnimeList(response)
     }
+
+    // Search Anime
     override suspend fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
         val url = "$baseUrl/search".toHttpUrl().newBuilder().apply {
             addQueryParameter("query", query)
@@ -176,6 +182,8 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override suspend fun searchAnimeParse(response: Response): AnimesPage {
         return parseAnimeList(response)
     }
+
+    // Common anime list parser
     private suspend fun parseAnimeList(response: Response): AnimesPage {
         val jsoup = response.asJsoup()
         val nodes = jsoup.select("div.search-doujin-videos.hidden-xs")
@@ -209,6 +217,8 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         val nextPage = jsoup.select("li.page-item a.page-link[rel=next]")
         return AnimesPage(list, nextPage.isNotEmpty())
     }
+
+    // Anime Details
     override suspend fun animeDetailsRequest(anime: SAnime): Request {
         return GET(baseUrl + anime.url)
     }
@@ -238,9 +248,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             }
         }
     }
+
+    // Episode List
     override suspend fun episodeListRequest(anime: SAnime): Request {
         return GET(baseUrl + anime.url)
     }
+
     override suspend fun episodeListParse(response: Response): List<SEpisode> {
         val jsoup = response.asJsoup()
         return jsoup.select(".playlist-episode").map {
@@ -253,9 +266,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             }
         }
     }
+
+    // Video List
     override suspend fun videoListRequest(episode: SEpisode): Request {
         return GET(baseUrl + episode.url)
     }
+
     override suspend fun videoListParse(response: Response): List<Video> {
         val jsoup = response.asJsoup()
         return jsoup.select("source").map {
@@ -266,9 +282,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             )
         }
     }
+
     override fun videoUrlParse(response: Response): String {
         throw UnsupportedOperationException("Not used")
     }
+
+    // Filters
     override fun getFilterList(): AnimeFilterList {
         val translator = ChineseTranslator(Injekt.get<Application>().applicationContext)
         return AnimeFilterList(
@@ -282,7 +301,8 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             HotFilter(translator),
         )
     }
-   private fun String.appendInvisibleChar(): String {
+
+    private fun String.appendInvisibleChar(): String {
         return "$this\u200B"
     }
 }
