@@ -20,12 +20,12 @@ class TagFilter(
 class GenreFilter(
     private val translator: ChineseTranslator,
 ) : QueryFilter(
-    name = "影片類型",  
+    name = "影片類型",
     key = "genre",
     values = arrayOf(
-        "全部",    
-        "裏番",    
-        "泡面番",  
+        "全部",
+        "裏番",
+        "泡面番",
         "Motion Anime",
     )
 ) {
@@ -41,14 +41,14 @@ class GenreFilter(
 class SortFilter(
     private val translator: ChineseTranslator,
 ) : QueryFilter(
-    name = "排序方式",  
+    name = "排序方式",
     key = "sort",
     values = arrayOf(
-        "最新上市",  
-        "最新上傳",  
-        "本日排行",  
-        "本週排行",  
-        "本月排行",  
+        "最新上市",
+        "最新上傳",
+        "本日排行",
+        "本週排行",
+        "本月排行",
     )
 ) {
     private val translatedName: String by lazy { runBlocking { translator.translate(name) } }
@@ -64,8 +64,8 @@ class HotFilter(
     translator: ChineseTranslator,
 ) : TagFilter(
     key = "sort",
-    name = "本週排行",  
-    state = true
+    name = "本週排行",
+    state = true,
 ) {
     private val translatedName: String by lazy { runBlocking { translator.translate(name) } }
     
@@ -75,9 +75,11 @@ class HotFilter(
 class YearFilter(
     private val translator: ChineseTranslator,
 ) : QueryFilter(
-    name = "發佈年份",  
+    name = "發佈年份",
     key = "year",
-    values = arrayOf("全部年份")  
+    values = arrayOf(
+        "全部年份",
+    )
 ) {
     private val translatedName: String by lazy { runBlocking { translator.translate(name) } }
     private val translatedValues: Array<String> by lazy {
@@ -91,9 +93,11 @@ class YearFilter(
 class MonthFilter(
     private val translator: ChineseTranslator,
 ) : QueryFilter(
-    name = "發佈月份",  
+    name = "發佈月份",
     key = "month",
-    values = arrayOf("全部月份")  
+    values = arrayOf(
+        "全部月份",
+    )
 ) {
     private val translatedName: String by lazy { runBlocking { translator.translate(name) } }
     private val translatedValues: Array<String> by lazy {
@@ -109,8 +113,8 @@ class DateFilter(
     yearFilter: YearFilter,
     monthFilter: MonthFilter,
 ) : AnimeFilter.Group<QueryFilter>(
-    name = "發佈日期",  
-    filters = listOf(yearFilter, monthFilter)
+    name = "發佈日期",
+    filters = listOf(yearFilter, monthFilter),
 ) {
     private val translatedName: String by lazy { runBlocking { translator.translate(name) } }
     
