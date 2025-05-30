@@ -28,20 +28,14 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import okhttp3.Cookie
-import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.Interceptor
 import okhttp3.Request
 import okhttp3.Response
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import uy.kohesive.injekt.injectLazy
-import java.text.SimpleDateFormat
 import java.util.Locale
 import kotlin.coroutines.resume
 
@@ -111,6 +105,16 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         ChineseTranslator(Injekt.get<Application>().applicationContext)
     }
 
+    override val name = "Hanime1"
+    override val baseUrl = "https://hanime1.me"
+    override val lang = "zh"
+    override val supportsLatest = true
+
+    private val json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+    }
+
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         super.setupPreferenceScreen(screen)
 
@@ -130,6 +134,25 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         private const val PREF_TRANSLATE_KEY = "pref_translate_enabled"
     }
 
+    override fun getFilterList(): AnimeFilterList {
+        return AnimeFilterList(
+            SortFilter(translator),
+            GenreFilter(translator),
+            DateFilter(
+                translator,
+                YearFilter(translator),
+                MonthFilter(translator)
+            ),
+            CategoryFilter(
+                runBlocking { translator.translate("分類") },
+                listOf(
+                    HotFilter(translator),
+                    BroadMatchFilter(translator)
+                )
+            )
+        )
+    }
+
     private suspend fun translateIfEnabled(text: String): String {
         val prefs = Injekt.get<SharedPreferences>()
         return if (prefs.getBoolean(PREF_TRANSLATE_KEY, false)) {
@@ -139,30 +162,80 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         }
     }
 
-    override suspend fun animeDetailsParse(response: Response): SAnime {
-        val jsoup = response.asJsoup()
-        return SAnime.create().apply {
-            genre = jsoup.select(".single-video-tag")
-                .not("[data-toggle]")
-                .eachText()
-                .joinToString { runBlocking { translateIfEnabled(it) } }
+    override suspend fun getPopularAnime(page: Int): AnimesPage {
+        val response = client.newCall(popularAnimeRequest(page)).awaitSuccess()
+        return popularAnimeParse(response)
+    }
 
-            author = runBlocking {
-                translateIfEnabled(jsoup.select("#video-artist-name").text())
-            }
+    override suspend fun getLatestUpdates(page: Int): AnimesPage {
+        val response = client.newCall(latestUpdatesRequest(page)).awaitSuccess()
+        return latestUpdatesParse(response)
+    }
 
-            jsoup.select("script[type=application/ld+json]").first()?.data()?.let {
-                val info = json.decodeFromString<JsonElement>(it).jsonObject
+    override suspend fun searchAnime(page: Int, query: String, filters: AnimeFilterList): AnimesPage {
+        val response = client.newCall(searchAnimeRequest(page, query, filters)).awaitSuccess()
+        return searchAnimeParse(response)
+    }
 
-                title = runBlocking {
-                    translateIfEnabled(info["name"]!!.jsonPrimitive.content)
+    override suspend fun getAnimeDetails(anime: SAnime): SAnime {
+        val response = client.newCall(animeDetailsRequest(anime)).awaitSuccess()
+        return animeDetailsParse(response)
+    }
+
+    override suspend fun getEpisodeList(anime: SAnime): List<SEpisode> {
+        val response = client.newCall(episodeListRequest(anime)).awaitSuccess()
+        return episodeListParse(response)
+    }
+
+    override suspend fun getVideoList(episode: SEpisode): List<Video> {
+        val response = client.newCall(videoListRequest(episode)).awaitSuccess()
+        return videoListParse(response)
+    }
+
+    // Request builders
+    private fun popularAnimeRequest(page: Int): Request {
+        return GET("$baseUrl/ranking?page=$page", headers)
+    }
+
+    private fun latestUpdatesRequest(page: Int): Request {
+        return GET("$baseUrl/latest?page=$page", headers)
+    }
+
+    private fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
+        val url = "$baseUrl/search".toHttpUrl().newBuilder()
+            .addQueryParameter("query", query)
+            .addQueryParameter("page", page.toString())
+            .apply {
+                filters.forEach { filter ->
+                    when (filter) {
+                        is QueryFilter -> addQueryParameter(filter.key, filter.selected)
+                        is TagFilter -> if (filter.state) addQueryParameter(filter.key, "true")
+                    }
                 }
-
-                description = runBlocking {
-                    translateIfEnabled(info["description"]!!.jsonPrimitive.content)
-                }
             }
-        }
+            .build()
+        return GET(url, headers)
+    }
+
+    private fun animeDetailsRequest(anime: SAnime): Request {
+        return GET(baseUrl + anime.url, headers)
+    }
+
+    private fun episodeListRequest(anime: SAnime): Request {
+        return GET(baseUrl + anime.url, headers)
+    }
+
+    private fun videoListRequest(episode: SEpisode): Request {
+        return GET(baseUrl + episode.url, headers)
+    }
+
+    // Parsers
+    override suspend fun popularAnimeParse(response: Response): AnimesPage {
+        return searchAnimeParse(response)
+    }
+
+    override suspend fun latestUpdatesParse(response: Response): AnimesPage {
+        return searchAnimeParse(response)
     }
 
     override suspend fun searchAnimeParse(response: Response): AnimesPage {
@@ -197,6 +270,60 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         }
         val nextPage = jsoup.select("li.page-item a.page-link[rel=next]")
         return AnimesPage(list, nextPage.isNotEmpty())
+    }
+
+    override suspend fun animeDetailsParse(response: Response): SAnime {
+        val jsoup = response.asJsoup()
+        return SAnime.create().apply {
+            genre = jsoup.select(".single-video-tag")
+                .not("[data-toggle]")
+                .eachText()
+                .joinToString { runBlocking { translateIfEnabled(it) } }
+
+            author = runBlocking {
+                translateIfEnabled(jsoup.select("#video-artist-name").text())
+            }
+
+            jsoup.select("script[type=application/ld+json]").first()?.data()?.let {
+                val info = json.decodeFromString<JsonElement>(it).jsonObject
+
+                title = runBlocking {
+                    translateIfEnabled(info["name"]!!.jsonPrimitive.content)
+                }
+
+                description = runBlocking {
+                    translateIfEnabled(info["description"]!!.jsonPrimitive.content)
+                }
+            }
+        }
+    }
+
+    override suspend fun episodeListParse(response: Response): List<SEpisode> {
+        val jsoup = response.asJsoup()
+        return jsoup.select(".episode-list a").map {
+            SEpisode.create().apply {
+                name = runBlocking {
+                    translateIfEnabled(it.select(".episode-title").text())
+                }
+                episode_number = it.select(".episode-number").text().toFloatOrNull() ?: 0f
+                date_upload = parseDate(it.select(".episode-date").text())
+                setUrlWithoutDomain(it.attr("href"))
+            }
+        }
+    }
+
+    override suspend fun videoListParse(response: Response): List<Video> {
+        // Implementation depends on the video extraction method
+        // This is just a placeholder
+        return emptyList()
+    }
+
+    private fun parseDate(dateStr: String): Long {
+        return try {
+            SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(dateStr)?.time ?: 0L
+        } catch (e: Exception) {
+            0L
+        }
     }
 
     private fun String.appendInvisibleChar(): String {
