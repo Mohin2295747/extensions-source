@@ -27,7 +27,7 @@ class GenreFilter(
         "裏番",
         "泡面番",
         "Motion Anime",
-    )
+    ),
 ) {
     private val translatedName: String by lazy { runBlocking { translator.translate(name) } }
     private val translatedValues: Array<String> by lazy {
@@ -49,7 +49,7 @@ class SortFilter(
         "本日排行",
         "本週排行",
         "本月排行",
-    )
+    ),
 ) {
     private val translatedName: String by lazy { runBlocking { translator.translate(name) } }
     private val translatedValues: Array<String> by lazy {
@@ -68,7 +68,6 @@ class HotFilter(
     state = true,
 ) {
     private val translatedName: String by lazy { runBlocking { translator.translate(name) } }
-    
     override fun getName(): String = translatedName
 }
 
@@ -79,7 +78,7 @@ class YearFilter(
     key = "year",
     values = arrayOf(
         "全部年份",
-    )
+    ),
 ) {
     private val translatedName: String by lazy { runBlocking { translator.translate(name) } }
     private val translatedValues: Array<String> by lazy {
@@ -97,7 +96,7 @@ class MonthFilter(
     key = "month",
     values = arrayOf(
         "全部月份",
-    )
+    ),
 ) {
     private val translatedName: String by lazy { runBlocking { translator.translate(name) } }
     private val translatedValues: Array<String> by lazy {
@@ -117,6 +116,5 @@ class DateFilter(
     filters = listOf(yearFilter, monthFilter),
 ) {
     private val translatedName: String by lazy { runBlocking { translator.translate(name) } }
-    
     override fun getName(): String = translatedName
 }
