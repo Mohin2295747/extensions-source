@@ -10,7 +10,6 @@ import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.TranslatorOptions
 import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
-import eu.kanade.tachiyomi.animesource.model.AnimeFilter
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 import eu.kanade.tachiyomi.animesource.model.AnimesPage
 import eu.kanade.tachiyomi.animesource.model.SAnime
@@ -234,20 +233,49 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         }
     }
     override suspend fun episodeListRequest(anime: SAnime): Request {
-        return GET(baseUrl + anime.url)
-    }
-     override suspend fun episodeListParse(response: Response): List<SEpisode> {
-        val jsoup = response.asJsoup()
-        return jsoup.select(".playlist-episode").map {
+    return GET(baseUrl + anime.url, headers)
+}
+
+override suspend fun episodeListParse(response: Response): List<SEpisode> {
+    val jsoup = response.asJsoup()
+    return jsoup.select(".playlist-episode").mapNotNull {
+        try {
             SEpisode.create().apply {
                 name = runBlocking {
                     translateIfEnabled(it.select(".playlist-episode-title").text())
                 }
-                episode_number = it.select(".playlist-episode-number").text().toFloatOrNull() ?: 0f
-                setUrlWithoutDomain(it.attr("href"))
+                episode_number = it.select(".playlist-episode-number")
+                    .text()
+                    .toFloatOrNull() ?: 0f
+                date_upload = System.currentTimeMillis()
+                setUrlWithoutDomain(it.attr("href").takeIf { href -> href.isNotEmpty() }
+                    ?: return@mapNotNull null
             }
+        } catch (e: Exception) {
+            null
         }
     }
+}
+
+override suspend fun videoListRequest(episode: SEpisode): Request {
+    return GET(baseUrl + episode.url, headers)
+}
+
+override suspend fun videoListParse(response: Response): List<Video> {
+    val jsoup = response.asJsoup()
+    return jsoup.select("source").mapNotNull {
+        try {
+            val src = it.attr("src").takeIf { src -> src.isNotEmpty() } ?: return@mapNotNull null
+            Video(
+                url = src,
+                quality = it.attr("title").takeIf { title -> title.isNotEmpty() } ?: "Unknown",
+                videoUrl = src
+            )
+        } catch (e: Exception) {
+            null 
+        }
+    }
+}
     override suspend fun videoListRequest(episode: SEpisode): Request {
         return GET(baseUrl + episode.url)
     }
