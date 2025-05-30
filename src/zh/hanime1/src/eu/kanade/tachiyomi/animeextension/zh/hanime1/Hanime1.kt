@@ -26,6 +26,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -47,16 +48,18 @@ import kotlin.coroutines.resume
 class ChineseTranslator(private val context: Context) {
     private var translator: com.google.mlkit.nl.translate.Translator? = null
     private val languageIdentifier = LanguageIdentification.getClient()
-    private val translationCache = mutableMapOf<String, String>()
+    private val translationCache = object : LinkedHashMap<String, String>(100, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?) = size > 500
+    }
 
-    suspend fun translate(text: String): String {
-        if (text.isBlank()) return text
+    suspend fun translate(text: String): String = withContext(Dispatchers.IO) {
+        if (text.isBlank()) return@withContext text
 
-        translationCache[text]?.let { return it }
+        translationCache[text]?.let { return@withContext it }
 
         val detectedLang = detectLanguage(text)
         if (detectedLang != "zh" && detectedLang != "zh-CN" && detectedLang != "zh-TW") {
-            return text
+            return@withContext text
         }
 
         if (translator == null) {
@@ -69,11 +72,11 @@ class ChineseTranslator(private val context: Context) {
             try {
                 translator!!.downloadModelIfNeeded().await()
             } catch (e: Exception) {
-                return text
+                return@withContext text
             }
         }
 
-        return try {
+        return@withContext try {
             val translated = translator!!.translate(text).await()
             translationCache[text] = translated
             translated
@@ -84,19 +87,22 @@ class ChineseTranslator(private val context: Context) {
 
     private suspend fun detectLanguage(text: String): String {
         return suspendCancellableCoroutine { continuation ->
-            languageIdentifier.identifyLanguage(text)
-                .addOnSuccessListener { languageCode ->
-                    continuation.resume(languageCode)
-                }
-                .addOnFailureListener {
-                    continuation.resume("und")
-                }
+            val task = languageIdentifier.identifyLanguage(text)
+            task.addOnSuccessListener { languageCode ->
+                continuation.resume(languageCode)
+            }
+            task.addOnFailureListener {
+                continuation.resume("und")
+            }
         }
     }
 
     fun cleanup() {
-        translator?.close()
-        languageIdentifier.close()
+        try {
+            translator?.close()
+        } finally {
+            languageIdentifier.close()
+        }
     }
 }
 
@@ -191,5 +197,9 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         }
         val nextPage = jsoup.select("li.page-item a.page-link[rel=next]")
         return AnimesPage(list, nextPage.isNotEmpty())
+    }
+
+    private fun String.appendInvisibleChar(): String {
+        return "$this\u200B" // Zero-width space to prevent title truncation
     }
 }
