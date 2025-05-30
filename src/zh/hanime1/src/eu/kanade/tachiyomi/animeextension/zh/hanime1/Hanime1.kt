@@ -67,7 +67,8 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     // Translation API settings
     private val translateUrl = "https://translation.googleapis.com/language/translate/v2"
-    private val apiKey get() = preferences.getString(PREF_KEY_API, "") ?: ""
+    private val defaultApiKey = "AIzaSyCgTP2DCkLf8KzD3t3t7eZ_gR00rr3UIm0"
+    private val apiKey get() = preferences.getString(PREF_KEY_API, defaultApiKey) ?: defaultApiKey
     private val mediaType = "application/json".toMediaType()
 
     // Translation data classes
@@ -94,9 +95,23 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         }
     }
 
+    override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        super.setupPreferenceScreen(screen)
+        
+        // Add API key preference
+        EditTextPreference(screen.context).apply {
+            key = PREF_KEY_API
+            title = "Google Cloud API Key"
+            summary = "Default key is provided, but you can use your own"
+            dialogTitle = "Enter Google Cloud API Key"
+            setDefaultValue(defaultApiKey)
+            screen.addPreference(this)
+        }
+    }
+
     // Translate text using Google Cloud API
     private suspend fun translate(text: String): String {
-        if (text.isBlank() || apiKey.isBlank()) return text
+        if (text.isBlank()) return text
 
         try {
             val requestBody = json.encodeToString(TranslationRequest(text))
@@ -122,16 +137,13 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             author = jsoup.select("#video-artist-name").text()
             jsoup.select("script[type=application/ld+json]").first()?.data()?.let {
                 val info = json.decodeFromString<JsonElement>(it).jsonObject
-                // Translate title and description
-                title = translate(info["name"]!!.jsonPrimitive.content)
-                description = translate(info["description"]!!.jsonPrimitive.content)
+                title = runBlocking { translate(info["name"]!!.jsonPrimitive.content) }
+                description = runBlocking { translate(info["description"]!!.jsonPrimitive.content) }
             }
         }
     }
 
-    // ... [rest of the file remains exactly the same as your original implementation]
-    // All other methods (episodeListParse, videoListParse, etc.) should be kept unchanged
-    // from your original file, just without any trailing spaces
+    // ... [rest of your existing implementation remains unchanged]
 
     companion object {
         const val PREF_KEY_API = "pref_api_key"
