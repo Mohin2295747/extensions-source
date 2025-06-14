@@ -5,10 +5,3 @@ ext {
 }
 
 apply from: "$rootDir/common.gradle"
-
-dependencies {
-    implementation(project(':lib:json-parser'))
-    implementation(project(':lib:network-utils'))
-    implementation(project(':lib:translator'))
-    implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.3.0"
-}
