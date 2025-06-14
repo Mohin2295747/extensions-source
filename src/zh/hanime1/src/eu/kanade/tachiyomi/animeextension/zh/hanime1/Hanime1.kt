@@ -1,7 +1,7 @@
 package eu.kanade.tachiyomi.animeextension.zh.hanime1
 
-import android.content.SharedPreferences
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.animesource.AnimeFilter
@@ -10,13 +10,10 @@ import eu.kanade.tachiyomi.animesource.model.AnimesPage
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Video
-import eu.kanade.tachiyomi.lib.playlistutils.PlaylistUtils
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.asJsoup
 import eu.kanade.tachiyomi.network.awaitSuccess
 import eu.kanade.tachiyomi.source.ConfigurableAnimeSource
-import eu.kanade.tachiyomi.source.model.FilterList
-import eu.kanade.tachiyomi.util.asJsoup
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,7 +26,6 @@ import okhttp3.Cookie
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
@@ -266,42 +262,46 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             createFilter(PREF_KEY_SORT_LIST) { SortFilter(it) },
             DateFilter(
                 createFilter(PREF_KEY_YEAR_LIST) { YearFilter(it) },
-                createFilter(PREF_KEY_MONTH_LIST) { MonthFilter(it) }
+                createFilter(PREF_KEY_MONTH_LIST) { MonthFilter(it) },
             ),
-            TagsFilter(createCategoryFilters())
+            TagsFilter(createCategoryFilters()),
         )
     }
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         screen.apply {
-            addPreference(ListPreference(context).apply {
-                key = PREF_KEY_VIDEO_QUALITY
-                title = "\u9996\u9009\u753b\u8d28"
-                entries = arrayOf("1080P", "720P", "480P")
-                entryValues = entries
-                setDefaultValue(DEFAULT_QUALITY)
-                summary = "\u5f53\u524d\u9009\u62e9\uff1a${preferences.getString(PREF_KEY_VIDEO_QUALITY, DEFAULT_QUALITY)}"
-                setOnPreferenceChangeListener { _, newValue ->
-                    summary = "\u5f53\u524d\u9009\u62e9\uff1a${newValue as String}"
-                    true
+            addPreference(
+                ListPreference(context).apply {
+                    key = PREF_KEY_VIDEO_QUALITY
+                    title = "\u9996\u9009\u753b\u8d28"
+                    entries = arrayOf("1080P", "720P", "480P")
+                    entryValues = entries
+                    setDefaultValue(DEFAULT_QUALITY)
+                    summary = "\u5f53\u524d\u9009\u62e9\uff1a${preferences.getString(PREF_KEY_VIDEO_QUALITY, DEFAULT_QUALITY)}"
+                    setOnPreferenceChangeListener { _, newValue ->
+                        summary = "\u5f53\u524d\u9009\u62e9\uff1a${newValue as String}"
+                        true
+                    }
                 }
-            })
+            )
 
-            addPreference(ListPreference(context).apply {
-                key = PREF_KEY_LANG
-                title = "\u5b57\u5e55\u8bed\u8a00"
-                summary = "\u6b64\u8bbe\u7f6e\u53ea\u5f71\u54cd\u5b57\u5e55\u663e\u793a\u8bed\u8a00"
-                entries = arrayOf("\u7e41\u4f53\u4e2d\u6587", "\u7b80\u4f53\u4e2d\u6587")
-                entryValues = arrayOf("zh-CHT", "zh-CHS")
-                setOnPreferenceChangeListener { _, newValue ->
-                    val baseHttpUrl = baseUrl.toHttpUrl()
-                    client.cookieJar.saveFromResponse(
-                        baseHttpUrl,
-                        listOf(Cookie.parse(baseHttpUrl, "user_lang=${newValue as String}")!!),
-                    )
-                    true
+            addPreference(
+                ListPreference(context).apply {
+                    key = PREF_KEY_LANG
+                    title = "\u5b57\u5e55\u8bed\u8a00"
+                    summary = "\u6b64\u8bbe\u7f6e\u53ea\u5f71\u54cd\u5b57\u5e55\u663e\u793a\u8bed\u8a00"
+                    entries = arrayOf("\u7e41\u4f53\u4e2d\u6587", "\u7b80\u4f53\u4e2d\u6587")
+                    entryValues = arrayOf("zh-CHT", "zh-CHS")
+                    setOnPreferenceChangeListener { _, newValue ->
+                        val baseHttpUrl = baseUrl.toHttpUrl()
+                        client.cookieJar.saveFromResponse(
+                            baseHttpUrl,
+                            listOf(Cookie.parse(baseHttpUrl, "user_lang=${newValue as String}")!!),
+                        )
+                        true
+                    }
                 }
-            })
+            )
         }
     }
 
