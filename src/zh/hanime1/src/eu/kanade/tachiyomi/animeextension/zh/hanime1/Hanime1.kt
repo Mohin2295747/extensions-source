@@ -3,18 +3,19 @@ package eu.kanade.tachiyomi.animeextension.zh.hanime1
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.preference.PreferenceScreen
-import eu.kanade.tachiyomi.animesource.AnimeHttpSource
 import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 import eu.kanade.tachiyomi.animesource.model.AnimesPage
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Video
+import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.network.GET
-import eu.kanade.tachiyomi.network.asJsoup
+import eu.kanade.tachiyomi.network.asObservable
+import eu.kanade.tachiyomi.util.asJsoup
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.decodeFromString
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
@@ -23,8 +24,10 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
+import rx.Observable
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import uy.kohesive.injekt.injectLazy
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -35,6 +38,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override val lang = "zh"
     override val supportsLatest = true
 
+    private val network by injectLazy<eu.kanade.tachiyomi.network.NetworkHelper>()
     override val client = network.client
 
     private val preferences: SharedPreferences by lazy {
@@ -42,10 +46,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     private val json by lazy { Json { ignoreUnknownKeys = true } }
-
-    private val uploadDateFormat by lazy {
-        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.getDefault())
-    }
 
     private fun translateText(text: String): String {
         return try {
@@ -74,7 +74,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             genre = jsoup.select(".single-video-tag").not("[data-toggle]").eachText().joinToString()
             author = jsoup.select("#video-artist-name").text()
             jsoup.select("script[type=application/ld+json]").firstOrNull()?.data()?.let {
-                val info = json.decodeFromString<JsonObject>(it)
+                val info = json.decodeFromJsonElement<JsonObject>(json.parseToJsonElement(it))
                 val rawTitle = info["name"]!!.jsonPrimitive.content
                 val rawDesc = info["description"]!!.jsonPrimitive.content
                 title = translateText(rawTitle)
@@ -89,7 +89,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         return nodes.mapIndexed { index, element ->
             SEpisode.create().apply {
                 val href = element.select("a.overlay").attr("href")
-                setUrlWithoutDomain(href)
+                url = href
                 episode_number = (nodes.size - index).toFloat()
                 name = element.select("div.card-mobile-title").text()
             }
@@ -103,8 +103,8 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         return sourceList.map { source ->
             val quality = source.attr("size")
             val url = source.attr("src")
-            Video(url, "${quality}P", videoUrl = url)
-        }.filterNot { it.videoUrl?.startsWith("blob") == true }
+            Video(url, "${quality}P", url)
+        }.filterNot { it.url.startsWith("blob") }
             .sortedByDescending { it.quality == preferQuality }
     }
 
@@ -117,7 +117,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         val jsoup = response.asJsoup()
         val list = jsoup.select("div.search-doujin-videos.hidden-xs").map {
             SAnime.create().apply {
-                setUrlWithoutDomain(it.select("a.overlay").attr("href"))
+                url = it.select("a.overlay").attr("href")
                 thumbnail_url = it.select("img + img").attr("src")
                 title = translateText(it.select("div.card-mobile-title").text())
                 author = it.select(".card-mobile-user").text()
@@ -138,6 +138,10 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun getFilterList(): AnimeFilterList = AnimeFilterList()
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {}
+
+    override fun videoUrlRequest(episode: SEpisode): Request {
+        return GET(episode.url)
+    }
 
     companion object {
         const val PREF_KEY_VIDEO_QUALITY = "PREF_KEY_VIDEO_QUALITY"
