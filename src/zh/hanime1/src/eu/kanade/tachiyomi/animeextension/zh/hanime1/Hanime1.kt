@@ -269,41 +269,42 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
-    screen.apply {
-        addPreference(
-            ListPreference(context).apply {
-                key = PREF_KEY_VIDEO_QUALITY
-                title = "\u9996\u9009\u753b\u8d28"
-                entries = arrayOf("1080P", "720P", "480P")
-                entryValues = entries
-                setDefaultValue(DEFAULT_QUALITY)
-                summary = "\u5f53\u524d\u9009\u62e9\uff1a${preferences.getString(PREF_KEY_VIDEO_QUALITY, DEFAULT_QUALITY)}"
-                setOnPreferenceChangeListener { _, newValue ->
-                    summary = "\u5f53\u524d\u9009\u62e9\uff1a${newValue as String}"
-                    true
-                }
-            },
-        )
+        screen.apply {
+            addPreference(
+                ListPreference(context).apply {
+                    key = PREF_KEY_VIDEO_QUALITY
+                    title = "\u9996\u9009\u753b\u8d28"
+                    entries = arrayOf("1080P", "720P", "480P")
+                    entryValues = entries
+                    setDefaultValue(DEFAULT_QUALITY)
+                    summary = "\u5f53\u524d\u9009\u62e9\uff1a${preferences.getString(PREF_KEY_VIDEO_QUALITY, DEFAULT_QUALITY)}"
+                    setOnPreferenceChangeListener { _, newValue ->
+                        summary = "\u5f53\u524d\u9009\u62e9\uff1a${newValue as String}"
+                        true
+                    }
+                },
+            )
 
-        addPreference(
-            ListPreference(context).apply {
-                key = PREF_KEY_LANG
-                title = "\u5b57\u5e55\u8bed\u8a00"
-                summary = "\u6b64\u8bbe\u7f6e\u53ea\u5f71\u54cd\u5b57\u5e55\u663e\u793a\u8bed\u8a00"
-                entries = arrayOf("\u7e41\u4f53\u4e2d\u6587", "\u7b80\u4f53\u4e2d\u6587")
-                entryValues = arrayOf("zh-CHT", "zh-CHS")
-                setOnPreferenceChangeListener { _, newValue ->
-                    val baseHttpUrl = baseUrl.toHttpUrl()
-                    client.cookieJar.saveFromResponse(
-                        baseHttpUrl,
-                        listOf(Cookie.parse(baseHttpUrl, "user_lang=${newValue as String}")!!),
-                    )
-                    true
-                }
-            },
-        )
+            addPreference(
+                ListPreference(context).apply {
+                    key = PREF_KEY_LANG
+                    title = "\u5b57\u5e55\u8bed\u8a00"
+                    summary = "\u6b64\u8bbe\u7f6e\u53ea\u5f71\u54cd\u5b57\u5e55\u663e\u793a\u8bed\u8a00"
+                    entries = arrayOf("\u7e41\u4f53\u4e2d\u6587", "\u7b80\u4f53\u4e2d\u6587")
+                    entryValues = arrayOf("zh-CHT", "zh-CHS")
+                    setOnPreferenceChangeListener { _, newValue ->
+                        val baseHttpUrl = baseUrl.toHttpUrl()
+                        client.cookieJar.saveFromResponse(
+                            baseHttpUrl,
+                            listOf(Cookie.parse(baseHttpUrl, "user_lang=${newValue as String}")!!),
+                        )
+                        true
+                    }
+                },
+            )
+        }
     }
-    
+
     companion object {
         const val PREF_KEY_VIDEO_QUALITY = "PREF_KEY_VIDEO_QUALITY"
         const val PREF_KEY_LANG = "PREF_KEY_LANG"
