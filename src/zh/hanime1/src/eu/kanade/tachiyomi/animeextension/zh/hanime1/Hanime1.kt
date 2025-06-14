@@ -1,29 +1,47 @@
-package eu.kanade.tachiyomi.animeextension.zh.hanime1
+import java.text.SimpleDateFormat
+
+import java.util.Locale
+
+import kotlinx.serialization.json.Json
+
+import kotlinx.serialization.json.JsonObject
+
+import kotlinx.serialization.json.decodeFromString
+
+import kotlinx.serialization.json.jsonPrimitive
 
 import android.content.Context
+
 import android.content.SharedPreferences
-import androidx.preference.PreferenceScreen
-import eu.kanade.tachiyomi.animesource.AnimeSourceFactory
-import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
-import eu.kanade.tachiyomi.animesource.model.*
+
 import eu.kanade.tachiyomi.animesource.AnimeHttpSource
+
+import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
+
 import eu.kanade.tachiyomi.network.GET
+
 import eu.kanade.tachiyomi.network.asJsoup
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.decodeFromString
-import kotlinx.serialization.json.jsonPrimitive
+
 import okhttp3.HttpUrl.Companion.toHttpUrl
+
 import okhttp3.MediaType.Companion.toMediaType
+
 import okhttp3.Request
+
 import okhttp3.RequestBody.Companion.toRequestBody
+
 import okhttp3.Response
+
 import org.json.JSONArray
+
 import org.json.JSONObject
+
 import uy.kohesive.injekt.Injekt
+
 import uy.kohesive.injekt.api.get
-import java.text.SimpleDateFormat
-import java.util.Locale
+
+package eu.kanade.tachiyomi.animeextension.zh.hanime1
+
 
 class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override val name = "Hanime1.me"
