@@ -2,9 +2,7 @@ package eu.kanade.tachiyomi.animeextension.zh.hanime1
 
 import android.content.Context
 import android.content.SharedPreferences
-import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
-import eu.kanade.tachiyomi.animesource.AnimeFilter
 import eu.kanade.tachiyomi.animesource.AnimeFilterList
 import eu.kanade.tachiyomi.animesource.AnimeHttpSource
 import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
@@ -15,15 +13,10 @@ import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.asJsoup
 import eu.kanade.tachiyomi.network.awaitSuccess
-import kotlinx.coroutines.CoroutineExceptionHandler
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.decodeFromString
-import okhttp3.Cookie
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
@@ -111,7 +104,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         return sourceList.map { source ->
             val quality = source.attr("size")
             val url = source.attr("src")
-            Video(url, "\${quality}P", videoUrl = url)
+            Video(url, "${quality}P", videoUrl = url)
         }.filterNot { it.videoUrl?.startsWith("blob") == true }
             .sortedByDescending { it.quality == preferQuality }
     }
