@@ -1,49 +1,35 @@
-import java.text.SimpleDateFormat
-
-import java.util.Locale
-
-import kotlinx.serialization.json.Json
-
-import kotlinx.serialization.json.JsonObject
-
-import kotlinx.serialization.json.decodeFromString
-
-import kotlinx.serialization.json.jsonPrimitive
-
-import android.content.Context
-
-import android.content.SharedPreferences
-
-import eu.kanade.tachiyomi.animesource.AnimeHttpSource
-
-import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
-
-import eu.kanade.tachiyomi.network.GET
-
-import eu.kanade.tachiyomi.network.asJsoup
-
-import okhttp3.HttpUrl.Companion.toHttpUrl
-
-import okhttp3.MediaType.Companion.toMediaType
-
-import okhttp3.Request
-
-import okhttp3.RequestBody.Companion.toRequestBody
-
-import okhttp3.Response
-
-import org.json.JSONArray
-
-import org.json.JSONObject
-
-import uy.kohesive.injekt.Injekt
-
-import uy.kohesive.injekt.api.get
-
 package eu.kanade.tachiyomi.animeextension.zh.hanime1
 
+import android.content.Context
+import android.content.SharedPreferences
+import androidx.preference.PreferenceScreen
+import eu.kanade.tachiyomi.animesource.AnimeHttpSource
+import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
+import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
+import eu.kanade.tachiyomi.animesource.model.AnimesPage
+import eu.kanade.tachiyomi.animesource.model.SAnime
+import eu.kanade.tachiyomi.animesource.model.SEpisode
+import eu.kanade.tachiyomi.animesource.model.Video
+import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.network.asJsoup
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.decodeFromString
+import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
+import org.json.JSONArray
+import org.json.JSONObject
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
+
     override val name = "Hanime1.me"
     override val baseUrl = "https://hanime1.me"
     override val lang = "zh"
@@ -54,7 +40,9 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     private val preferences: SharedPreferences by lazy {
         Injekt.get<Context>().getSharedPreferences("source_$id", Context.MODE_PRIVATE)
     }
+
     private val json by lazy { Json { ignoreUnknownKeys = true } }
+
     private val uploadDateFormat by lazy {
         SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.getDefault())
     }
@@ -68,7 +56,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 .post(body)
                 .addHeader("Authorization", "Bearer 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")
                 .build()
-
             val response = client.newCall(request).execute()
             if (response.isSuccessful) {
                 val resp = JSONArray(response.body?.string() ?: "[]").getJSONObject(0)
@@ -113,7 +100,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         val doc = response.asJsoup()
         val sourceList = doc.select("video source")
         val preferQuality = preferences.getString(PREF_KEY_VIDEO_QUALITY, DEFAULT_QUALITY)
-
         return sourceList.map { source ->
             val quality = source.attr("size")
             val url = source.attr("src")
@@ -150,6 +136,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     override fun getFilterList(): AnimeFilterList = AnimeFilterList()
+
     override fun setupPreferenceScreen(screen: PreferenceScreen) {}
 
     companion object {
