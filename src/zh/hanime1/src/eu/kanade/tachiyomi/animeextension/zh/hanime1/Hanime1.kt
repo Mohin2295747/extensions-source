@@ -2,7 +2,15 @@ package eu.kanade.tachiyomi.animeextension.zh.hanime1
 
 // [IMPORTS OMITTED FOR BREVITY — they are unchanged]
 
-// [FilterUpdateState Enum to track filter update status]
+import kotlinx.coroutines.*
+import kotlinx.serialization.json.*
+import okhttp3.*
+import org.json.JSONObject
+import uy.kohesive.injekt.injectLazy
+import java.text.SimpleDateFormat
+import java.util.*
+import androidx.preference.*
+
 enum class FilterUpdateState {
     NONE,
     UPDATING,
@@ -16,7 +24,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override val name = "Hanime1.me"
     override val supportsLatest = true
 
-    // Client with interceptor to check and refresh filters
     override val client = network.client.newBuilder().addInterceptor(::checkFiltersInterceptor).build()
 
     private val preferences: SharedPreferences by lazy {
@@ -28,6 +35,28 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.getDefault())
     }
 
+    private fun translateText(text: String): String {
+        return try {
+            val json = JSONObject()
+            json.put("text", text)
+
+            val body = json.toString().toRequestBody("application/json".toMediaType())
+            val request = Request.Builder()
+                .url("http://127.0.0.1:5005/translate")
+                .post(body)
+                .build()
+
+            val response = client.newCall(request).execute()
+            if (response.isSuccessful) {
+                JSONObject(response.body?.string() ?: "").optString("translated", text)
+            } else {
+                text
+            }
+        } catch (e: Exception) {
+            text
+        }
+    }
+
     override fun animeDetailsParse(response: Response): SAnime {
         val jsoup = response.asJsoup()
         return SAnime.create().apply {
@@ -35,8 +64,10 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             author = jsoup.select("#video-artist-name").text()
             jsoup.select("script[type=application/ld+json]").first()?.data()?.let {
                 val info = json.decodeFromString<JsonElement>(it).jsonObject
-                title = info["name"]!!.jsonPrimitive.content
-                description = info["description"]!!.jsonPrimitive.content
+                val rawTitle = info["name"]!!.jsonPrimitive.content
+                val rawDesc = info["description"]!!.jsonPrimitive.content
+                title = translateText(rawTitle)
+                description = translateText(rawDesc)
             }
         }
     }
@@ -98,7 +129,8 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 SAnime.create().apply {
                     setUrlWithoutDomain(it.select("a[class=overlay]").attr("href"))
                     thumbnail_url = it.select("img + img").attr("src")
-                    title = it.select("div.card-mobile-title").text().appendInvisibleChar()
+                    val rawTitle = it.select("div.card-mobile-title").text()
+                    title = translateText(rawTitle).appendInvisibleChar()
                     author = it.select(".card-mobile-user").text()
                 }
             }
@@ -107,7 +139,8 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 SAnime.create().apply {
                     setUrlWithoutDomain(it.parent()!!.attr("href"))
                     thumbnail_url = it.select("img").attr("src")
-                    title = it.select(".home-rows-videos-title").text().appendInvisibleChar()
+                    val rawTitle = it.select(".home-rows-videos-title").text()
+                    title = translateText(rawTitle).appendInvisibleChar()
                 }
             }
         }
@@ -214,22 +247,22 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         screen.apply {
             addPreference(ListPreference(context).apply {
                 key = PREF_KEY_VIDEO_QUALITY
-                title = "首选画质"
+                title = "\u9996\u9009\u753b\u8d28"
                 entries = arrayOf("1080P", "720P", "480P")
                 entryValues = entries
                 setDefaultValue(DEFAULT_QUALITY)
-                summary = "当前选择：${preferences.getString(PREF_KEY_VIDEO_QUALITY, DEFAULT_QUALITY)}"
+                summary = "\u5f53\u524d\u9009\u62e9\uff1a${preferences.getString(PREF_KEY_VIDEO_QUALITY, DEFAULT_QUALITY)}"
                 setOnPreferenceChangeListener { _, newValue ->
-                    summary = "当前选择：${newValue as String}"
+                    summary = "\u5f53\u524d\u9009\u62e9\uff1a${newValue as String}"
                     true
                 }
             })
 
             addPreference(ListPreference(context).apply {
                 key = PREF_KEY_LANG
-                title = "字幕语言"
-                summary = "此设置只影响字幕显示语言"
-                entries = arrayOf("繁体中文", "简体中文")
+                title = "\u5b57\u5e55\u8bed\u8a00"
+                summary = "\u6b64\u8bbe\u7f6e\u53ea\u5f71\u54cd\u5b57\u5e55\u663e\u793a\u8bed\u8a00"
+                entries = arrayOf("\u7e41\u4f53\u4e2d\u6587", "\u7b80\u4f53\u4e2d\u6587")
                 entryValues = arrayOf("zh-CHT", "zh-CHS")
                 setOnPreferenceChangeListener { _, newValue ->
                     val baseHttpUrl = baseUrl.toHttpUrl()
