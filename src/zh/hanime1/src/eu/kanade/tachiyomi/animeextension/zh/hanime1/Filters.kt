@@ -16,18 +16,10 @@ open class TagFilter(val key: String, name: String, state: Boolean = false) :
     AnimeFilter.CheckBox(name, state)
 
 class GenreFilter(values: Array<String>) :
-    QueryFilter(
-        "Genre",
-        "genre",
-        values.ifEmpty { arrayOf("All", "Hentai", "Short", "Motion Anime") },
-    )
+    QueryFilter("Genre", "genre", values.ifEmpty { arrayOf("All", "Hentai", "Short", "Motion Anime") })
 
 class SortFilter(values: Array<String>) :
-    QueryFilter(
-        "Sort By",
-        "sort",
-        values.ifEmpty { arrayOf("Newest Release", "Recently Uploaded", "Top Today", "Top Week", "Top Month") },
-    )
+    QueryFilter("Sort By", "sort", values.ifEmpty { arrayOf("Newest Release", "Recently Uploaded", "Top Today", "Top Week", "Top Month") })
 
 object HotFilter : TagFilter("sort", "Top Week", true)
 
