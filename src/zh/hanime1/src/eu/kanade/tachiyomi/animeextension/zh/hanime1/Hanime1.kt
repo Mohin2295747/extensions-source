@@ -3,13 +3,10 @@ package eu.kanade.tachiyomi.animeextension.zh.hanime1
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.preference.PreferenceScreen
-import eu.kanade.tachiyomi.animesource.AnimeFilterList
-import eu.kanade.tachiyomi.animesource.AnimeHttpSource
+import eu.kanade.tachiyomi.animesource.AnimeSourceFactory
 import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
-import eu.kanade.tachiyomi.animesource.model.AnimesPage
-import eu.kanade.tachiyomi.animesource.model.SAnime
-import eu.kanade.tachiyomi.animesource.model.SEpisode
-import eu.kanade.tachiyomi.animesource.model.Video
+import eu.kanade.tachiyomi.animesource.model.*
+import eu.kanade.tachiyomi.animesource.AnimeHttpSource
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.asJsoup
 import kotlinx.serialization.json.Json
@@ -29,11 +26,10 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
-    override val id: Long = 1234567890L
-    override val baseUrl: String = "https://hanime1.me"
-    override val lang: String = "zh"
-    override val name: String = "Hanime1.me"
-    override val supportsLatest: Boolean = true
+    override val name = "Hanime1.me"
+    override val baseUrl = "https://hanime1.me"
+    override val lang = "zh"
+    override val supportsLatest = true
 
     override val client = network.client
 
