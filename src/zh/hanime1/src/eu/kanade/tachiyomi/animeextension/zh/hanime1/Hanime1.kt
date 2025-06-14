@@ -8,13 +8,28 @@ import eu.kanade.tachiyomi.animesource.AnimeFilter
 import eu.kanade.tachiyomi.animesource.AnimeFilterList
 import eu.kanade.tachiyomi.animesource.AnimeHttpSource
 import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
-import eu.kanade.tachiyomi.animesource.model.*
+import eu.kanade.tachiyomi.animesource.model.AnimesPage
+import eu.kanade.tachiyomi.animesource.model.SAnime
+import eu.kanade.tachiyomi.animesource.model.SEpisode
+import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.asJsoup
 import eu.kanade.tachiyomi.network.awaitSuccess
-import kotlinx.coroutines.*
-import kotlinx.serialization.json.*
-import okhttp3.*
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.decodeFromString
+import okhttp3.Cookie
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
+import org.json.JSONArray
 import org.json.JSONObject
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -23,10 +38,10 @@ import java.util.Locale
 
 class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override val id: Long = 1234567890L
-    override val baseUrl = "https://hanime1.me"
-    override val lang = "zh"
-    override val name = "Hanime1.me"
-    override val supportsLatest = true
+    override val baseUrl: String = "https://hanime1.me"
+    override val lang: String = "zh"
+    override val name: String = "Hanime1.me"
+    override val supportsLatest: Boolean = true
 
     override val client = network.client
 
@@ -50,7 +65,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
             val response = client.newCall(request).execute()
             if (response.isSuccessful) {
-                val resp = JSONArray(response.body?.string()).getJSONObject(0)
+                val resp = JSONArray(response.body?.string() ?: "[]").getJSONObject(0)
                 resp.optString("translation_text", text)
             } else {
                 text
@@ -65,7 +80,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         return SAnime.create().apply {
             genre = jsoup.select(".single-video-tag").not("[data-toggle]").eachText().joinToString()
             author = jsoup.select("#video-artist-name").text()
-            jsoup.select("script[type=application/ld+json]").first()?.data()?.let {
+            jsoup.select("script[type=application/ld+json]").firstOrNull()?.data()?.let {
                 val info = json.decodeFromString<JsonObject>(it)
                 val rawTitle = info["name"]!!.jsonPrimitive.content
                 val rawDesc = info["description"]!!.jsonPrimitive.content
@@ -77,7 +92,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun episodeListParse(response: Response): List<SEpisode> {
         val jsoup = response.asJsoup()
-        val nodes = jsoup.select("#playlist-scroll").first()!!.select(">div")
+        val nodes = jsoup.select("#playlist-scroll > div")
         return nodes.mapIndexed { index, element ->
             SEpisode.create().apply {
                 val href = element.select("a.overlay").attr("href")
@@ -93,12 +108,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         val sourceList = doc.select("video source")
         val preferQuality = preferences.getString(PREF_KEY_VIDEO_QUALITY, DEFAULT_QUALITY)
 
-        return sourceList.map {
-            val quality = it.attr("size")
-            val url = it.attr("src")
-            Video(url, "${quality}P", videoUrl = url)
+        return sourceList.map { source ->
+            val quality = source.attr("size")
+            val url = source.attr("src")
+            Video(url, "\${quality}P", videoUrl = url)
         }.filterNot { it.videoUrl?.startsWith("blob") == true }
-            .sortedByDescending { preferQuality == it.quality }
+            .sortedByDescending { it.quality == preferQuality }
     }
 
     override fun latestUpdatesParse(response: Response): AnimesPage = searchAnimeParse(response)
@@ -108,31 +123,29 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun searchAnimeParse(response: Response): AnimesPage {
         val jsoup = response.asJsoup()
-        val nodes = jsoup.select("div.search-doujin-videos.hidden-xs")
-
-        val list = nodes.map {
+        val list = jsoup.select("div.search-doujin-videos.hidden-xs").map {
             SAnime.create().apply {
-                setUrlWithoutDomain(it.select("a[class=overlay]").attr("href"))
+                setUrlWithoutDomain(it.select("a.overlay").attr("href"))
                 thumbnail_url = it.select("img + img").attr("src")
-                val rawTitle = it.select("div.card-mobile-title").text()
-                title = translateText(rawTitle)
+                title = translateText(it.select("div.card-mobile-title").text())
                 author = it.select(".card-mobile-user").text()
             }
         }
-
-        val nextPage = jsoup.select("li.page-item a.page-link[rel=next]")
-        return AnimesPage(list, nextPage.isNotEmpty())
+        val hasNext = jsoup.select("li.page-item a.page-link[rel=next]").isNotEmpty()
+        return AnimesPage(list, hasNext)
     }
 
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
-        val url = "$baseUrl/search?page=$page&query=$query"
-        return GET(url)
+        val urlBuilder = baseUrl.toHttpUrl().newBuilder()
+            .addPathSegment("search")
+            .addQueryParameter("query", query)
+        if (page > 1) urlBuilder.addQueryParameter("page", page.toString())
+        return GET(urlBuilder.build().toString())
     }
 
     override fun getFilterList(): AnimeFilterList = AnimeFilterList()
-
     override fun setupPreferenceScreen(screen: PreferenceScreen) {}
-    
+
     companion object {
         const val PREF_KEY_VIDEO_QUALITY = "PREF_KEY_VIDEO_QUALITY"
         const val DEFAULT_QUALITY = "1080P"
