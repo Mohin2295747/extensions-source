@@ -1,15 +1,44 @@
 package eu.kanade.tachiyomi.animeextension.zh.hanime1
 
-// [IMPORTS OMITTED FOR BREVITY — they are unchanged]
-
-import kotlinx.coroutines.*
-import kotlinx.serialization.json.*
-import okhttp3.*
+import android.content.SharedPreferences
+import android.content.Context
+import androidx.preference.ListPreference
+import androidx.preference.PreferenceScreen
+import eu.kanade.tachiyomi.animesource.AnimeFilter
+import eu.kanade.tachiyomi.animesource.AnimeFilterList
+import eu.kanade.tachiyomi.animesource.model.AnimesPage
+import eu.kanade.tachiyomi.animesource.model.SAnime
+import eu.kanade.tachiyomi.animesource.model.SEpisode
+import eu.kanade.tachiyomi.animesource.model.Video
+import eu.kanade.tachiyomi.lib.playlistutils.PlaylistUtils
+import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.network.asJsoup
+import eu.kanade.tachiyomi.network.awaitSuccess
+import eu.kanade.tachiyomi.source.ConfigurableAnimeSource
+import eu.kanade.tachiyomi.source.model.FilterList
+import eu.kanade.tachiyomi.util.asJsoup
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.Cookie
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.Interceptor
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import org.json.JSONObject
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import java.text.SimpleDateFormat
-import java.util.*
-import androidx.preference.*
+import java.util.Locale
 
 enum class FilterUpdateState {
     NONE,
@@ -27,7 +56,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override val client = network.client.newBuilder().addInterceptor(::checkFiltersInterceptor).build()
 
     private val preferences: SharedPreferences by lazy {
-        Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
+        Injekt.get<Context>().getSharedPreferences("source_$id", Context.MODE_PRIVATE)
     }
     private val json by injectLazy<Json>()
     private var filterUpdateState = FilterUpdateState.NONE
@@ -237,9 +266,9 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             createFilter(PREF_KEY_SORT_LIST) { SortFilter(it) },
             DateFilter(
                 createFilter(PREF_KEY_YEAR_LIST) { YearFilter(it) },
-                createFilter(PREF_KEY_MONTH_LIST) { MonthFilter(it) },
+                createFilter(PREF_KEY_MONTH_LIST) { MonthFilter(it) }
             ),
-            TagsFilter(createCategoryFilters()),
+            TagsFilter(createCategoryFilters())
         )
     }
 
