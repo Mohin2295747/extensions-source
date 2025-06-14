@@ -1,176 +1,119 @@
 package eu.kanade.tachiyomi.animeextension.zh.hanime1
 
 import android.app.Application
-import android.content.Context
 import android.content.SharedPreferences
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
-import com.google.mlkit.nl.languageid.LanguageIdentification
-import com.google.mlkit.nl.translate.TranslateLanguage
-import com.google.mlkit.nl.translate.Translation
-import com.google.mlkit.nl.translate.TranslatorOptions
 import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
-import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
-import eu.kanade.tachiyomi.animesource.model.AnimesPage
-import eu.kanade.tachiyomi.animesource.model.SAnime
-import eu.kanade.tachiyomi.animesource.model.SEpisode
-import eu.kanade.tachiyomi.animesource.model.Video
+import eu.kanade.tachiyomi.animesource.model.*
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.awaitSuccess
 import eu.kanade.tachiyomi.util.asJsoup
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.Request
-import okhttp3.Response
+import kotlinx.coroutines.*
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.*
+import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import uy.kohesive.injekt.injectLazy
+import java.text.SimpleDateFormat
+import java.util.Locale
 
-class ChineseTranslator(private val context: Context) {
-    private var translator: com.google.mlkit.nl.translate.Translator? = null
-    private val languageIdentifier = LanguageIdentification.getClient()
-    private val translationCache = object : LinkedHashMap<String, String>(100, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?) = size > 500
-    }
-
-    suspend fun translate(text: String): String = withContext(Dispatchers.IO) {
-        if (text.isBlank()) return@withContext text
-
-        translationCache[text]?.let { return@withContext it }
-
-        val detectedLang = detectLanguage(text)
-        if (detectedLang != "zh" && detectedLang != "zh-CN" && detectedLang != "zh-TW") {
-            return@withContext text
-        }
-
-        if (translator == null) {
-            val options = TranslatorOptions.Builder()
-                .setSourceLanguage(TranslateLanguage.CHINESE)
-                .setTargetLanguage(TranslateLanguage.ENGLISH)
-                .build()
-            translator = Translation.getClient(options)
-
-            try {
-                translator!!.downloadModelIfNeeded().await()
-            } catch (e: Exception) {
-                return@withContext text
-            }
-        }
-
-        return@withContext try {
-            val translated = translator!!.translate(text).await()
-            translationCache[text] = translated
-            translated
-        } catch (e: Exception) {
-            text
-        }
-    }
-
-    private suspend fun detectLanguage(text: String): String {
-        return suspendCancellableCoroutine { continuation ->
-            val task = languageIdentifier.identifyLanguage(text)
-            task.addOnSuccessListener { languageCode ->
-                continuation.resume(languageCode)
-            }
-            task.addOnFailureListener {
-                continuation.resume("und")
-            }
-        }
-    }
-
-    fun cleanup() {
-        try {
-            translator?.close()
-        } finally {
-            languageIdentifier.close()
-        }
-    }
+enum class FilterUpdateState {
+    NONE,
+    UPDATING,
+    COMPLETED,
+    FAILED,
 }
 
 class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
-    override val name = "Hanime1"
-    override val baseUrl = "https://hanime1.me"
-    override val lang = "zh"
-    override val supportsLatest = true
+    override val baseUrl: String get() = "https://hanime1.me"
+    override val lang: String get() = "zh"
+    override val name: String get() = "Hanime1.me"
+    override val supportsLatest: Boolean get() = true
 
-    private val translator by lazy {
-        ChineseTranslator(Injekt.get<Application>().applicationContext)
+    override val client =
+        network.client.newBuilder().addInterceptor(::checkFiltersInterceptor).build()
+
+    private val preferences: SharedPreferences by lazy {
+        Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
+    }
+    private val json by injectLazy<Json>()
+    private var filterUpdateState = FilterUpdateState.NONE
+    private val uploadDateFormat: SimpleDateFormat by lazy {
+        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.getDefault())
     }
 
-    private val json by lazy { Json { ignoreUnknownKeys = true } }
-
-    override fun setupPreferenceScreen(screen: PreferenceScreen) {
-        super.setupPreferenceScreen(screen)
-
-        val translatePref = ListPreference(screen.context).apply {
-            key = PREF_TRANSLATE_KEY
-            title = "Translation"
-            entries = arrayOf("Disabled", "English")
-            entryValues = arrayOf("false", "true")
-            summary = "%s"
-            setDefaultValue("false")
-        }
-
-        screen.addPreference(translatePref)
-    }
-
-    companion object {
-        private const val PREF_TRANSLATE_KEY = "pref_translate_enabled"
-    }
-
-    private suspend fun translateIfEnabled(text: String): String {
-        val prefs = Injekt.get<SharedPreferences>()
-        return if (prefs.getBoolean(PREF_TRANSLATE_KEY, false)) {
-            translator.translate(text)
-        } else {
-            text
+    override fun animeDetailsParse(response: Response): SAnime {
+        val jsoup = response.asJsoup()
+        return SAnime.create().apply {
+            genre = jsoup.select(".single-video-tag").not("[data-toggle]").eachText().joinToString()
+            author = jsoup.select("#video-artist-name").text()
+            jsoup.select("script[type=application/ld+json]").first()?.data()?.let {
+                val info = json.decodeFromString<JsonElement>(it).jsonObject
+                val rawTitle = info["name"]!!.jsonPrimitive.content
+                val rawDesc = info["description"]!!.jsonPrimitive.content
+                title = translateToEnglish(rawTitle)
+                description = translateToEnglish(rawDesc)
+            }
         }
     }
-    override suspend fun popularAnimeRequest(page: Int): Request {
-        return GET("$baseUrl/ranking?type=weekly&page=$page")
-    }
 
-    override suspend fun popularAnimeParse(response: Response): AnimesPage {
-        return parseAnimeList(response)
-    }
-    override suspend fun latestUpdatesRequest(page: Int): Request {
-        return GET("$baseUrl/latest?page=$page")
-    }
-
-    override suspend fun latestUpdatesParse(response: Response): AnimesPage {
-        return parseAnimeList(response)
-    }
-    override suspend fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
-        val url = "$baseUrl/search".toHttpUrl().newBuilder().apply {
-            addQueryParameter("query", query)
-            addQueryParameter("page", page.toString())
-            filters.forEach { filter ->
-                when (filter) {
-                    is QueryFilter -> {
-                        if (filter.selected.isNotEmpty()) {
-                            addQueryParameter(filter.key, filter.selected)
-                        }
-                    }
-                    is TagFilter -> {
-                        if (filter.state) {
-                            addQueryParameter(filter.key, "true")
+    override fun episodeListParse(response: Response): List<SEpisode> {
+        val jsoup = response.asJsoup()
+        val nodes = jsoup.select("#playlist-scroll").first()!!.select(">div")
+        return nodes.mapIndexed { index, element ->
+            SEpisode.create().apply {
+                val href = element.select("a.overlay").attr("href")
+                setUrlWithoutDomain(href)
+                episode_number = (nodes.size - index).toFloat()
+                name = element.select("div.card-mobile-title").text()
+                if (href == response.request.url.toString()) {
+                    jsoup.select("script[type=application/ld+json]").first()?.data()?.let {
+                        val info = json.decodeFromString<JsonElement>(it).jsonObject
+                        info["uploadDate"]?.jsonPrimitive?.content?.let { date ->
+                            date_upload =
+                                runCatching { uploadDateFormat.parse(date)?.time }.getOrNull() ?: 0L
                         }
                     }
                 }
             }
-        }.build()
-        return GET(url.toString())
+        }
     }
-    override suspend fun searchAnimeParse(response: Response): AnimesPage {
-        return parseAnimeList(response)
+
+    override fun videoListParse(response: Response): List<Video> {
+        val doc = response.asJsoup()
+        val sourceList = doc.select("video source")
+        val preferQuality = preferences.getString(PREF_KEY_VIDEO_QUALITY, DEFAULT_QUALITY)
+        return sourceList.map {
+            val quality = it.attr("size")
+            val url = it.attr("src")
+            Video(url, "${quality}P", videoUrl = url)
+        }.filterNot { it.videoUrl?.startsWith("blob") == true }
+            .sortedByDescending { preferQuality == it.quality }
+            .ifEmpty {
+                val videoUrl = doc.select("script[type=application/ld+json]").first()!!.data().let {
+                    val info = json.decodeFromString<JsonElement>(it).jsonObject
+                    info["contentUrl"]!!.jsonPrimitive.content
+                }
+                listOf(Video(videoUrl, "Raw", videoUrl = videoUrl))
+            }
     }
-    private suspend fun parseAnimeList(response: Response): AnimesPage {
+
+    override fun latestUpdatesParse(response: Response): AnimesPage = searchAnimeParse(response)
+
+    override fun latestUpdatesRequest(page: Int) = searchAnimeRequest(page, "", AnimeFilterList())
+
+    override fun popularAnimeParse(response: Response): AnimesPage = searchAnimeParse(response)
+
+    override fun popularAnimeRequest(page: Int) =
+        searchAnimeRequest(page, "", AnimeFilterList(HotFilter))
+
+    override fun searchAnimeParse(response: Response): AnimesPage {
         val jsoup = response.asJsoup()
         val nodes = jsoup.select("div.search-doujin-videos.hidden-xs")
         val list = if (nodes.isNotEmpty()) {
@@ -178,14 +121,9 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 SAnime.create().apply {
                     setUrlWithoutDomain(it.select("a[class=overlay]").attr("href"))
                     thumbnail_url = it.select("img + img").attr("src")
-
-                    title = runBlocking {
-                        translateIfEnabled(it.select("div.card-mobile-title").text())
-                    }.appendInvisibleChar()
-
-                    author = runBlocking {
-                        translateIfEnabled(it.select(".card-mobile-user").text())
-                    }
+                    val rawTitle = it.select("div.card-mobile-title").text()
+                    title = translateToEnglish(rawTitle).appendInvisibleChar()
+                    author = it.select(".card-mobile-user").text()
                 }
             }
         } else {
@@ -193,121 +131,156 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 SAnime.create().apply {
                     setUrlWithoutDomain(it.parent()!!.attr("href"))
                     thumbnail_url = it.select("img").attr("src")
-
-                    title = runBlocking {
-                        translateIfEnabled(it.select(".home-rows-videos-title").text())
-                    }.appendInvisibleChar()
+                    val rawTitle = it.select(".home-rows-videos-title").text()
+                    title = translateToEnglish(rawTitle).appendInvisibleChar()
                 }
             }
         }
         val nextPage = jsoup.select("li.page-item a.page-link[rel=next]")
         return AnimesPage(list, nextPage.isNotEmpty())
     }
-    override suspend fun animeDetailsRequest(anime: SAnime): Request {
-        return GET(baseUrl + anime.url)
-    }
 
-    override suspend fun animeDetailsParse(response: Response): SAnime {
-        val jsoup = response.asJsoup()
-        return SAnime.create().apply {
-            genre = jsoup.select(".single-video-tag")
-                .not("[data-toggle]")
-                .eachText()
-                .joinToString { runBlocking { translateIfEnabled(it) } }
-
-            author = runBlocking {
-                translateIfEnabled(jsoup.select("#video-artist-name").text())
+    override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
+        val searchUrl = baseUrl.toHttpUrl().newBuilder().addPathSegment("search")
+        if (query.isNotEmpty()) {
+            searchUrl.addQueryParameter("query", query)
+        }
+        filters.list.flatMap {
+            when (it) {
+                is TagsFilter -> it.state.flatMap { inner ->
+                    if (inner is CategoryFilter) inner.state else listOf(inner)
+                }
+                is AnimeFilter.Group<*> -> it.state
+                else -> listOf(it)
             }
-
-            jsoup.select("script[type=application/ld+json]").first()?.data()?.let {
-                val info = json.decodeFromString<JsonElement>(it).jsonObject
-
-                title = runBlocking {
-                    translateIfEnabled(info["name"]!!.jsonPrimitive.content)
-                }
-
-                description = runBlocking {
-                    translateIfEnabled(info["description"]!!.jsonPrimitive.content)
-                }
+        }.forEach {
+            when (it) {
+                is QueryFilter -> if (it.selected.isNotEmpty()) searchUrl.addQueryParameter(it.key, it.selected)
+                is BroadMatchFilter -> if (it.state) searchUrl.addQueryParameter(it.key, "on")
+                is TagFilter -> if (it.state) searchUrl.addQueryParameter(it.key, it.name)
             }
         }
+        if (page > 1) searchUrl.addQueryParameter("page", "$page")
+        return GET(searchUrl.build())
     }
-    override suspend fun episodeListRequest(anime: SAnime): Request {
-    return GET(baseUrl + anime.url, headers)
-}
 
-override suspend fun episodeListParse(response: Response): List<SEpisode> {
-    val jsoup = response.asJsoup()
-    return jsoup.select(".playlist-episode").mapNotNull {
-        try {
-            SEpisode.create().apply {
-                name = runBlocking {
-                    translateIfEnabled(it.select(".playlist-episode-title").text())
+    private fun checkFiltersInterceptor(chain: Interceptor.Chain): Response {
+        if (filterUpdateState == FilterUpdateState.NONE) updateFilters()
+        return chain.proceed(chain.request())
+    }
+
+    private fun updateFilters() {
+        filterUpdateState = FilterUpdateState.UPDATING
+        val exceptionHandler = CoroutineExceptionHandler { _, _ -> filterUpdateState = FilterUpdateState.FAILED }
+        CoroutineScope(Dispatchers.IO + exceptionHandler).launch {
+            val jsoup = client.newCall(GET("$baseUrl/search")).awaitSuccess().asJsoup()
+            val genreList = jsoup.select("div.genre-option div.hentai-sort-options").eachText()
+            val sortList = jsoup.select("div.hentai-sort-options-wrapper div.hentai-sort-options").eachText()
+            val yearList = jsoup.select("select#year option").eachAttr("value").map { it.ifEmpty { "全部年份" } }
+            val monthList = jsoup.select("select#month option").eachAttr("value").map { it.ifEmpty { "全部月份" } }
+            val categoryDict = mutableMapOf<String, MutableList<String>>()
+            var currentKey = ""
+            jsoup.select("div#tags div.modal-body").first()?.children()?.forEach {
+                if (it.tagName() == "h5") currentKey = it.text()
+                if (it.tagName() == "label") {
+                    categoryDict.getOrPut(currentKey) { mutableListOf() }
+                        .add(it.select("input[name]").attr("value"))
                 }
-                episode_number = it.select(".playlist-episode-number")
-                    .text()
-                    .toFloatOrNull() ?: 0f
-                date_upload = System.currentTimeMillis()
-                setUrlWithoutDomain(it.attr("href").takeIf { href -> href.isNotEmpty() }
-                    ?: return@mapNotNull null
             }
+            preferences.edit().putString(PREF_KEY_GENRE_LIST, genreList.joinToString())
+                .putString(PREF_KEY_SORT_LIST, sortList.joinToString())
+                .putString(PREF_KEY_YEAR_LIST, yearList.joinToString())
+                .putString(PREF_KEY_MONTH_LIST, monthList.joinToString())
+                .putString(PREF_KEY_CATEGORY_LIST, json.encodeToString(categoryDict)).apply()
+            filterUpdateState = FilterUpdateState.COMPLETED
+        }
+    }
+
+    private fun translateToEnglish(text: String): String {
+        return try {
+            val json = JSONObject().apply { put("text", text) }
+            val body = json.toString().toRequestBody("application/json".toMediaType())
+            val request = Request.Builder()
+                .url("http://127.0.0.1:5000/translate")
+                .post(body)
+                .build()
+            val response = client.newCall(request).execute()
+            val translated = response.body?.string()
+            JSONObject(translated).optString("translated", text)
         } catch (e: Exception) {
-            null
+            text
         }
     }
-}
 
-override suspend fun videoListRequest(episode: SEpisode): Request {
-    return GET(baseUrl + episode.url, headers)
-}
+    private fun String.appendInvisibleChar(): String = "$this\u200B"
 
-override suspend fun videoListParse(response: Response): List<Video> {
-    val jsoup = response.asJsoup()
-    return jsoup.select("source").mapNotNull {
-        try {
-            val src = it.attr("src").takeIf { src -> src.isNotEmpty() } ?: return@mapNotNull null
-            Video(
-                url = src,
-                quality = it.attr("title").takeIf { title -> title.isNotEmpty() } ?: "Unknown",
-                videoUrl = src
-            )
-        } catch (e: Exception) {
-            null 
-        }
-    }
-}
-    override suspend fun videoListRequest(episode: SEpisode): Request {
-        return GET(baseUrl + episode.url)
-    }
-
-    override suspend fun videoListParse(response: Response): List<Video> {
-        val jsoup = response.asJsoup()
-        return jsoup.select("source").map {
-            Video(
-                url = it.attr("src"),
-                quality = it.attr("title"),
-                videoUrl = it.attr("src"),
-            )
-        }
-    }
-    override fun videoUrlParse(response: Response): String {
-        throw UnsupportedOperationException("Not used")
-    }
     override fun getFilterList(): AnimeFilterList {
-        val translator = ChineseTranslator(Injekt.get<Application>().applicationContext)
         return AnimeFilterList(
-            SortFilter(translator),
-            GenreFilter(translator),
+            createFilter(PREF_KEY_GENRE_LIST) { GenreFilter(it) },
+            createFilter(PREF_KEY_SORT_LIST) { SortFilter(it) },
             DateFilter(
-                translator,
-                YearFilter(translator),
-                MonthFilter(translator),
+                createFilter(PREF_KEY_YEAR_LIST) { YearFilter(it) },
+                createFilter(PREF_KEY_MONTH_LIST) { MonthFilter(it) },
             ),
-            HotFilter(translator),
+            TagsFilter(createCategoryFilters()),
         )
     }
 
-    private fun String.appendInvisibleChar(): String {
-        return "$this\u200B"
+    override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        screen.apply {
+            addPreference(ListPreference(context).apply {
+                key = PREF_KEY_VIDEO_QUALITY
+                title = "設置首選畫質"
+                entries = arrayOf("1080P", "720P", "480P")
+                entryValues = entries
+                setDefaultValue(DEFAULT_QUALITY)
+                summary = "當前選擇：${preferences.getString(PREF_KEY_VIDEO_QUALITY, DEFAULT_QUALITY)}"
+                setOnPreferenceChangeListener { _, newValue ->
+                    summary = "當前選擇：${newValue as String}"
+                    true
+                }
+            })
+            addPreference(ListPreference(context).apply {
+                key = PREF_KEY_LANG
+                title = "設置首選語言"
+                summary = "該設置僅影響影片字幕"
+                entries = arrayOf("繁體中文", "簡體中文")
+                entryValues = arrayOf("zh-CHT", "zh-CHS")
+                setOnPreferenceChangeListener { _, newValue ->
+                    val baseHttpUrl = baseUrl.toHttpUrl()
+                    client.cookieJar.saveFromResponse(
+                        baseHttpUrl,
+                        listOf(Cookie.parse(baseHttpUrl, "user_lang=${newValue as String}")!!)
+                    )
+                    true
+                }
+            })
+        }
+    }
+
+    private fun <T : QueryFilter> createFilter(prefKey: String, block: (Array<String>) -> T): T {
+        val savedOptions = preferences.getString(prefKey, "")
+        if (savedOptions.isNullOrEmpty()) return block(emptyArray())
+        return block(savedOptions.split(", ").toTypedArray())
+    }
+
+    private fun createCategoryFilters(): List<AnimeFilter<out Any>> {
+        val result = mutableListOf<AnimeFilter<out Any>>(BroadMatchFilter())
+        val savedCategories = preferences.getString(PREF_KEY_CATEGORY_LIST, "") ?: return result
+        json.decodeFromString<Map<String, List<String>>>(savedCategories).forEach {
+            result.add(CategoryFilter(it.key, it.value.map { value -> TagFilter("tags[]", value) }))
+        }
+        return result
+    }
+
+    companion object {
+        const val PREF_KEY_VIDEO_QUALITY = "PREF_KEY_VIDEO_QUALITY"
+        const val PREF_KEY_LANG = "PREF_KEY_LANG"
+        const val PREF_KEY_GENRE_LIST = "PREF_KEY_GENRE_LIST"
+        const val PREF_KEY_SORT_LIST = "PREF_KEY_SORT_LIST"
+        const val PREF_KEY_YEAR_LIST = "PREF_KEY_YEAR_LIST"
+        const val PREF_KEY_MONTH_LIST = "PREF_KEY_MONTH_LIST"
+        const val PREF_KEY_CATEGORY_LIST = "PREF_KEY_CATEGORY_LIST"
+        const val DEFAULT_QUALITY = "1080P"
     }
 }
