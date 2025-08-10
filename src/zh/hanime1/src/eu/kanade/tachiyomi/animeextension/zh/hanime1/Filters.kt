@@ -16,18 +16,26 @@ open class TagFilter(val key: String, name: String, state: Boolean = false) :
     AnimeFilter.CheckBox(name, state)
 
 class GenreFilter(values: Array<String>) :
-    QueryFilter("Genre", "genre", values.ifEmpty { arrayOf("All", "Hentai", "Short", "Motion Anime") })
+    QueryFilter(
+        "Genre",
+        "genre",
+        values.ifEmpty { arrayOf("All", "Hentai", "Short Episodes", "Motion Anime") },
+    )
 
 class SortFilter(values: Array<String>) :
-    QueryFilter("Sort By", "sort", values.ifEmpty { arrayOf("Newest Release", "Recently Uploaded", "Top Today", "Top Week", "Top Month") })
+    QueryFilter(
+        "Sort By",
+        "sort",
+        values.ifEmpty { arrayOf("Newest Release", "Newest Upload", "Today's Ranking", "Weekly Ranking", "Monthly Ranking") },
+    )
 
-object HotFilter : TagFilter("sort", "Top Week", true)
+object HotFilter : TagFilter("sort", "Weekly Ranking", true)
 
 class YearFilter(values: Array<String>) :
-    QueryFilter("Year", "year", values.ifEmpty { arrayOf("All Years") })
+    QueryFilter("Release Year", "year", values.ifEmpty { arrayOf("All Years") })
 
 class MonthFilter(values: Array<String>) :
-    QueryFilter("Month", "month", values.ifEmpty { arrayOf("All Months") })
+    QueryFilter("Release Month", "month", values.ifEmpty { arrayOf("All Months") })
 
 class DateFilter(yearFilter: YearFilter, monthFilter: MonthFilter) :
     AnimeFilter.Group<QueryFilter>("Release Date", listOf(yearFilter, monthFilter))
