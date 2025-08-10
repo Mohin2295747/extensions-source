@@ -1,12 +1,6 @@
-name: Fork CI
+name: CI
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'src/**'
-      - '!**.md'
   workflow_dispatch:
 
 concurrency:
@@ -23,38 +17,25 @@ jobs:
     outputs:
       individualMatrix: ${{ steps.generate-matrices.outputs.individualMatrix }}
     steps:
-    - name: Clone repo
-      uses: actions/checkout@v4
+      - name: Clone repo
+        uses: actions/checkout@v4
 
-    - name: Get number of modules  
-      run: |  
-        projects=(src/*/*)  
-        echo "NUM_INDIVIDUAL_MODULES=${#projects[@]}" >> "$GITHUB_ENV"  
+      - name: Validate Gradle Wrapper
+        uses: gradle/actions/wrapper-validation@v4
 
-    - name: Find lib changes  
-      id: modified-libs  
-      uses: tj-actions/changed-files@v46  
-      with:  
-        files: lib/  
-        files_ignore: lib/**.md  
-        files_separator: " "  
-        safe_output: false  
-
-    - name: Skip lib bumping in forks
-      if: github.repository != 'Kohi-den/extensions-source'
-      run: echo "Skipping lib bumping in fork"
-
-    - id: generate-matrices  
-      name: Create output matrices  
-      uses: actions/github-script@v7  
-      with:  
-        script: |  
-          const numIndividualModules = process.env.NUM_INDIVIDUAL_MODULES;  
-          const chunkSize = process.env.CI_CHUNK_SIZE;  
-          const numIndividualChunks = 1;  
-          console.log(`Individual modules: ${numIndividualModules} (${numIndividualChunks} chunks of ${chunkSize})`);  
-          core.setOutput('individualMatrix', { 'chunk': [...Array(numIndividualChunks).keys()] });
-
+      - name: Get number of modules
+        run: |
+          projects=(src/*/*)
+          echo "NUM_INDIVIDUAL_MODULES=${#projects[@]}" >> $GITHUB_ENV
+      - id: generate-matrices
+        name: Create output matrices
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const numIndividualModules = process.env.NUM_INDIVIDUAL_MODULES;
+            const chunkSize = process.env.CI_CHUNK_SIZE;
+            const numIndividualChunks = Math.ceil(numIndividualModules / chunkSize);
+            core.setOutput('individualMatrix', { 'chunk': [...Array(numIndividualChunks).keys()] });
   build_individual:
     name: Build individual modules
     needs: prepare
@@ -62,27 +43,58 @@ jobs:
     strategy:
       matrix: ${{ fromJSON(needs.prepare.outputs.individualMatrix) }}
     steps:
-    - name: Checkout main branch
-      uses: actions/checkout@v4
+      - name: Checkout main branch
+        uses: actions/checkout@v4
 
-    - name: Set up JDK  
-      uses: actions/setup-java@v4  
-      with:  
-        java-version: 17  
-        distribution: temurin  
-          
-    - name: Set up Android SDK  
-      uses: android-actions/setup-android@v3  
-        
-    - name: Set up Gradle  
-      uses: gradle/actions/setup-gradle@v4  
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
 
-    - name: Build debug APKs  
-      run: chmod +x ./gradlew && ./gradlew -p src assembleDebug  
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
 
-    - name: Upload APKs  
-      uses: actions/upload-artifact@v4
-      with:  
-        name: "individual-apks-${{ matrix.chunk }}"  
-        path: "**/*.apk"  
-        retention-days: 1
+      - name: Build extensions (chunk ${{ matrix.chunk }})
+        env:
+          CI_CHUNK_NUM: ${{ matrix.chunk }}
+          # Fix for Kotlin serialization warnings
+          GRADLE_OPTS: -Dorg.gradle.parallel=false -Dkotlinx.serialization.opt-in=kotlinx.serialization.ExperimentalSerializationApi
+        run: |
+          chmod +x ./gradlew
+          # Build debug APKs instead of release (no signing required)
+          ./gradlew -p src assembleDebug --no-parallel
+      - name: Upload APKs (chunk ${{ matrix.chunk }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: individual-apks-${{ matrix.chunk }}
+          path: "**/*.apk"
+          retention-days: 1
+
+  package_apks:
+    name: Package APKs
+    needs: build_individual
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download APK artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: apk-artifacts
+
+      - name: Create APKs directory
+        run: mkdir all_apks
+
+      - name: Collect APKs
+        run: |
+          # Find and copy all APKs
+          find apk-artifacts -name '*.apk' -exec cp -v {} all_apks \;
+          echo "Total APKs collected: $(ls -1 all_apks | wc -l)"
+      - name: Create ZIP archive
+        run: zip -r all_extensions.zip all_apks
+
+      - name: Upload ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: all_extensions_apks
+          path: all_extensions.zip
+          retention-days: 1
