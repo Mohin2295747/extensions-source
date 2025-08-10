@@ -324,7 +324,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         "美少女" to "Beautiful Girl",
         "異種" to "Bestiality",
         "百合" to "Yuri",
-        "男同性戀" to "Yaoi"
+        "男同性戀" to "Yaoi",
     )
 
     // ─── The rest of your existing logic remains unchanged ────────
@@ -602,18 +602,28 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     // ─── Filters implementation classes (unchanged) ─────────────────────────────
 
     private class GenreFilter(vals: Array<String>) : QueryFilter("genre", vals)
-    private object HotFilter : AnimeFilter.Select<String>("Sort", arrayOf("Hot"), 0)
-    private class SortFilter(vals: Array<String>) : QueryFilter("sort", vals)
-    private class YearFilter(vals: Array<String>) : QueryFilter("year", vals)
-    private class MonthFilter(vals: Array<String>) : QueryFilter("month", vals)
 
-    private class DateFilter(year: QueryFilter, month: QueryFilter) : AnimeFilter.Group<AnimeFilter<*>>(
-        "Date", arrayOf(year, month),
-    )
+private object HotFilter : AnimeFilter.Select<String>("Sort", arrayOf("Hot"), 0)
 
-    private class QueryFilter(val key: String, vals: Array<String>) : AnimeFilter.Select<String>(key, vals, 0) {
-        val selected: String get() = if (state == 0 || values.isEmpty()) "" else values[state]
-    }
+private class SortFilter(vals: Array<String>) : QueryFilter("sort", vals)
+
+private class YearFilter(vals: Array<String>) : QueryFilter("year", vals)
+
+private class MonthFilter(vals: Array<String>) : QueryFilter("month", vals)
+
+private class DateFilter(
+    year: QueryFilter,
+    month: QueryFilter,
+) : AnimeFilter.Group<AnimeFilter<*>>(
+    "Date",
+    arrayOf(year, month),
+)
+
+private class QueryFilter(val key: String, vals: Array<String>) :
+    AnimeFilter.Select<String>(key, vals, 0) {
+    val selected: String
+        get() = if (state == 0 || values.isEmpty()) "" else values[state]
+}
 
     private class BroadMatchFilter : AnimeFilter.CheckBox("Broad match (OR)", false)
 
