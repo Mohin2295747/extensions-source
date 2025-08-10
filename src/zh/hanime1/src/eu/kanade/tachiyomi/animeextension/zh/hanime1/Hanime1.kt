@@ -6,7 +6,12 @@ import android.util.Log
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
-import eu.kanade.tachiyomi.animesource.model.*
+import eu.kanade.tachiyomi.animesource.model.AnimeFilter
+import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
+import eu.kanade.tachiyomi.animesource.model.AnimesPage
+import eu.kanade.tachiyomi.animesource.model.SAnime
+import eu.kanade.tachiyomi.animesource.model.SEpisode
+import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.awaitSuccess
@@ -342,7 +347,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         val animesPage = getSearchAnime(
                             1,
                             title,
-                            AnimeFilterList(GenreFilter(arrayOf("", type)).apply { state = 1 })
+                            AnimeFilterList(GenreFilter(arrayOf("", type)).apply { state = 1 }),
                         )
                         thumbnail_url = animesPage.animes.first().thumbnail_url
                     } catch (e: Exception) {
@@ -384,14 +389,14 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             val url = it.attr("src")
             Video(url, "${quality}P", videoUrl = url)
         }.filterNot { it.videoUrl?.startsWith("blob") == true }
-         .sortedByDescending { preferQuality == it.quality }
-         .ifEmpty {
-             val videoUrl = doc.select("script[type=application/ld+json]").first()?.data()?.let {
-                 val info = json.decodeFromString<JsonElement>(it).jsonObject
-                 info["contentUrl"]!!.jsonPrimitive.content
-             }
-             listOf(Video(videoUrl, "Raw", videoUrl = videoUrl))
-         }
+            .sortedByDescending { preferQuality == it.quality }
+            .ifEmpty {
+                val videoUrl = doc.select("script[type=application/ld+json]").first()?.data()?.let {
+                    val info = json.decodeFromString<JsonElement>(it).jsonObject
+                    info["contentUrl"]!!.jsonPrimitive.content
+                }
+                listOf(Video(videoUrl, "Raw", videoUrl = videoUrl))
+            }
     }
 
     override fun latestUpdatesParse(response: Response): AnimesPage = searchAnimeParse(response)
@@ -427,7 +432,9 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     override fun searchAnimeRequest(
-        page: Int, query: String, filters: AnimeFilterList
+        page: Int,
+        query: String,
+        filters: AnimeFilterList,
     ): Request {
         val searchUrl = baseUrl.toHttpUrl().newBuilder().addPathSegment("search")
         if (query.isNotEmpty()) searchUrl.addQueryParameter("query", query)
@@ -499,8 +506,14 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     val rawText = it.text().trim()
                     translationMap[rawText] ?: rawText
                 }
-                Log.d("Hanime1Filters", "Translated categories from /browse: $categories")
-                Log.d("Hanime1Filters", "Translated tags from /browse: $tags")
+                Log.d(
+                    "Hanime1Filters",
+                    "Translated categories from /browse: $categories",
+                )
+                Log.d(
+                    "Hanime1Filters",
+                    "Translated tags from /browse: $tags",
+                )
 
                 // store lists and the category dictionary (categories from /browse are useful debug info, but
                 // keep canonical categoryDict built from /search modal for filters)
@@ -544,9 +557,9 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             createFilter(PREF_KEY_SORT_LIST) { SortFilter(it) },
             DateFilter(
                 createFilter(PREF_KEY_YEAR_LIST) { YearFilter(it) },
-                createFilter(PREF_KEY_MONTH_LIST) { MonthFilter(it) }
+                createFilter(PREF_KEY_MONTH_LIST) { MonthFilter(it) },
             ),
-            TagsFilter(createCategoryFilters())
+            TagsFilter(createCategoryFilters()),
         )
     }
 
@@ -564,7 +577,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         summary = "Current selection: ${new as String}"
                         true
                     }
-                }
+                },
             )
             addPreference(
                 ListPreference(context).apply {
@@ -577,10 +590,11 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         val url = baseUrl.toHttpUrl()
                         client.cookieJar.saveFromResponse(
                             url,
-                            listOf(Cookie.parse(url, "user_lang=${new as String}")!!) )
+                            listOf(Cookie.parse(url, "user_lang=${new as String}")!!),
+                        )
                         true
                     }
-                }
+                },
             )
         }
     }
@@ -594,7 +608,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     private class MonthFilter(vals: Array<String>) : QueryFilter("month", vals)
 
     private class DateFilter(year: QueryFilter, month: QueryFilter) : AnimeFilter.Group<AnimeFilter<*>>(
-        "Date", arrayOf(year, month)
+        "Date", arrayOf(year, month),
     )
 
     private class QueryFilter(val key: String, vals: Array<String>) : AnimeFilter.Select<String>(key, vals, 0) {
@@ -615,9 +629,11 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         const val PREF_KEY_YEAR_LIST = "PREF_KEY_YEAR_LIST"
         const val PREF_KEY_MONTH_LIST = "PREF_KEY_MONTH_LIST"
         const val PREF_KEY_CATEGORY_LIST = "PREF_KEY_CATEGORY_LIST"
+
         // Debug / supplemental keys (from /browse scraping)
         const val PREF_KEY_BROWSE_CATEGORIES = "PREF_KEY_BROWSE_CATEGORIES"
         const val PREF_KEY_BROWSE_TAGS = "PREF_KEY_BROWSE_TAGS"
+
         const val DEFAULT_QUALITY = "1080P"
     }
 }
