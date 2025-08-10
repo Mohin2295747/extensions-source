@@ -600,33 +600,25 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     // ─── Filters implementation classes (unchanged) ─────────────────────────────
-
     private class GenreFilter(vals: Array<String>) : QueryFilter("genre", vals)
-
-private object HotFilter : AnimeFilter.Select<String>("Sort", arrayOf("Hot"), 0)
-
-private class SortFilter(vals: Array<String>) : QueryFilter("sort", vals)
-
-private class YearFilter(vals: Array<String>) : QueryFilter("year", vals)
-
-private class MonthFilter(vals: Array<String>) : QueryFilter("month", vals)
-
-private class DateFilter(
-    year: QueryFilter,
-    month: QueryFilter,
-) : AnimeFilter.Group<AnimeFilter<*>>(
-    "Date",
-    arrayOf(year, month),
-)
-
-private class QueryFilter(val key: String, vals: Array<String>) :
-    AnimeFilter.Select<String>(key, vals, 0) {
-    val selected: String
-        get() = if (state == 0 || values.isEmpty()) "" else values[state]
-}
+    private object HotFilter : AnimeFilter.Select<String>("Sort", arrayOf("Hot"), 0)
+    private class SortFilter(vals: Array<String>) : QueryFilter("sort", vals)
+    private class YearFilter(vals: Array<String>) : QueryFilter("year", vals)
+    private class MonthFilter(vals: Array<String>) : QueryFilter("month", vals)
+    private class DateFilter(
+        year: QueryFilter,
+        month: QueryFilter,
+    ) : AnimeFilter.Group<AnimeFilter<*>>(
+        "Date",
+        arrayOf(year, month),
+    )
+    private class QueryFilter(val key: String, vals: Array<String>) :
+        AnimeFilter.Select<String>(key, vals, 0) {
+        val selected: String
+            get() = if (state == 0 || values.isEmpty()) "" else values[state]
+    }
 
     private class BroadMatchFilter : AnimeFilter.CheckBox("Broad match (OR)", false)
-
     private class TagsFilter(val state: List<AnimeFilter<*>>) : AnimeFilter.Group<AnimeFilter<*>>("Tags", state)
     private class CategoryFilter(name: String, val state: List<TagFilter>) : AnimeFilter.Group<TagFilter>(name, state)
     private class TagFilter(val key: String, val name: String) : AnimeFilter.CheckBox(name, false)
