@@ -21,6 +21,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -39,7 +41,7 @@ enum class FilterUpdateState {
     NONE,
     UPDATING,
     COMPLETED,
-    FAILED,
+    FAILED
 }
 
 class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
@@ -49,11 +51,11 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override val supportsLatest = true
 
     override val client = network.client.newBuilder()
-        .addInterceptor(::checkFiltersInterceptor)
+        .addInterceptor { chain -> checkFiltersInterceptor(chain) }
         .build()
 
     private val preferences: SharedPreferences by lazy {
-        Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
+        Injekt.get<Application>().getSharedPreferences("source_$id", 0)
     }
     private val json: Json by injectLazy()
     private var filterUpdateState = FilterUpdateState.NONE
@@ -298,7 +300,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         "蘿莉" to "Loli",
         "美少女" to "Beautiful Girl",
         "異種" to "Bestiality",
-        "男同性戀" to "Yaoi",
+        "男同性戀" to "Yaoi"
     )
 
     override fun animeDetailsParse(response: Response): SAnime {
@@ -307,7 +309,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             genre = doc.select(".single-video-tag")
                 .not("[data-toggle]")
                 .eachText()
-                .joinToString()
+                .joinToString(", ")
 
             author = doc.select("#video-artist-name").text()
 
@@ -334,7 +336,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         val animesPage = getSearchAnime(
                             1,
                             title,
-                            AnimeFilterList(filter),
+                            AnimeFilterList(filter)
                         )
                         animesPage.animes.firstOrNull()?.thumbnail_url?.let {
                             thumbnail_url = it
@@ -437,7 +439,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun searchAnimeRequest(
         page: Int,
         query: String,
-        filters: AnimeFilterList,
+        filters: AnimeFilterList
     ): Request {
         val httpUrl = "$baseUrl/search".toHttpUrl().newBuilder().apply {
             if (query.isNotEmpty()) {
@@ -502,18 +504,10 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     .awaitSuccess()
                     .asJsoup()
 
-                val genreList = searchDoc.select(
-                    "div.genre-option div.hentai-sort-options",
-                ).eachText()
-                val sortList = searchDoc.select(
-                    "div.hentai-sort-options-wrapper div.hentai-sort-options",
-                ).eachText()
-                val yearList = searchDoc.select(
-                    "select#year option",
-                ).eachAttr("value").map { it.ifEmpty { "All Years" } }
-                val monthList = searchDoc.select(
-                    "select#month option",
-                ).eachAttr("value").map { it.ifEmpty { "All Months" } }
+                val genreList = searchDoc.select("div.genre-option div.hentai-sort-options").eachText()
+                val sortList = searchDoc.select("div.hentai-sort-options-wrapper div.hentai-sort-options").eachText()
+                val yearList = searchDoc.select("select#year option").eachAttr("value").map { it.ifEmpty { "All Years" } }
+                val monthList = searchDoc.select("select#month option").eachAttr("value").map { it.ifEmpty { "All Months" } }
 
                 val categoryDict = mutableMapOf<String, MutableList<String>>()
                 var currentCategory = ""
@@ -551,9 +545,9 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         createFilter(PREF_KEY_SORT_LIST) { SortFilter(it) },
         DateFilter(
             createFilter(PREF_KEY_YEAR_LIST) { YearFilter(it) },
-            createFilter(PREF_KEY_MONTH_LIST) { MonthFilter(it) },
+            createFilter(PREF_KEY_MONTH_LIST) { MonthFilter(it) }
         ),
-        TagsFilter(createCategoryFilters()),
+        TagsFilter(createCategoryFilters())
     )
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
@@ -575,23 +569,19 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     private fun <T : QueryFilter> createFilter(
         prefKey: String,
-        block: (Array<String>) -> T,
+        block: (Array<String>) -> T
     ): T {
         val saved = preferences.getString(prefKey, "")
         return if (saved.isNullOrEmpty()) {
             block(emptyArray())
         } else {
-            block(
-                saved.split(", ").toTypedArray(),
-            )
+            block(saved.split(", ").toTypedArray())
         }
     }
 
     private fun createCategoryFilters(): List<AnimeFilter<*>> {
         val saved = preferences.getString(PREF_KEY_CATEGORY_LIST, null)
-        val filters = mutableListOf<AnimeFilter<*>>(
-            BroadMatchFilter(),
-        )
+        val filters = mutableListOf<AnimeFilter<*>>(BroadMatchFilter())
 
         saved?.let {
             try {
@@ -608,7 +598,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     private open class QueryFilter(
         val key: String,
-        vals: Array<String>,
+        vals: Array<String>
     ) : AnimeFilter.Select<String>(key, vals, 0) {
         val selected: String get() = if (state == 0 || values.isEmpty()) "" else values[state]
     }
@@ -619,22 +609,22 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     private class MonthFilter(vals: Array<String>) : QueryFilter("month", vals)
 
     private class TagsFilter(
-        state: List<AnimeFilter<*>>,
+        state: List<AnimeFilter<*>>
     ) : AnimeFilter.Group<AnimeFilter<*>>("Tags", state)
 
     private class CategoryFilter(
         name: String,
-        state: List<TagFilter>,
+        state: List<TagFilter>
     ) : AnimeFilter.Group<TagFilter>(name, state)
 
     private class TagFilter(
         val key: String,
-        name: String,
+        name: String
     ) : AnimeFilter.CheckBox(name, false)
 
     private class DateFilter(
         private val year: YearFilter,
-        private val month: MonthFilter,
+        private val month: MonthFilter
     ) : AnimeFilter.Group<AnimeFilter<*>>("Date", listOf(year, month))
 
     private object HotFilter : AnimeFilter.Select<String>("Sort", arrayOf("Hot"), 0)
