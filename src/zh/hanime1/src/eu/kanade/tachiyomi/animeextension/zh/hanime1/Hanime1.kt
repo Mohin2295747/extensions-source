@@ -461,36 +461,42 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     override fun searchAnimeRequest(
-        page: Int,
-        query: String,
-        filters: AnimeFilterList
-    ): Request {
-        return GET("$baseUrl/search".toHttpUrl().newBuilder().apply {
-            if (query.isNotEmpty()) addQueryParameter("query", query)
-            
-            filters.forEach { filter ->
-                when (filter) {
-                    is QueryFilter -> if (filter.selected.isNotEmpty()) {
-                        addQueryParameter(filter.key, filter.selected)
-                    }
-                    is BroadMatchFilter -> if (filter.state) {
-                        addQueryParameter("broad_match", "on")
-                    }
-                    is TagFilter -> if (filter.state) {
-                        addQueryParameter("tags[]", filter.name)
-                    }
-                    is TagsFilter -> filter.state.forEach { inner ->
-                        if (inner is CategoryFilter) {
-                            inner.state.forEach { tag ->
-                                if (tag.state) addQueryParameter("tags[]", tag.name)
+    page: Int,
+    query: String,
+    filters: AnimeFilterList
+): Request {
+    return GET("$baseUrl/search".toHttpUrl().newBuilder().apply {
+        if (query.isNotEmpty()) {
+            addQueryParameter("query", query)
+        }
+
+        filters.forEach { filter ->
+            when (filter) {
+                is QueryFilter -> if (filter.selected.isNotEmpty()) {
+                    addQueryParameter(filter.key, filter.selected)
+                }
+                is BroadMatchFilter -> if (filter.state) {
+                    addQueryParameter("broad_match", "on")
+                }
+                is TagFilter -> if (filter.state) {
+                    addQueryParameter("tags[]", filter.name)
+                }
+                is TagsFilter -> filter.state.forEach { inner ->
+                    if (inner is CategoryFilter) {
+                        inner.state.forEach { tag ->
+                            if (tag.state) {
+                                addQueryParameter("tags[]", tag.name)
                             }
                         }
                     }
                 }
             }
-            
-            if (page > 1) addQueryParameter("page", page.toString())
-        }.build())
+        }
+
+        if (page > 1) {
+            addQueryParameter("page", page.toString())
+        }
+    }.build())
     }
 
     private fun checkFiltersInterceptor(chain: Interceptor.Chain): Response {
