@@ -64,7 +64,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.getDefault())
     }
 
-    // ─── Translation map (merged from both snippets) ─────────────────────────────
     private val translationMap = mapOf(
         // Category titles
         "影片屬性" to "Video Attributes",
@@ -327,8 +326,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         "男同性戀" to "Yaoi",
     )
 
-    // ─── The rest of your existing logic remains unchanged ────────
-
     override fun animeDetailsParse(response: Response): SAnime {
         val doc = response.asJsoup()
         return SAnime.create().apply {
@@ -347,7 +344,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         val animesPage = getSearchAnime(
                             1,
                             title,
-                            AnimeFilterList(GenreFilter(arrayOf("", type)).apply { state = 1 }),
+                            AnimeFilterList(GenreFilter(arrayOf("", type)).apply { state = 1 },
                         )
                         thumbnail_url = animesPage.animes.first().thumbnail_url
                     } catch (e: Exception) {
@@ -473,14 +470,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
         GlobalScope.launch(Dispatchers.IO + exceptionHandler) {
             try {
-                // 1) Scrape /search for genres, sort, year, month and the tag modal (original logic)
                 val searchDoc = client.newCall(GET("$baseUrl/search")).awaitSuccess().asJsoup()
                 val genreList = searchDoc.select("div.genre-option div.hentai-sort-options").eachText()
                 val sortList = searchDoc.select("div.hentai-sort-options-wrapper div.hentai-sort-options").eachText()
                 val yearList = searchDoc.select("select#year option").eachAttr("value").map { it.ifEmpty { "All Years" } }
                 val monthList = searchDoc.select("select#month option").eachAttr("value").map { it.ifEmpty { "All Months" } }
 
-                // Build category dictionary from modal in /search (grouped headings + labels)
                 val categoryDict = mutableMapOf<String, MutableList<String>>()
                 var currentKey = ""
                 searchDoc.select("div#tags div.modal-body").first()?.children()?.forEach {
@@ -496,7 +491,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     }
                 }
 
-                // 2) Also scrape /browse for categories/tags (second snippet approach) and log them
                 val browseDoc = client.newCall(GET("$baseUrl/browse")).awaitSuccess().asJsoup()
                 val categories = browseDoc.select("#categories li a").map {
                     val rawText = it.text().trim()
@@ -506,17 +500,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     val rawText = it.text().trim()
                     translationMap[rawText] ?: rawText
                 }
-                Log.d(
-                    "Hanime1Filters",
-                    "Translated categories from /browse: $categories",
-                )
-                Log.d(
-                    "Hanime1Filters",
-                    "Translated tags from /browse: $tags",
-                )
 
-                // store lists and the category dictionary (categories from /browse are useful debug info, but
-                // keep canonical categoryDict built from /search modal for filters)
                 preferences.edit()
                     .putString(PREF_KEY_GENRE_LIST, genreList.joinToString())
                     .putString(PREF_KEY_SORT_LIST, sortList.joinToString())
@@ -599,25 +583,29 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         }
     }
 
-    // ─── Filters implementation classes (unchanged) ─────────────────────────────
-    private class GenreFilter(vals: Array<String>) : QueryFilter("genre", vals)
-    private object HotFilter : AnimeFilter.Select<String>("Sort", arrayOf("Hot"), 0)
-    private class SortFilter(vals: Array<String>) : QueryFilter("sort", vals)
-    private class YearFilter(vals: Array<String>) : QueryFilter("year", vals)
-    private class MonthFilter(vals: Array<String>) : QueryFilter("month", vals)
-    private class DateFilter(
-        year: QueryFilter,
-        month: QueryFilter,
-    ) : AnimeFilter.Group<AnimeFilter<*>>(
-        "Date",
-        arrayOf(year, month),
-    )
-    private class QueryFilter(val key: String, vals: Array<String>) :
-        AnimeFilter.Select<String>(key, vals, 0) {
+    // ─── Fixed Filter Classes ───────────────────────────────────────────────────
+    private open class QueryFilter(
+        val key: String,
+        vals: Array<String>
+    ) : AnimeFilter.Select<String>(key, vals, 0) {
         val selected: String
             get() = if (state == 0 || values.isEmpty()) "" else values[state]
     }
 
+    private class GenreFilter(vals: Array<String>) : QueryFilter("genre", vals)
+    private class SortFilter(vals: Array<String>) : QueryFilter("sort", vals)
+    private class YearFilter(vals: Array<String>) : QueryFilter("year", vals)
+    private class MonthFilter(vals: Array<String>) : QueryFilter("month", vals)
+
+    private class DateFilter(
+        year: YearFilter,
+        month: MonthFilter,
+    ) : AnimeFilter.Group<AnimeFilter<*>>(
+        "Date",
+        listOf(year, month)
+    )
+
+    private object HotFilter : AnimeFilter.Select<String>("Sort", arrayOf("Hot"), 0)
     private class BroadMatchFilter : AnimeFilter.CheckBox("Broad match (OR)", false)
     private class TagsFilter(val state: List<AnimeFilter<*>>) : AnimeFilter.Group<AnimeFilter<*>>("Tags", state)
     private class CategoryFilter(name: String, val state: List<TagFilter>) : AnimeFilter.Group<TagFilter>(name, state)
@@ -631,11 +619,8 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         const val PREF_KEY_YEAR_LIST = "PREF_KEY_YEAR_LIST"
         const val PREF_KEY_MONTH_LIST = "PREF_KEY_MONTH_LIST"
         const val PREF_KEY_CATEGORY_LIST = "PREF_KEY_CATEGORY_LIST"
-
-        // Debug / supplemental keys (from /browse scraping)
         const val PREF_KEY_BROWSE_CATEGORIES = "PREF_KEY_BROWSE_CATEGORIES"
         const val PREF_KEY_BROWSE_TAGS = "PREF_KEY_BROWSE_TAGS"
-
         const val DEFAULT_QUALITY = "1080P"
     }
-}
+                            }
