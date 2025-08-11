@@ -465,27 +465,35 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     query: String,
     filters: AnimeFilterList
 ): Request {
-    return GET("$baseUrl/search".toHttpUrl().newBuilder().apply {
+    val httpUrl = "$baseUrl/search".toHttpUrl().newBuilder().apply {
         if (query.isNotEmpty()) {
             addQueryParameter("query", query)
         }
 
         filters.forEach { filter ->
             when (filter) {
-                is QueryFilter -> if (filter.selected.isNotEmpty()) {
-                    addQueryParameter(filter.key, filter.selected)
+                is QueryFilter -> {
+                    if (filter.selected.isNotEmpty()) {
+                        addQueryParameter(filter.key, filter.selected)
+                    }
                 }
-                is BroadMatchFilter -> if (filter.state) {
-                    addQueryParameter("broad_match", "on")
+                is BroadMatchFilter -> {
+                    if (filter.state) {
+                        addQueryParameter("broad_match", "on")
+                    }
                 }
-                is TagFilter -> if (filter.state) {
-                    addQueryParameter("tags[]", filter.name)
+                is TagFilter -> {
+                    if (filter.state) {
+                        addQueryParameter("tags[]", filter.name)
+                    }
                 }
-                is TagsFilter -> filter.state.forEach { inner ->
-                    if (inner is CategoryFilter) {
-                        inner.state.forEach { tag ->
-                            if (tag.state) {
-                                addQueryParameter("tags[]", tag.name)
+                is TagsFilter -> {
+                    filter.state.forEach { inner ->
+                        if (inner is CategoryFilter) {
+                            inner.state.forEach { tag ->
+                                if (tag.state) {
+                                    addQueryParameter("tags[]", tag.name)
+                                }
                             }
                         }
                     }
@@ -496,8 +504,10 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         if (page > 1) {
             addQueryParameter("page", page.toString())
         }
-    }.build())
-    }
+    }.build()
+
+    return GET(httpUrl)
+}
 
     private fun checkFiltersInterceptor(chain: Interceptor.Chain): Response {
         if (filterUpdateState == FilterUpdateState.NONE) updateFilters()
@@ -573,37 +583,37 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     )
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
-        screen.addPreference(
-            ListPreference(screen.context).apply {
-                key = PREF_KEY_VIDEO_QUALITY
-                title = "Preferred Video Quality"
-                entries = arrayOf("1080P", "720P", "480P")
-                entryValues = entries
-                setDefaultValue(DEFAULT_QUALITY)
-                summary = "Current: ${preferences.getString(PREF_KEY_VIDEO_QUALITY, DEFAULT_QUALITY)}"
-                setOnPreferenceChangeListener { _, newValue ->
-                    summary = "Current: ${newValue as String}"
-                    true
-                }
+    screen.addPreference(
+        ListPreference(screen.context).apply {
+            key = PREF_KEY_VIDEO_QUALITY
+            title = "Preferred Video Quality"
+            entries = arrayOf("1080P", "720P", "480P")
+            entryValues = arrayOf("1080P", "720P", "480P")
+            setDefaultValue(DEFAULT_QUALITY)
+            summary = "Current: ${preferences.getString(PREF_KEY_VIDEO_QUALITY, DEFAULT_QUALITY)}"
+            setOnPreferenceChangeListener { _, newValue ->
+                summary = "Current: ${newValue as String}"
+                true
             }
-        )
-        
-        screen.addPreference(
-            ListPreference(screen.context).apply {
-                key = PREF_KEY_LANG
-                title = "Preferred Language"
-                summary = "Affects subtitles only"
-                entries = arrayOf("Traditional Chinese", "Simplified Chinese")
-                entryValues = arrayOf("zh-CHT", "zh-CHS")
-                setOnPreferenceChangeListener { _, newValue ->
-                    client.cookieJar.saveFromResponse(
-                        baseUrl.toHttpUrl(),
-                        listOf(Cookie.parse(baseUrl.toHttpUrl(), "user_lang=${newValue as String}")!!
-                    )
-                    true
-                }
+        }
+    )
+    
+    screen.addPreference(
+        ListPreference(screen.context).apply {
+            key = PREF_KEY_LANG
+            title = "Preferred Language"
+            summary = "Affects subtitles only"
+            entries = arrayOf("Traditional Chinese", "Simplified Chinese")
+            entryValues = arrayOf("zh-CHT", "zh-CHS")
+            setOnPreferenceChangeListener { _, newValue ->
+                client.cookieJar.saveFromResponse(
+                    baseUrl.toHttpUrl(),
+                    listOf(Cookie.parse(baseUrl.toHttpUrl(), "user_lang=${newValue as String}")!!)
+                )
+                true
             }
-        )
+        }
+    )
     }
 
     // Helper extensions
