@@ -21,8 +21,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonArray
@@ -47,7 +45,7 @@ enum class FilterUpdateState {
 }
 
 class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
-    override val baseUrl = "https://hanime1.me"
+  override val baseUrl = "https://hanime1.me"
     override val lang = "zh"
     override val name = "Hanime1.me"
     override val supportsLatest = true
@@ -68,7 +66,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     private val translationMap = mapOf(
         "影片屬性" to "Video Attributes",
         "人物關係" to "Relationships",
-        // add all other translations here (you said you'd replace them later)
         "角色設定" to "Character Settings",
         "外貌身材" to "Appearance & Body",
         "故事劇情" to "Story",
@@ -303,7 +300,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         "蘿莉" to "Loli",
         "美少女" to "Beautiful Girl",
         "異種" to "Bestiality",
-        "男同性戀" to "Yaoi",
+        "男同性戀" to "Yaoi", 
     )
 
     override fun animeDetailsParse(response: Response): SAnime {
@@ -505,7 +502,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     .awaitSuccess()
                     .asJsoup()
 
-                // Extract filter options
                 val genreList = searchDoc.select("div.genre-option div.hentai-sort-options")
                     .eachText()
                 val sortList = searchDoc.select("div.hentai-sort-options-wrapper div.hentai-sort-options")
@@ -517,7 +513,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     .eachAttr("value")
                     .map { it.ifEmpty { "All Months" } }
 
-                // Build category dictionary
                 val categoryDict = mutableMapOf<String, MutableList<String>>()
                 var currentCategory = ""
 
@@ -532,7 +527,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     }
                 }
 
-                // Save to preferences
                 preferences.edit().apply {
                     putString(PREF_KEY_GENRE_LIST, genreList.joinToString())
                     putString(PREF_KEY_SORT_LIST, sortList.joinToString())
@@ -561,7 +555,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     )
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
-        // Video Quality Preference
         ListPreference(screen.context).apply {
             key = PREF_KEY_VIDEO_QUALITY
             title = "Preferred Video Quality"
@@ -574,18 +567,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 true
             }
         }.also { screen.addPreference(it) }
-
-        // Language Preference
+        
         ListPreference(screen.context).apply {
-            key = PREF_KEY_LANG
-            title = "Preferred Language"
-            summary = "Affects subtitles only"
-            entries = arrayOf("Traditional Chinese", "Simplified Chinese")
-            entryValues = arrayOf("zh-CHT", "zh-CHS")
             setOnPreferenceChangeListener { _, newValue ->
                 val cookie = Cookie.parse(
                     baseUrl.toHttpUrl(),
-                    "user_lang=${newValue as String}"
+                    "user_lang=${newValue as String}",  // Added trailing comma
                 ) ?: return@setOnPreferenceChangeListener false
                 client.cookieJar.saveFromResponse(baseUrl.toHttpUrl(), listOf(cookie))
                 true
@@ -593,7 +580,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         }.also { screen.addPreference(it) }
     }
 
-    // Helper extensions
     private fun String.appendInvisibleChar() = "$this\u200B"
 
     private fun <T : QueryFilter> createFilter(
@@ -625,43 +611,46 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         return filters
     }
 
-    // Filter classes
     private open class QueryFilter(
         val key: String,
         vals: Array<String>
     ) : AnimeFilter.Select<String>(key, vals, 0) {
         val selected: String get() = if (state == 0 || values.isEmpty()) "" else values[state]
     }
-
+    
     private class GenreFilter(vals: Array<String>) : QueryFilter("genre", vals)
     private class SortFilter(vals: Array<String>) : QueryFilter("sort", vals)
     private class YearFilter(vals: Array<String>) : QueryFilter("year", vals)
     private class MonthFilter(vals: Array<String>) : QueryFilter("month", vals)
 
+    private class TagsFilter(
+        state: List<AnimeFilter<*>>,  
+    ) : AnimeFilter.Group<AnimeFilter<*>>("Tags", state)
+
+    private class CategoryFilter(
+        name: String,
+        state: List<TagFilter>,  
+    ) : AnimeFilter.Group<TagFilter>(name, state)
+
+    private class TagFilter(
+        val key: String,
+        name: String,
+    ) : AnimeFilter.CheckBox(name, false)
+
     private class DateFilter(
         private val year: YearFilter,
-        private val month: MonthFilter
+        private val month: MonthFilter,  
     ) : AnimeFilter.Group<AnimeFilter<*>>("Date", listOf(year, month))
 
     private object HotFilter : AnimeFilter.Select<String>("Sort", arrayOf("Hot"), 0)
     private class BroadMatchFilter : AnimeFilter.CheckBox("Broad match (OR)", false)
-    private class TagsFilter(state: List<AnimeFilter<*>>) : AnimeFilter.Group<AnimeFilter<*>>("Tags", state)
-    private class CategoryFilter(
-        name: String,
-        state: List<TagFilter>
-    ) : AnimeFilter.Group<TagFilter>(name, state)
-    private class TagFilter(
-        val key: String,
-        name: String
-    ) : AnimeFilter.CheckBox(name, false)
 
-    // Helper - the missing function you called earlier
     private suspend fun getSearchAnime(page: Int, query: String, filters: AnimeFilterList): AnimesPage {
         val req = searchAnimeRequest(page, query, filters)
         val resp = client.newCall(req).awaitSuccess()
         return searchAnimeParse(resp)
     }
-
+ 
     companion object {
         private const val PREF_KEY_VIDEO_QUALITY = "pref_video_quality"
         private const val PREF_KEY_LANG = "pref_language"
