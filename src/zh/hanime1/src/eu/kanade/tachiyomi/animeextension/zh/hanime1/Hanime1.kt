@@ -336,7 +336,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         val animesPage = getSearchAnime(
                             1,
                             title,
-                            AnimeFilterList(filter)
+                            AnimeFilterList(listOf(filter))
                         )
                         animesPage.animes.firstOrNull()?.thumbnail_url?.let {
                             thumbnail_url = it
