@@ -1,42 +1,13 @@
-name: Build APKs
+name: CI - hanime1 only
 
 on:
   workflow_dispatch:
 
-concurrency:
-  group: ${{ github.workflow }}
-  cancel-in-progress: true
-
-env:
-  CI_CHUNK_SIZE: 65
-
 jobs:
-  prepare:
+  build_single:
     runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Count modules and generate matrix
-        id: set-matrix
-        run: |
-          projects=(src/*/*)
-          total=${#projects[@]}
-          chunk_size=${{ env.CI_CHUNK_SIZE }}
-          chunks=$(( (total + chunk_size - 1) / chunk_size ))
-
-          matrix_json=$(jq -n --argjson chunks "$chunks" '{chunk: [range(0; $chunks)]}')
-          echo "matrix=$matrix_json" >> $GITHUB_OUTPUT
-
-  build:
-    needs: prepare
-    runs-on: ubuntu-latest
-    strategy:
-      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
-    steps:
-      - name: Checkout repo
+      - name: Checkout main branch
         uses: actions/checkout@v4
 
       - name: Set up JDK
@@ -45,15 +16,19 @@ jobs:
           java-version: 17
           distribution: temurin
 
-      - name: Build APKs (chunk ${{ matrix.chunk }})
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Build hanime1 debug APK
         env:
-          CI_CHUNK_NUM: ${{ matrix.chunk }}
+          GRADLE_OPTS: -Dorg.gradle.parallel=false -Dkotlinx.serialization.opt-in=kotlinx.serialization.ExperimentalSerializationApi
         run: |
           chmod +x ./gradlew
-          ./gradlew -p src assembleRelease
+          ./gradlew -p extensions-source/src/zh/hanime1 assembleDebug --no-parallel
 
-      - name: Upload APKs (chunk ${{ matrix.chunk }})
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: apks-chunk-${{ matrix.chunk }}
-          path: '**/*.apk'
+          name: hanime1-apk
+          path: extensions-source/src/zh/hanime1/build/outputs/apk/debug/*.apk
+          retention-days: 3
