@@ -17,7 +17,6 @@ import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.awaitSuccess
 import eu.kanade.tachiyomi.util.asJsoup
 import kotlinx.coroutines.CoroutineExceptionHandler
-import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -47,10 +46,10 @@ enum class FilterUpdateState {
 }
 
 class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
-    override val baseUrl: String get() = "https://hanime1.me"
-    override val lang: String get() = "zh"
-    override val name: String get() = "Hanime1.me"
-    override val supportsLatest: Boolean get() = true
+    override val baseUrl = "https://hanime1.me"
+    override val lang = "zh"
+    override val name = "Hanime1.me"
+    override val supportsLatest = true
 
     override val client = network.client.newBuilder()
         .addInterceptor(::checkFiltersInterceptor)
@@ -59,26 +58,19 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     private val preferences: SharedPreferences by lazy {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
     }
-    
     private val json: Json by injectLazy()
-    
     private var filterUpdateState = FilterUpdateState.NONE
-    
     private val uploadDateFormat by lazy {
         SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.getDefault())
     }
 
-    // Translation map remains unchanged
     private val translationMap = mapOf(
-        // Category titles
         "影片屬性" to "Video Attributes",
         "人物關係" to "Relationships",
         "角色設定" to "Character Settings",
         "外貌身材" to "Appearance & Body",
         "故事劇情" to "Story",
         "性交體位" to "Sex Positions",
-
-        // Video Attributes (older keys + second snippet equivalents)
         "無碼" to "Uncensored",
         "無修正" to "Uncensored",
         "有修正" to "Censored",
@@ -86,8 +78,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         "中文字幕" to "Chinese Subtitles",
         "中文配音" to "Chinese Dub",
         "斷面圖" to "Cross-section View",
-
-        // Relationships
         "近親" to "Incest",
         "姐" to "Older Sister",
         "妹" to "Younger Sister",
@@ -97,8 +87,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         "情侶" to "Lovers",
         "青梅竹馬" to "Childhood Friends",
         "同事" to "Coworkers",
-
-        // Character Settings
         "JK" to "Schoolgirl",
         "處女" to "Virgin",
         "女學生" to "Schoolgirl",
@@ -146,8 +134,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         "眼神死" to "Dead Eyes",
         "正太" to "Shota",
         "偽娘" to "Crossdresser",
-
-        // Appearance & Body
         "短髮" to "Short Hair",
         "馬尾" to "Ponytail",
         "雙馬尾" to "Twin Tails",
@@ -192,8 +178,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         "刺青" to "Tattoo",
         "淫紋" to "Lewd Tattoo",
         "身體寫字" to "Body Writing",
-
-        // Story
         "純愛" to "Pure Love",
         "戀愛喜劇" to "Romantic Comedy",
         "後宮" to "Harem",
@@ -244,8 +228,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         "怪獸" to "Monster",
         "哥布林" to "Goblin",
         "世界末日" to "Apocalypse",
-
-        // Sex Positions
         "手交" to "Handjob",
         "指交" to "Fingering",
         "乳交" to "Paizuri",
@@ -295,8 +277,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         "舌吻" to "French Kiss",
         "POV" to "POV",
         "扶他" to "Futanari",
-
-        // Additional genres & sorts from 2nd snippet (merged)
         "全部" to "All",
         "裏番" to "Hentai",
         "泡麵番" to "Short Anime",
@@ -305,7 +285,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         "同人作品" to "Doujin Works",
         "MMD" to "MMD",
         "Cosplay" to "Cosplay",
-
         "最新上市" to "Newest Released",
         "最新上傳" to "Newest Uploaded",
         "本日排行" to "Today’s Ranking",
@@ -315,20 +294,14 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         "讚好比例" to "Best Liked Ratio",
         "時長最長" to "Longest Duration",
         "他們在看" to "People Watching",
-
-        // Some more mapped tags from second snippet
         "強姦" to "Rape",
-        "NTR" to "Netorare",
         "亂倫" to "Incest",
         "扶她" to "Futanari",
         "痴女" to "Lewd Woman",
-        "母娘" to "MILF",
         "蘿莉" to "Loli",
-        "御姐" to "Mature Woman",
         "美少女" to "Beautiful Girl",
         "異種" to "Bestiality",
-        "百合" to "Yuri",
-        "男同性戀" to "Yaoi",
+        "男同性戀" to "Yaoi"
     )
 
     override fun animeDetailsParse(response: Response): SAnime {
@@ -345,7 +318,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 .firstOrNull()
                 ?.data()
                 ?.let { data ->
-                    val info = json.decodeFromString<JsonElement>(data).jsonObject
+                    val info = json.parseToJsonElement(data).jsonObject
                     title = info["name"]?.jsonPrimitive?.content ?: ""
                     description = info["description"]?.jsonPrimitive?.content ?: ""
                     thumbnail_url = info["thumbnailUrl"]
@@ -362,9 +335,11 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         val animesPage = getSearchAnime(
                             1,
                             title,
-                            AnimeFilterList(GenreFilter(arrayOf("", type)).apply { state = 1 })
+                            AnimeFilterList(GenreFilter(arrayOf("", type)).apply { state = 1 }
                         )
-                        thumbnail_url = animesPage.animes.firstOrNull()?.thumbnail_url ?: thumbnail_url
+                        animesPage.animes.firstOrNull()?.thumbnail_url?.let { 
+                            thumbnail_url = it
+                        }
                     } catch (e: Exception) {
                         Log.e(name, "Failed to get bangumi cover image", e)
                     }
@@ -385,11 +360,11 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 name = element.select("div.card-mobile-title").text()
                 
                 if (href == response.request.url.toString()) {
-                    date_upload = doc.select("script[type=application/ld+json]")
+                    doc.select("script[type=application/ld+json]")
                         .firstOrNull()
                         ?.data()
                         ?.let { data ->
-                            json.decodeFromString<JsonElement>(data)
+                            json.parseToJsonElement(data)
                                 .jsonObject["uploadDate"]
                                 ?.jsonPrimitive
                                 ?.content
@@ -398,7 +373,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                                         uploadDateFormat.parse(dateString)?.time
                                     }.getOrNull()
                                 }
-                        } ?: 0L
+                        }?.let { date_upload = it }
                 }
             }
         }
@@ -413,18 +388,18 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             sources.mapNotNull {
                 val quality = it.attr("size")
                 val url = it.attr("src").takeIf { src -> !src.startsWith("blob:") }
-                url?.let { Video(it, "${quality}P", it) }
+                url?.let { safeUrl -> Video(safeUrl, "${quality}P", safeUrl) }
             }.sortedByDescending { it.quality == preferQuality }
         } else {
             doc.select("script[type=application/ld+json]")
                 .firstOrNull()
                 ?.data()
                 ?.let { data ->
-                    val url = json.decodeFromString<JsonElement>(data)
+                    json.parseToJsonElement(data)
                         .jsonObject["contentUrl"]
                         ?.jsonPrimitive
                         ?.content
-                    url?.let { listOf(Video(it, "Raw", it)) } 
+                        ?.let { url -> listOf(Video(url, "Raw", url)) } 
                 } ?: emptyList()
         }
     }
@@ -452,7 +427,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 title = it.select(".card-mobile-title, .home-rows-videos-title")
                     .text()
                     .appendInvisibleChar()
-                author = it.select(".card-mobile-user").textOrNull()
+                author = it.select(".card-mobile-user").text().takeIf { t -> t.isNotEmpty() }
             }
         }
         
@@ -461,67 +436,68 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     override fun searchAnimeRequest(
-    page: Int,
-    query: String,
-    filters: AnimeFilterList
-): Request {
-    val httpUrl = "$baseUrl/search".toHttpUrl().newBuilder().apply {
-        if (query.isNotEmpty()) {
-            addQueryParameter("query", query)
-        }
+        page: Int,
+        query: String,
+        filters: AnimeFilterList
+    ): Request {
+        val httpUrl = "$baseUrl/search".toHttpUrl().newBuilder().apply {
+            if (query.isNotEmpty()) {
+                addQueryParameter("query", query)
+            }
 
-        filters.forEach { filter ->
-            when (filter) {
-                is QueryFilter -> {
-                    if (filter.selected.isNotEmpty()) {
-                        addQueryParameter(filter.key, filter.selected)
+            filters.forEach { filter ->
+                when (filter) {
+                    is QueryFilter -> {
+                        if (filter.selected.isNotEmpty()) {
+                            addQueryParameter(filter.key, filter.selected)
+                        }
                     }
-                }
-                is BroadMatchFilter -> {
-                    if (filter.state) {
-                        addQueryParameter("broad_match", "on")
+                    is BroadMatchFilter -> {
+                        if (filter.state) {
+                            addQueryParameter("broad_match", "on")
+                        }
                     }
-                }
-                is TagFilter -> {
-                    if (filter.state) {
-                        addQueryParameter("tags[]", filter.name)
+                    is TagFilter -> {
+                        if (filter.state) {
+                            addQueryParameter("tags[]", filter.name)
+                        }
                     }
-                }
-                is TagsFilter -> {
-                    filter.state.forEach { inner ->
-                        if (inner is CategoryFilter) {
-                            inner.state.forEach { tag ->
-                                if (tag.state) {
-                                    addQueryParameter("tags[]", tag.name)
+                    is TagsFilter -> {
+                        filter.state.forEach { inner ->
+                            if (inner is CategoryFilter) {
+                                inner.state.forEach { tag ->
+                                    if (tag is TagFilter && tag.state) {
+                                        addQueryParameter("tags[]", tag.name)
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        }
 
-        if (page > 1) {
-            addQueryParameter("page", page.toString())
-        }
-    }.build()
+            if (page > 1) {
+                addQueryParameter("page", page.toString())
+            }
+        }.build()
 
-    return GET(httpUrl)
-}
+        return GET(httpUrl)
+    }
 
     private fun checkFiltersInterceptor(chain: Interceptor.Chain): Response {
         if (filterUpdateState == FilterUpdateState.NONE) updateFilters()
         return chain.proceed(chain.request())
     }
 
-    @OptIn(DelicateCoroutinesApi::class)
     private fun updateFilters() {
         filterUpdateState = FilterUpdateState.UPDATING
         
-        GlobalScope.launch(Dispatchers.IO + CoroutineExceptionHandler { _, e ->
+        val exceptionHandler = CoroutineExceptionHandler { _, e ->
             Log.e(name, "Filter update failed", e)
             filterUpdateState = FilterUpdateState.FAILED
-        }) {
+        }
+        
+        GlobalScope.launch(Dispatchers.IO + exceptionHandler) {
             try {
                 val searchDoc = client.newCall(GET("$baseUrl/search"))
                     .awaitSuccess()
@@ -582,45 +558,45 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         TagsFilter(createCategoryFilters())
     )
 
-override fun setupPreferenceScreen(screen: PreferenceScreen) {
-    // Video Quality Preference
-    ListPreference(screen.context).apply {
-        key = PREF_KEY_VIDEO_QUALITY
-        title = "Preferred Video Quality"
-        entries = arrayOf("1080P", "720P", "480P")
-        entryValues = arrayOf("1080P", "720P", "480P")
-        setDefaultValue(DEFAULT_QUALITY)
-        summary = "Current: ${preferences.getString(PREF_KEY_VIDEO_QUALITY, DEFAULT_QUALITY)}"
-        setOnPreferenceChangeListener { _, newValue ->
-            summary = "Current: ${newValue as String}"
-            true
-        }
-    }.also { screen.addPreference(it) }
+    override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        // Video Quality Preference
+        ListPreference(screen.context).apply {
+            key = PREF_KEY_VIDEO_QUALITY
+            title = "Preferred Video Quality"
+            entries = arrayOf("1080P", "720P", "480P")
+            entryValues = arrayOf("1080P", "720P", "480P")
+            setDefaultValue(DEFAULT_QUALITY)
+            summary = "Current: ${preferences.getString(PREF_KEY_VIDEO_QUALITY, DEFAULT_QUALITY)}"
+            setOnPreferenceChangeListener { _, newValue ->
+                summary = "Current: ${newValue as String}"
+                true
+            }
+        }.also { screen.addPreference(it) }
 
-    // Language Preference - Fixed array declaration
-    ListPreference(screen.context).apply {
-        key = PREF_KEY_LANG
-        title = "Preferred Language"
-        summary = "Affects subtitles only"
-        entries = arrayOf("Traditional Chinese", "Simplified Chinese")
-        entryValues = arrayOf("zh-CHT", "zh-CHS")
-        setOnPreferenceChangeListener { _, newValue ->
-            val cookie = Cookie.parse(
-                baseUrl.toHttpUrl(), 
-                "user_lang=${newValue as String}"
-            ) ?: return@setOnPreferenceChangeListener false
-            client.cookieJar.saveFromResponse(baseUrl.toHttpUrl(), listOf(cookie))
-            true
-        }
-    }.also { screen.addPreference(it) }
-}
+        // Language Preference
+        ListPreference(screen.context).apply {
+            key = PREF_KEY_LANG
+            title = "Preferred Language"
+            summary = "Affects subtitles only"
+            entries = arrayOf("Traditional Chinese", "Simplified Chinese")
+            entryValues = arrayOf("zh-CHT", "zh-CHS")
+            setOnPreferenceChangeListener { _, newValue ->
+                val cookie = Cookie.parse(
+                    baseUrl.toHttpUrl(), 
+                    "user_lang=${newValue as String}"
+                ) ?: return@setOnPreferenceChangeListener false
+                client.cookieJar.saveFromResponse(baseUrl.toHttpUrl(), listOf(cookie))
+                true
+            }
+        }.also { screen.addPreference(it) }
+    }
+
     // Helper extensions
     private fun String.appendInvisibleChar() = "$this\u200B"
-    private fun org.jsoup.nodes.Element.textOrNull() = if (hasText()) text() else null
 
-    private inline fun <reified T : QueryFilter> createFilter(
+    private fun <T : QueryFilter> createFilter(
         prefKey: String,
-        crossinline block: (Array<String>) -> T
+        block: (Array<String>) -> T
     ): T {
         val saved = preferences.getString(prefKey, "")
         return if (saved.isNullOrEmpty()) {
@@ -635,8 +611,12 @@ override fun setupPreferenceScreen(screen: PreferenceScreen) {
         val filters = mutableListOf<AnimeFilter<*>>(BroadMatchFilter())
         
         saved?.let {
-            json.decodeFromString<Map<String, List<String>>>(it).forEach { (category, tags) ->
-                filters.add(CategoryFilter(category, tags.map { TagFilter("tags[]", it) }))
+            try {
+                json.decodeFromString<Map<String, List<String>>>(it).forEach { (category, tags) ->
+                    filters.add(CategoryFilter(category, tags.map { tag -> TagFilter("tags[]", tag) }))
+                }
+            } catch (e: Exception) {
+                Log.e(name, "Error parsing category filters", e)
             }
         }
         
@@ -683,4 +663,4 @@ override fun setupPreferenceScreen(screen: PreferenceScreen) {
         private const val PREF_KEY_CATEGORY_LIST = "pref_category_list"
         private const val DEFAULT_QUALITY = "1080P"
     }
-            }
+}
