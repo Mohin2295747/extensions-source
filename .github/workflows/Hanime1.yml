@@ -1,14 +1,18 @@
-name: Build Single APK
+name: Build Single Extension
 
 on:
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
 
 jobs:
   build:
     name: Build and Package APK
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Clone repository
         uses: actions/checkout@v4
 
       - name: Validate Gradle Wrapper
@@ -23,23 +27,26 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Build specific module
+      - name: Build specific extension
         env:
-          GRADLE_OPTS: -Dorg.gradle.parallel=false
+          # Fix for Kotlin serialization warnings
+          GRADLE_OPTS: -Dorg.gradle.parallel=false -Dkotlinx.serialization.opt-in=kotlinx.serialization.ExperimentalSerializationApi
         run: |
           chmod +x ./gradlew
-          ./gradlew :zh:hanime1:assembleDebug
+          # Build only the hanime1 extension
+          ./gradlew :src:zh:hanime1:assembleDebug
 
-      - name: Find and archive APK
+      - name: Collect APK
         run: |
+          # Create output directory
           mkdir apk_output
-          find . -path "*/zh/hanime1/*/debug/*.apk" -exec cp -v {} apk_output \;
-          echo "APK found at: $(ls apk_output/)"
-          zip -j single_apk.zip apk_output/*.apk
+          # Find and copy the specific APK
+          find src/zh/hanime1 -name '*.apk' -exec cp -v {} apk_output \;
+          echo "APK collected: $(ls apk_output/)"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: hanime1-extension
-          path: single_apk.zip
+          path: apk_output/*.apk
           retention-days: 1
