@@ -1,4 +1,4 @@
-name: Build Single Extension
+name: Build Hanime1 Extension
 
 on:
   workflow_dispatch:
@@ -12,7 +12,7 @@ env:
 
 jobs:
   build:
-    name: Build Hanime1 APK
+    name: Build APK
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -30,15 +30,32 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
 
+      - name: Verify project structure
+        run: |
+          echo "Current directory: $(pwd)"
+          ls -la
+          ls -la src/zh/
+
       - name: Build hanime1 extension
         run: |
           chmod +x ./gradlew
-          ./gradlew :src:zh:hanime1:assembleDebug
+          # Try different project path formats
+          ./gradlew :zh:hanime1:assembleDebug || \
+          ./gradlew :src:zh:hanime1:assembleDebug || \
+          ./gradlew :extensions-source:src:zh:hanime1:assembleDebug
 
       - name: Find and upload APK
         run: |
-          APK_PATH=$(find src/zh/hanime1/build/outputs/apk/debug -name '*.apk')
-          echo "APK path: $APK_PATH"
+          # Search in possible output locations
+          APK_PATH=$(find . -path "*/zh/hanime1/*/debug/*.apk" -o \
+                       -path "*/src/zh/hanime1/*/debug/*.apk" -o \
+                       -path "*/extensions-source/src/zh/hanime1/*/debug/*.apk" | head -1)
+          if [ -z "$APK_PATH" ]; then
+            echo "APK not found! Searching all locations:"
+            find . -name "*.apk"
+            exit 1
+          fi
+          echo "APK found at: $APK_PATH"
           cp "$APK_PATH" hanime1-debug.apk
 
       - name: Upload APK artifact
