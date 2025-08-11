@@ -24,11 +24,11 @@ jobs:
           GRADLE_OPTS: -Dorg.gradle.parallel=false -Dkotlinx.serialization.opt-in=kotlinx.serialization.ExperimentalSerializationApi
         run: |
           chmod +x ./gradlew
-          ./gradlew -p extensions-source/src/zh/hanime1 assembleDebug --no-parallel
+          ./gradlew -p src/zh/hanime1 assembleDebug --no-parallel
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: hanime1-apk
-          path: extensions-source/src/zh/hanime1/build/outputs/apk/debug/*.apk
+          path: src/zh/hanime1/build/outputs/apk/debug/*.apk
           retention-days: 3
