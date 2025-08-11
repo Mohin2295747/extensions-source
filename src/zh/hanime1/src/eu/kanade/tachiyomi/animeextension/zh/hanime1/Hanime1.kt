@@ -329,10 +329,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             if (type == "Bangumi" || type == "Short Episodes") {
                 runBlocking {
                     try {
+                        val filter = GenreFilter(arrayOf("", type))
+                        filter.state = 1
                         val animesPage = getSearchAnime(
                             1,
                             title,
-                            AnimeFilterList(GenreFilter(arrayOf("", type,)).apply { state = 1 },
+                            AnimeFilterList(filter),
                         )
                         animesPage.animes.firstOrNull()?.thumbnail_url?.let {
                             thumbnail_url = it
