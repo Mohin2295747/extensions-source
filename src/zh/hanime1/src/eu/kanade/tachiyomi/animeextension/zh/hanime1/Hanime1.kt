@@ -22,6 +22,7 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonArray
@@ -67,6 +68,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     private val translationMap = mapOf(
         "影片屬性" to "Video Attributes",
         "人物關係" to "Relationships",
+        // add all other translations here (you said you'd replace them later)
         "角色設定" to "Character Settings",
         "外貌身材" to "Appearance & Body",
         "故事劇情" to "Story",
@@ -301,7 +303,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         "蘿莉" to "Loli",
         "美少女" to "Beautiful Girl",
         "異種" to "Bestiality",
-        "男同性戀" to "Yaoi"
+        "男同性戀" to "Yaoi",
     )
 
     override fun animeDetailsParse(response: Response): SAnime {
@@ -311,9 +313,9 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 .not("[data-toggle]")
                 .eachText()
                 .joinToString()
-                
+
             author = doc.select("#video-artist-name").text()
-            
+
             doc.select("script[type=application/ld+json]")
                 .firstOrNull()
                 ?.data()
@@ -327,7 +329,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         ?.jsonPrimitive
                         ?.content
                 }
-                
+
             val type = doc.select("a#video-artist-name + a").text().trim()
             if (type == "Bangumi" || type == "Short Episodes") {
                 runBlocking {
@@ -335,9 +337,9 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         val animesPage = getSearchAnime(
                             1,
                             title,
-                            AnimeFilterList(GenreFilter(arrayOf("", type)).apply { state = 1 }
+                            AnimeFilterList(GenreFilter(arrayOf("", type)).apply { state = 1 })
                         )
-                        animesPage.animes.firstOrNull()?.thumbnail_url?.let { 
+                        animesPage.animes.firstOrNull()?.thumbnail_url?.let {
                             thumbnail_url = it
                         }
                     } catch (e: Exception) {
@@ -351,14 +353,14 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun episodeListParse(response: Response): List<SEpisode> {
         val doc = response.asJsoup()
         val episodes = doc.select("#playlist-scroll > div")
-        
+
         return episodes.mapIndexed { index, element ->
             SEpisode.create().apply {
                 val href = element.select("a.overlay").attr("href")
                 setUrlWithoutDomain(href)
                 episode_number = (episodes.size - index).toFloat()
                 name = element.select("div.card-mobile-title").text()
-                
+
                 if (href == response.request.url.toString()) {
                     doc.select("script[type=application/ld+json]")
                         .firstOrNull()
@@ -383,7 +385,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         val doc = response.asJsoup()
         val sources = doc.select("video source")
         val preferQuality = preferences.getString(PREF_KEY_VIDEO_QUALITY, DEFAULT_QUALITY)
-        
+
         return if (sources.isNotEmpty()) {
             sources.mapNotNull {
                 val quality = it.attr("size")
@@ -399,19 +401,19 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         .jsonObject["contentUrl"]
                         ?.jsonPrimitive
                         ?.content
-                        ?.let { url -> listOf(Video(url, "Raw", url)) } 
+                        ?.let { url -> listOf(Video(url, "Raw", url)) }
                 } ?: emptyList()
         }
     }
 
     override fun latestUpdatesParse(response: Response): AnimesPage = searchAnimeParse(response)
-    
-    override fun latestUpdatesRequest(page: Int): Request = 
+
+    override fun latestUpdatesRequest(page: Int): Request =
         searchAnimeRequest(page, "", AnimeFilterList())
-    
+
     override fun popularAnimeParse(response: Response): AnimesPage = searchAnimeParse(response)
-    
-    override fun popularAnimeRequest(page: Int): Request = 
+
+    override fun popularAnimeRequest(page: Int): Request =
         searchAnimeRequest(page, "", AnimeFilterList(HotFilter))
 
     override fun searchAnimeParse(response: Response): AnimesPage {
@@ -419,7 +421,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         val animes = doc.select("div.search-doujin-videos.hidden-xs:not(:has(a[target=_blank]))")
             .takeIf { it.isNotEmpty() }
             ?: doc.select("a:not([target]) > .search-videos")
-        
+
         val list = animes.map {
             SAnime.create().apply {
                 setUrlWithoutDomain(it.select("a[href]").attr("href"))
@@ -430,7 +432,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 author = it.select(".card-mobile-user").text().takeIf { t -> t.isNotEmpty() }
             }
         }
-        
+
         val hasNextPage = doc.select("li.page-item a.page-link[rel=next]").isNotEmpty()
         return AnimesPage(list, hasNextPage)
     }
@@ -491,18 +493,18 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     private fun updateFilters() {
         filterUpdateState = FilterUpdateState.UPDATING
-        
+
         val exceptionHandler = CoroutineExceptionHandler { _, e ->
             Log.e(name, "Filter update failed", e)
             filterUpdateState = FilterUpdateState.FAILED
         }
-        
+
         GlobalScope.launch(Dispatchers.IO + exceptionHandler) {
             try {
                 val searchDoc = client.newCall(GET("$baseUrl/search"))
                     .awaitSuccess()
                     .asJsoup()
-                
+
                 // Extract filter options
                 val genreList = searchDoc.select("div.genre-option div.hentai-sort-options")
                     .eachText()
@@ -518,7 +520,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 // Build category dictionary
                 val categoryDict = mutableMapOf<String, MutableList<String>>()
                 var currentCategory = ""
-                
+
                 searchDoc.select("div#tags div.modal-body").first()?.children()?.forEach { element ->
                     when (element.tagName()) {
                         "h5" -> currentCategory = translationMap[element.text()] ?: element.text()
@@ -539,7 +541,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     putString(PREF_KEY_CATEGORY_LIST, json.encodeToString(categoryDict))
                     apply()
                 }
-                
+
                 filterUpdateState = FilterUpdateState.COMPLETED
             } catch (e: Exception) {
                 Log.e(name, "updateFilters exception", e)
@@ -582,7 +584,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             entryValues = arrayOf("zh-CHT", "zh-CHS")
             setOnPreferenceChangeListener { _, newValue ->
                 val cookie = Cookie.parse(
-                    baseUrl.toHttpUrl(), 
+                    baseUrl.toHttpUrl(),
                     "user_lang=${newValue as String}"
                 ) ?: return@setOnPreferenceChangeListener false
                 client.cookieJar.saveFromResponse(baseUrl.toHttpUrl(), listOf(cookie))
@@ -609,7 +611,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     private fun createCategoryFilters(): List<AnimeFilter<*>> {
         val saved = preferences.getString(PREF_KEY_CATEGORY_LIST, null)
         val filters = mutableListOf<AnimeFilter<*>>(BroadMatchFilter())
-        
+
         saved?.let {
             try {
                 json.decodeFromString<Map<String, List<String>>>(it).forEach { (category, tags) ->
@@ -619,7 +621,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 Log.e(name, "Error parsing category filters", e)
             }
         }
-        
+
         return filters
     }
 
@@ -652,6 +654,13 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         val key: String,
         name: String
     ) : AnimeFilter.CheckBox(name, false)
+
+    // Helper - the missing function you called earlier
+    private suspend fun getSearchAnime(page: Int, query: String, filters: AnimeFilterList): AnimesPage {
+        val req = searchAnimeRequest(page, query, filters)
+        val resp = client.newCall(req).awaitSuccess()
+        return searchAnimeParse(resp)
+    }
 
     companion object {
         private const val PREF_KEY_VIDEO_QUALITY = "pref_video_quality"
