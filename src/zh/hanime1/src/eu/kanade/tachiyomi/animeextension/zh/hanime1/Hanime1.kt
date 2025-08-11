@@ -583,34 +583,37 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         }
     }
 
-    // ─── Fixed Filter Classes ───────────────────────────────────────────────────
-    private open class QueryFilter(
-        val key: String,
-        vals: Array<String>
-    ) : AnimeFilter.Select<String>(key, vals, 0) {
-        val selected: String
-            get() = if (state == 0 || values.isEmpty()) "" else values[state]
-    }
+    // ... (previous code remains the same until filter classes)
 
-    private class GenreFilter(vals: Array<String>) : QueryFilter("genre", vals)
-    private class SortFilter(vals: Array<String>) : QueryFilter("sort", vals)
-    private class YearFilter(vals: Array<String>) : QueryFilter("year", vals)
-    private class MonthFilter(vals: Array<String>) : QueryFilter("month", vals)
+// ─── Fixed Filter Classes with Proper Syntax ───────────────────────────────────
+private open class QueryFilter(
+    val key: String,
+    vals: Array<String>
+) : AnimeFilter.Select<String>(key, vals, 0) {
+    val selected: String
+        get() = if (state == 0 || values.isEmpty()) "" else values[state]
+}
 
-    private class DateFilter(
-        year: YearFilter,
-        month: MonthFilter,
-    ) : AnimeFilter.Group<AnimeFilter<*>>(
-        "Date",
-        listOf(year, month)
-    )
+private class GenreFilter(vals: Array<String>) : QueryFilter("genre", vals)
+private class SortFilter(vals: Array<String>) : QueryFilter("sort", vals)
+private class YearFilter(vals: Array<String>) : QueryFilter("year", vals)
+private class MonthFilter(vals: Array<String>) : QueryFilter("month", vals)
 
-    private object HotFilter : AnimeFilter.Select<String>("Sort", arrayOf("Hot"), 0)
-    private class BroadMatchFilter : AnimeFilter.CheckBox("Broad match (OR)", false)
-    private class TagsFilter(val state: List<AnimeFilter<*>>) : AnimeFilter.Group<AnimeFilter<*>>("Tags", state)
-    private class CategoryFilter(name: String, val state: List<TagFilter>) : AnimeFilter.Group<TagFilter>(name, state)
-    private class TagFilter(val key: String, val name: String) : AnimeFilter.CheckBox(name, false)
+private class DateFilter(
+    year: YearFilter,
+    month: MonthFilter
+) : AnimeFilter.Group<AnimeFilter<*>>(
+    "Date",
+    listOf(year, month)
+)
 
+private object HotFilter : AnimeFilter.Select<String>("Sort", arrayOf("Hot"), 0)
+private class BroadMatchFilter : AnimeFilter.CheckBox("Broad match (OR)", false)
+private class TagsFilter(state: List<AnimeFilter<*>>) : AnimeFilter.Group<AnimeFilter<*>>("Tags", state)
+private class CategoryFilter(name: String, state: List<TagFilter>) : AnimeFilter.Group<TagFilter>(name, state)
+private class TagFilter(key: String, name: String) : AnimeFilter.CheckBox(name, false)
+
+// ... (rest of the code remains the same)
     companion object {
         const val PREF_KEY_VIDEO_QUALITY = "PREF_KEY_VIDEO_QUALITY"
         const val PREF_KEY_LANG = "PREF_KEY_LANG"
