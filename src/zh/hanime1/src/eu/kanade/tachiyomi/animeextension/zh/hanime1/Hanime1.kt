@@ -25,7 +25,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import okhttp3.Cookie
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
 import okhttp3.Request
@@ -333,7 +332,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         val animesPage = getSearchAnime(
                             1,
                             title,
-                            AnimeFilterList(GenreFilter(arrayOf("", type)).apply { state = 1 },
+                            AnimeFilterList(GenreFilter(arrayOf("", type,)).apply { state = 1 },
                         )
                         animesPage.animes.firstOrNull()?.thumbnail_url?.let {
                             thumbnail_url = it
@@ -501,16 +500,18 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     .awaitSuccess()
                     .asJsoup()
 
-                val genreList = searchDoc.select("div.genre-option div.hentai-sort-options")
-                    .eachText()
-                val sortList = searchDoc.select("div.hentai-sort-options-wrapper div.hentai-sort-options")
-                    .eachText()
-                val yearList = searchDoc.select("select#year option")
-                    .eachAttr("value")
-                    .map { it.ifEmpty { "All Years" } }
-                val monthList = searchDoc.select("select#month option")
-                    .eachAttr("value")
-                    .map { it.ifEmpty { "All Months" } }
+                val genreList = searchDoc.select(
+                    "div.genre-option div.hentai-sort-options",
+                ).eachText()
+                val sortList = searchDoc.select(
+                    "div.hentai-sort-options-wrapper div.hentai-sort-options",
+                ).eachText()
+                val yearList = searchDoc.select(
+                    "select#year option",
+                ).eachAttr("value").map { it.ifEmpty { "All Years" } }
+                val monthList = searchDoc.select(
+                    "select#month option",
+                ).eachAttr("value").map { it.ifEmpty { "All Months" } }
 
                 val categoryDict = mutableMapOf<String, MutableList<String>>()
                 var currentCategory = ""
