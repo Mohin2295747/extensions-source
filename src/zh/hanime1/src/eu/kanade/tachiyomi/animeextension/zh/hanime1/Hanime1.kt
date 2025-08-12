@@ -436,55 +436,54 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         return AnimesPage(list, hasNextPage)
     }
 
-    override fun searchAnimeRequest(
-    page: Int,
-    query: String,
-    filters: AnimeFilterList,
-): Request {
-    val httpUrl = "$baseUrl/search".toHttpUrl().newBuilder().apply {
+    override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
+        val searchUrl = baseUrl.toHttpUrl().newBuilder().addPathSegment("search")
         if (query.isNotEmpty()) {
-            addQueryParameter("query", query)
+            searchUrl.addQueryParameter("query", query)
         }
-
-        filters.forEach { filter ->
-            when (filter) {
-                is QueryFilter -> {
-                    if (filter.selected.isNotEmpty()) {
-                        addQueryParameter(filter.key, filter.selected)
-                    }
-                }
-                is BroadMatchFilter -> {
-                    if (filter.state) {
-                        addQueryParameter("broad_match", "on")
-                    }
-                }
-                is TagFilter -> {
-                    if (filter.state) {
-                        addQueryParameter("tags[]", filter.name)
-                    }
-                }
+        filters.list.flatMap {
+            when (it) {
                 is TagsFilter -> {
-                    filter.state.forEach { inner ->
+                    it.state.flatMap { inner ->
                         if (inner is CategoryFilter) {
-                            inner.state.forEach { tag ->
-                                if (tag is TagFilter && tag.state) {
-                                    addQueryParameter("tags[]", tag.name)
-                                }
-                            }
+                            inner.state
+                        } else {
+                            listOf(inner)
                         }
                     }
                 }
+
+                is AnimeFilter.Group<*> -> it.state
+                else -> listOf(it)
+            }
+        }.forEach {
+            when (it) {
+                is QueryFilter -> {
+                    if (it.selected.isNotEmpty()) {
+                        searchUrl.addQueryParameter(it.key, it.selected)
+                    }
+                }
+
+                is BroadMatchFilter -> {
+                    if (it.state) {
+                        searchUrl.addQueryParameter(it.key, "on")
+                    }
+                }
+
+                is TagFilter -> {
+                    if (it.state) {
+                        searchUrl.addQueryParameter(it.key, it.name)
+                    }
+                }
+
                 else -> {}
             }
         }
-
         if (page > 1) {
-            addQueryParameter("page", page.toString())
+            searchUrl.addQueryParameter("page", "$page")
         }
-    }.build()
-
-    return GET(httpUrl)
-}
+        return GET(searchUrl.build())
+    }
 
     private fun checkFiltersInterceptor(chain: Interceptor.Chain): Response {
         if (filterUpdateState == FilterUpdateState.NONE) updateFilters()
@@ -629,20 +628,20 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     ) : AnimeFilter.Group<AnimeFilter<*>>("Date", listOf(year, month))
 
     private object HotFilter : AnimeFilter.Select<String>(
-        "Sort",
-        arrayOf("Hot"),
-        0,
-    )
+    "Sort",
+    arrayOf("Hot"),
+    0,
+)
 
-    private class BroadMatchFilter : AnimeFilter.CheckBox(
-        "Broad match (OR)",
-        false,
-    )
+private class BroadMatchFilter : AnimeFilter.CheckBox(
+    "Broad match (OR)",
+    false,
+)
 
-    override suspend fun getSearchAnime(
+override suspend fun getSearchAnime(
     page: Int,
     query: String,
-    filters: AnimeFilterList
+    filters: AnimeFilterList,
 ): AnimesPage {
     val req = searchAnimeRequest(page, query, filters)
     val resp = client.newCall(req).awaitSuccess()
