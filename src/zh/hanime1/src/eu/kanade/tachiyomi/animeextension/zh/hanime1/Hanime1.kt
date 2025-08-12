@@ -477,17 +477,14 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 else -> {}
             }
         }
-    }
 
-    return GET(httpUrl.build().toString())
+        if (page > 1) {
+            addQueryParameter("page", page.toString())
+        }
+    }.build()
+
+    return GET(httpUrl)
 }
-            if (page > 1) {
-                addQueryParameter("page", page.toString())
-            }
-        }.build()
-
-        return GET(httpUrl)
-    }
 
     private fun checkFiltersInterceptor(chain: Interceptor.Chain): Response {
         if (filterUpdateState == FilterUpdateState.NONE) updateFilters()
@@ -642,11 +639,15 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         false,
     )
 
-    override suspend fun getSearchAnime(page: Int, query: String, filters: AnimeFilterList): AnimesPage {
+    override suspend fun getSearchAnime(
+    page: Int,
+    query: String,
+    filters: AnimeFilterList
+): AnimesPage {
     val req = searchAnimeRequest(page, query, filters)
     val resp = client.newCall(req).awaitSuccess()
     return searchAnimeParse(resp)
-    }
+}
 
     companion object {
         private const val PREF_KEY_VIDEO_QUALITY = "pref_video_quality"
