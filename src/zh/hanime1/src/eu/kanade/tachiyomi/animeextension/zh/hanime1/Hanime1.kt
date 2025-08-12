@@ -437,46 +437,50 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     override fun searchAnimeRequest(
-        page: Int,
-        query: String,
-        filters: AnimeFilterList,
-    ): Request {
-        val httpUrl = "$baseUrl/search".toHttpUrl().newBuilder().apply {
-            if (query.isNotEmpty()) {
-                addQueryParameter("query", query)
-            }
+    page: Int,
+    query: String,
+    filters: AnimeFilterList,
+): Request {
+    val httpUrl = "$baseUrl/search".toHttpUrl().newBuilder().apply {
+        if (query.isNotEmpty()) {
+            addQueryParameter("query", query)
+        }
 
-            filters.forEach { filter ->
-                when (filter) {
-                    is QueryFilter -> {
-                        if (filter.selected.isNotEmpty()) {
-                            addQueryParameter(filter.key, filter.selected)
-                        }
+        filters.forEach { filter ->
+            when (filter) {
+                is QueryFilter -> {
+                    if (filter.selected.isNotEmpty()) {
+                        addQueryParameter(filter.key, filter.selected)
                     }
-                    is BroadMatchFilter -> {
-                        if (filter.state) {
-                            addQueryParameter("broad_match", "on")
-                        }
+                }
+                is BroadMatchFilter -> {
+                    if (filter.state) {
+                        addQueryParameter("broad_match", "on")
                     }
-                    is TagFilter -> {
-                        if (filter.state) {
-                            addQueryParameter("tags[]", filter.name)
-                        }
+                }
+                is TagFilter -> {
+                    if (filter.state) {
+                        addQueryParameter("tags[]", filter.name)
                     }
-                    is TagsFilter -> {
-                        filter.state.forEach { inner ->
-                            if (inner is CategoryFilter) {
-                                inner.state.forEach { tag ->
-                                    if (tag is TagFilter && tag.state) {
-                                        addQueryParameter("tags[]", tag.name)
-                                    }
+                }
+                is TagsFilter -> {
+                    filter.state.forEach { inner ->
+                        if (inner is CategoryFilter) {
+                            inner.state.forEach { tag ->
+                                if (tag is TagFilter && tag.state) {
+                                    addQueryParameter("tags[]", tag.name)
                                 }
                             }
                         }
                     }
                 }
+                else -> {}
             }
+        }
+    }
 
+    return GET(httpUrl.build().toString())
+}
             if (page > 1) {
                 addQueryParameter("page", page.toString())
             }
@@ -638,10 +642,10 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         false,
     )
 
-    private suspend fun getSearchAnime(page: Int, query: String, filters: AnimeFilterList): AnimesPage {
-        val req = searchAnimeRequest(page, query, filters)
-        val resp = client.newCall(req).awaitSuccess()
-        return searchAnimeParse(resp)
+    override suspend fun getSearchAnime(page: Int, query: String, filters: AnimeFilterList): AnimesPage {
+    val req = searchAnimeRequest(page, query, filters)
+    val resp = client.newCall(req).awaitSuccess()
+    return searchAnimeParse(resp)
     }
 
     companion object {
