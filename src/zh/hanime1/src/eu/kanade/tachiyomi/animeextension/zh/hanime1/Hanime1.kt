@@ -413,7 +413,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun popularAnimeParse(response: Response): AnimesPage = searchAnimeParse(response)
 
     override fun popularAnimeRequest(page: Int): Request =
-        searchAnimeRequest(page, "", AnimeFilterList(HotFilter),)
+        searchAnimeRequest(page, "", AnimeFilterList(HotFilter))
 
     override fun searchAnimeParse(response: Response): AnimesPage {
         val doc = response.asJsoup()
@@ -433,13 +433,13 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         }
 
         val hasNextPage = doc.select("li.page-item a.page-link[rel=next]").isNotEmpty()
-        return AnimesPage(list, hasNextPage,)
+        return AnimesPage(list, hasNextPage)
     }
 
     override fun searchAnimeRequest(
         page: Int,
         query: String,
-        filters: AnimeFilterList
+        filters: AnimeFilterList,
     ): Request {
         val httpUrl = "$baseUrl/search".toHttpUrl().newBuilder().apply {
             if (query.isNotEmpty()) {
@@ -575,7 +575,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         return if (saved.isNullOrEmpty()) {
             block(emptyArray())
         } else {
-            block(saved.split(", ").toTypedArray(),)
+            block(saved.split(", ").toTypedArray())
         }
     }
 
