@@ -27,6 +27,7 @@ jobs:
         run: |
           projects=(src/*/*)
           echo "NUM_INDIVIDUAL_MODULES=${#projects[@]}" >> $GITHUB_ENV
+
       - id: generate-matrices
         name: Create output matrices
         uses: actions/github-script@v7
@@ -36,6 +37,7 @@ jobs:
             const chunkSize = process.env.CI_CHUNK_SIZE;
             const numIndividualChunks = Math.ceil(numIndividualModules / chunkSize);
             core.setOutput('individualMatrix', { 'chunk': [...Array(numIndividualChunks).keys()] });
+
   build_individual:
     name: Build individual modules
     needs: prepare
@@ -55,15 +57,19 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
 
+      - name: Auto-fix lint issues
+        run: |
+          chmod +x ./gradlew
+          ./gradlew ktlintFormat
+
       - name: Build extensions (chunk ${{ matrix.chunk }})
         env:
           CI_CHUNK_NUM: ${{ matrix.chunk }}
           # Fix for Kotlin serialization warnings
           GRADLE_OPTS: -Dorg.gradle.parallel=false -Dkotlinx.serialization.opt-in=kotlinx.serialization.ExperimentalSerializationApi
         run: |
-          chmod +x ./gradlew
-          # Build debug APKs instead of release (no signing required)
           ./gradlew -p src assembleDebug --no-parallel
+
       - name: Upload APKs (chunk ${{ matrix.chunk }})
         uses: actions/upload-artifact@v4
         with:
@@ -89,6 +95,7 @@ jobs:
           # Find and copy all APKs
           find apk-artifacts -name '*.apk' -exec cp -v {} all_apks \;
           echo "Total APKs collected: $(ls -1 all_apks | wc -l)"
+
       - name: Create ZIP archive
         run: zip -r all_extensions.zip all_apks
 
