@@ -21,8 +21,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -41,7 +41,7 @@ enum class FilterUpdateState {
     NONE,
     UPDATING,
     COMPLETED,
-    FAILED
+    FAILED,
 }
 
 class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
@@ -336,7 +336,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         val animesPage = getSearchAnime(
                             1,
                             title,
-                            AnimeFilterList(listOf(filter))
+                            AnimeFilterList(listOf(filter)),
                         )
                         animesPage.animes.firstOrNull()?.thumbnail_url?.let {
                             thumbnail_url = it
@@ -413,7 +413,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun popularAnimeParse(response: Response): AnimesPage = searchAnimeParse(response)
 
     override fun popularAnimeRequest(page: Int): Request =
-        searchAnimeRequest(page, "", AnimeFilterList(HotFilter))
+        searchAnimeRequest(page, "", AnimeFilterList(HotFilter),)
 
     override fun searchAnimeParse(response: Response): AnimesPage {
         val doc = response.asJsoup()
@@ -433,7 +433,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         }
 
         val hasNextPage = doc.select("li.page-item a.page-link[rel=next]").isNotEmpty()
-        return AnimesPage(list, hasNextPage)
+        return AnimesPage(list, hasNextPage,)
     }
 
     override fun searchAnimeRequest(
@@ -545,9 +545,9 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         createFilter(PREF_KEY_SORT_LIST) { SortFilter(it) },
         DateFilter(
             createFilter(PREF_KEY_YEAR_LIST) { YearFilter(it) },
-            createFilter(PREF_KEY_MONTH_LIST) { MonthFilter(it) }
+            createFilter(PREF_KEY_MONTH_LIST) { MonthFilter(it) },
         ),
-        TagsFilter(createCategoryFilters())
+        TagsFilter(createCategoryFilters()),
     )
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
@@ -569,13 +569,13 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     private fun <T : QueryFilter> createFilter(
         prefKey: String,
-        block: (Array<String>) -> T
+        block: (Array<String>) -> T,
     ): T {
         val saved = preferences.getString(prefKey, "")
         return if (saved.isNullOrEmpty()) {
             block(emptyArray())
         } else {
-            block(saved.split(", ").toTypedArray())
+            block(saved.split(", ").toTypedArray(),)
         }
     }
 
@@ -598,7 +598,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     private open class QueryFilter(
         val key: String,
-        vals: Array<String>
+        vals: Array<String>,
     ) : AnimeFilter.Select<String>(key, vals, 0) {
         val selected: String get() = if (state == 0 || values.isEmpty()) "" else values[state]
     }
@@ -609,26 +609,34 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     private class MonthFilter(vals: Array<String>) : QueryFilter("month", vals)
 
     private class TagsFilter(
-        state: List<AnimeFilter<*>>
+        state: List<AnimeFilter<*>>,
     ) : AnimeFilter.Group<AnimeFilter<*>>("Tags", state)
 
     private class CategoryFilter(
         name: String,
-        state: List<TagFilter>
+        state: List<TagFilter>,
     ) : AnimeFilter.Group<TagFilter>(name, state)
 
     private class TagFilter(
         val key: String,
-        name: String
+        name: String,
     ) : AnimeFilter.CheckBox(name, false)
 
     private class DateFilter(
         private val year: YearFilter,
-        private val month: MonthFilter
+        private val month: MonthFilter,
     ) : AnimeFilter.Group<AnimeFilter<*>>("Date", listOf(year, month))
 
-    private object HotFilter : AnimeFilter.Select<String>("Sort", arrayOf("Hot"), 0)
-    private class BroadMatchFilter : AnimeFilter.CheckBox("Broad match (OR)", false)
+    private object HotFilter : AnimeFilter.Select<String>(
+        "Sort",
+        arrayOf("Hot"),
+        0,
+    )
+
+    private class BroadMatchFilter : AnimeFilter.CheckBox(
+        "Broad match (OR)",
+        false,
+    )
 
     private suspend fun getSearchAnime(page: Int, query: String, filters: AnimeFilterList): AnimesPage {
         val req = searchAnimeRequest(page, query, filters)
