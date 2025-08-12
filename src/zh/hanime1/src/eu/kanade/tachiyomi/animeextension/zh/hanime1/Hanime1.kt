@@ -300,7 +300,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         "蘿莉" to "Loli",
         "美少女" to "Beautiful Girl",
         "異種" to "Bestiality",
-        "男同性戀" to "Yaoi"
+        "男同性戀" to "Yaoi",
     )
 
     override fun animeDetailsParse(response: Response): SAnime {
