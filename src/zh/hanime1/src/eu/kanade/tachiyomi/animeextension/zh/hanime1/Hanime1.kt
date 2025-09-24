@@ -69,17 +69,19 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     override fun animeDetailsParse(response: Response): SAnime {
-        val doc = response.asJsoup()
-        return SAnime.create().apply {
-            genre = doc.select(".single-video-tag").not("[data-toggle]").eachText().joinToString()
-            author = doc.select("#video-artist-name").text()
-            doc.select("script[type=application/ld+json]").first()?.data()?.let {
-                val info = json.decodeFromString<JsonElement>(it).jsonObject
-                title = info["name"]!!.jsonPrimitive.content
-                description = info["description"]!!.jsonPrimitive.content
-                thumbnail_url = info["thumbnailUrl"]?.jsonArray?.get(0)?.jsonPrimitive?.content
-            }
-            val type = doc.select("a#video-artist-name + a").text().trim()
+    val doc = response.asJsoup()
+    return SAnime.create().apply {
+        genre = GoogleTranslator.translate(
+            doc.select(".single-video-tag").not("[data-toggle]").eachText().joinToString()
+        )
+        author = GoogleTranslator.translate(doc.select("#video-artist-name").text())
+        doc.select("script[type=application/ld+json]").first()?.data()?.let {
+            val info = json.decodeFromString<JsonElement>(it).jsonObject
+            title = GoogleTranslator.translate(info["name"]!!.jsonPrimitive.content)
+            description = GoogleTranslator.translate(info["description"]!!.jsonPrimitive.content)
+            thumbnail_url = info["thumbnailUrl"]?.jsonArray?.get(0)?.jsonPrimitive?.content
+        }
+        val type = GoogleTranslator.translate(doc.select("a#video-artist-name + a").text().trim())
             if (type == "裏番" || type == "泡麵番") {
                 // Use the series cover image for bangumi entries instead of the episode image.
                 runBlocking {
@@ -100,14 +102,14 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     override fun episodeListParse(response: Response): List<SEpisode> {
-        val jsoup = response.asJsoup()
-        val nodes = jsoup.select("#playlist-scroll").first()!!.select(">div")
-        return nodes.mapIndexed { index, element ->
-            SEpisode.create().apply {
-                val href = element.select("a.overlay").attr("href")
-                setUrlWithoutDomain(href)
-                episode_number = (nodes.size - index).toFloat()
-                name = element.select("div.card-mobile-title").text()
+    val jsoup = response.asJsoup()
+    val nodes = jsoup.select("#playlist-scroll").first()!!.select(">div")
+    return nodes.mapIndexed { index, element ->
+        SEpisode.create().apply {
+            val href = element.select("a.overlay").attr("href")
+            setUrlWithoutDomain(href)
+            episode_number = (nodes.size - index).toFloat()
+            name = GoogleTranslator.translate(element.select("div.card-mobile-title").text())
                 if (href == response.request.url.toString()) {
                     // current video
                     jsoup.select("script[type=application/ld+json]").first()?.data()?.let {
@@ -158,23 +160,23 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     override fun searchAnimeParse(response: Response): AnimesPage {
-        val jsoup = response.asJsoup()
-        val nodes = jsoup.select("div.search-doujin-videos.hidden-xs:not(:has(a[target=_blank]))")
-        val list = if (nodes.isNotEmpty()) {
-            nodes.map {
-                SAnime.create().apply {
-                    setUrlWithoutDomain(it.select("a[class=overlay]").attr("href"))
-                    thumbnail_url = it.select("img + img").attr("src")
-                    title = it.select("div.card-mobile-title").text().appendInvisibleChar()
-                    author = it.select(".card-mobile-user").text()
-                }
+    val jsoup = response.asJsoup()
+    val nodes = jsoup.select("div.search-doujin-videos.hidden-xs:not(:has(a[target=_blank]))")
+    val list = if (nodes.isNotEmpty()) {
+        nodes.map {
+            SAnime.create().apply {
+                setUrlWithoutDomain(it.select("a[class=overlay]").attr("href"))
+                thumbnail_url = it.select("img + img").attr("src")
+                title = GoogleTranslator.translate(it.select("div.card-mobile-title").text().appendInvisibleChar())
+                author = GoogleTranslator.translate(it.select(".card-mobile-user").text())
             }
-        } else {
-            jsoup.select("a:not([target]) > .search-videos").map {
-                SAnime.create().apply {
-                    setUrlWithoutDomain(it.parent()!!.attr("href"))
-                    thumbnail_url = it.select("img").attr("src")
-                    title = it.select(".home-rows-videos-title").text().appendInvisibleChar()
+        }
+    } else {
+        jsoup.select("a:not([target]) > .search-videos").map {
+            SAnime.create().apply {
+                setUrlWithoutDomain(it.parent()!!.attr("href"))
+                thumbnail_url = it.select("img").attr("src")
+                title = GoogleTranslator.translate(it.select(".home-rows-videos-title").text().appendInvisibleChar())
                 }
             }
         }
