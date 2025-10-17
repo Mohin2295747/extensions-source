@@ -92,12 +92,21 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             }
 
             // Fallback if JSON parsing failed
-            if (title.isBlank()) {
-                title = doc.select("h1.video-title").text()
-            }
-            if (description.isBlank()) {
-                description = doc.select(".video-description").text()
-            }
+            // Fallback if JSON parsing failed
+if (title.isNullOrBlank()) {
+    title = doc.select("h1.video-title").text()
+}
+if (description.isNullOrBlank()) {
+    description = doc.select(".video-description").text()
+}
+
+// Translating description safely
+if (!anime.description.isNullOrEmpty()) {
+    val translatedDescription = translateText(getTargetLanguage(), anime.description)
+    translatedAnime.description = translatedDescription.ifEmpty { anime.description!! }
+} else {
+    translatedAnime.description = anime.description ?: ""
+}
 
             val type = doc.select("a#video-artist-name + a").text().trim()
             if (type == "裏番" || type == "泡麵番") {
