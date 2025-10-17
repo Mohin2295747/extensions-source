@@ -358,7 +358,7 @@ fun PreferenceScreen.addTranslationPreferences() {
             title = "Enable Translation"
             summary = "Translate all Chinese text to English"
             setDefaultValue(false)
-        }
+        }, 
     )
 
     addPreference(
@@ -376,7 +376,7 @@ fun PreferenceScreen.addTranslationPreferences() {
                 summary = "Current: ${getLanguageDisplayName(newValue as String)}"
                 true
             }
-        }
+        },
     )
 }
 
