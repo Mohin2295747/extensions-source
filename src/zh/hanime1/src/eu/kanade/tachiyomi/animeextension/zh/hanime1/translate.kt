@@ -106,6 +106,65 @@ class Hanime1Translator {
         if (text.isBlank()) return text
         return translateText(getTargetLanguage(), text)
     }
+    // Add these functions to your Hanime1Translator class
+
+suspend fun translateFilterValues(values: List<String>): List<String> {
+    if (!isTranslationEnabled()) return values
+    
+    return values.map { value ->
+        if (isChineseText(value)) {
+            translateText(value).ifEmpty { value }
+        } else {
+            value
+        }
+    }
+}
+
+suspend fun translateFilterName(name: String): String {
+    if (!isTranslationEnabled()) return name
+    
+    return if (isChineseText(name)) {
+        translateText(name).ifEmpty { name }
+    } else {
+        name
+    }
+}
+
+// Common Chinese filter term translations
+private val filterTermTranslations = mapOf(
+    "全部" to "All",
+    "裏番" to "R-18",
+    "泡面番" to "Short Anime", 
+    "泡麵番" to "Short Anime",
+    "Motion Anime" to "Motion Anime",
+    "最新上市" to "Latest Release",
+    "最新上傳" to "Latest Upload",
+    "本日排行" to "Daily Ranking",
+    "本週排行" to "Weekly Ranking",
+    "本月排行" to "Monthly Ranking",
+    "全部年份" to "All Years",
+    "全部月份" to "All Months",
+    "廣泛配對" to "Broad Match",
+    "標籤" to "Tags",
+    "影片類型" to "Video Type",
+    "排序方式" to "Sort By",
+    "發佈年份" to "Release Year",
+    "發佈月份" to "Release Month",
+    "發佈日期" to "Release Date"
+)
+
+// Optimized version that uses pre-defined translations first
+suspend fun fastTranslateFilterText(text: String): String {
+    if (!isTranslationEnabled()) return text
+    
+    return filterTermTranslations[text] ?: run {
+        if (isChineseText(text)) {
+            translateText(text).ifEmpty { text }
+        } else {
+            text
+        }
+    }
+}
 
     private suspend fun translateText(targetLang: String, text: String): String {
         if (text.isBlank()) return text
