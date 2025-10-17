@@ -92,7 +92,6 @@ class Hanime1Translator {
                 // Copy any untranslated properties
                 translatedAnime.status = anime.status
                 translatedAnime.initialized = anime.initialized
-
             } catch (e: Exception) {
                 // If translation fails, return original anime
                 return@runBlocking anime
