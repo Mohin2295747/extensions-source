@@ -64,12 +64,12 @@ class Hanime1Translator {
                     translatedAnime.title = anime.title
                 }
 
-                if (anime.description.isNotEmpty()) {
-                    val translatedDescription = translateText(getTargetLanguage(), anime.description)
-                    translatedAnime.description = translatedDescription.ifEmpty { anime.description }
-                } else {
-                    translatedAnime.description = anime.description
-                }
+                if (anime.description?.isNotEmpty() == true) {
+    val translatedDescription = translateText(getTargetLanguage(), anime.description)
+    translatedAnime.description = translatedDescription.ifEmpty { anime.description }
+} else {
+    translatedAnime.description = anime.description
+}
 
                 anime.author?.let { author ->
                     if (author.isNotEmpty()) {
