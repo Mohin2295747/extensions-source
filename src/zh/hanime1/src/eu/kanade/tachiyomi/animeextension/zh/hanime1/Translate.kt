@@ -369,15 +369,15 @@ class Hanime1Translator {
     private fun isChineseText(text: String): Boolean {
         // Simple detection for Chinese characters
         val chineseCharCount = text.count { char ->
-            char in '\u4e00'..'\u9fff' || // CJK Unified Ideographs
-            char in '\u3400'..'\u4dbf' || // CJK Extension A
-            char in '\u20000'..'\u2a6df' || // CJK Extension B
-            char in '\u2a700'..'\u2b73f' || // CJK Extension C
-            char in '\u2b740'..'\u2b81f' || // CJK Extension D
-            char in '\u2b820'..'\u2ceaf' || // CJK Extension E
-            char in '\u2ceb0'..'\u2ebef' || // CJK Extension F
-            char in '\u3000'..'\u303f' || // CJK Symbols and Punctuation
-            char in '\uff00'..'\uffef' // Halfwidth and Fullwidth Forms
+                char in '\u4e00'..'\u9fff' || // CJK Unified Ideographs
+                char in '\u3400'..'\u4dbf' || // CJK Extension A
+                char in '\u20000'..'\u2a6df' || // CJK Extension B
+                char in '\u2a700'..'\u2b73f' || // CJK Extension C
+                char in '\u2b740'..'\u2b81f' || // CJK Extension D
+                char in '\u2b820'..'\u2ceaf' || // CJK Extension E
+                char in '\u2ceb0'..'\u2ebef' || // CJK Extension F
+                char in '\u3000'..'\u303f' || // CJK Symbols and Punctuation
+                char in '\uff00'..'\uffef' // Halfwidth and Fullwidth Forms
         }
         // Consider text as Chinese if at least 30% of characters are Chinese
         return chineseCharCount > text.length * 0.3
