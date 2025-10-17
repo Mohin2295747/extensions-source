@@ -67,7 +67,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     private val uploadDateFormat: SimpleDateFormat by lazy {
         SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.getDefault())
     }
-    
+
     // Add translator instance
     private val translator = Hanime1Translator()
 
@@ -87,12 +87,11 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 // Use the series cover image for bangumi entries instead of the episode image.
                 runBlocking {
                     try {
-                        val animesPage =
-                            getSearchAnime(
-                                1,
-                                title,
-                                AnimeFilterList(GenreFilter(arrayOf("", type)).apply { state = 1 }),
-                            )
+                        val animesPage = getSearchAnime(
+                            1,
+                            title,
+                            AnimeFilterList(GenreFilter(arrayOf("", type)).apply { state = 1 }),
+                        )
                         thumbnail_url = animesPage.animes.first().thumbnail_url
                     } catch (e: Exception) {
                         Log.e(name, "Failed to get bangumi cover image")
@@ -100,7 +99,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 }
             }
         }
-        
+
         // Translate the anime details
         return runBlocking {
             try {
@@ -226,7 +225,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         }
                     }
                 }
-
                 is AnimeFilter.Group<*> -> it.state
                 else -> listOf(it)
             }
@@ -237,19 +235,16 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         searchUrl.addQueryParameter(it.key, it.selected)
                     }
                 }
-
                 is BroadMatchFilter -> {
                     if (it.state) {
                         searchUrl.addQueryParameter(it.key, "on")
                     }
                 }
-
                 is TagFilter -> {
                     if (it.state) {
                         searchUrl.addQueryParameter(it.key, it.name)
                     }
                 }
-
                 else -> {}
             }
         }
@@ -295,31 +290,41 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     }!!.add(it.select("input[name]").attr("value"))
                 }
             }
-            
+
             // Translate filter values if translation is enabled
             val translatedGenreList = if (translator.isTranslationEnabled()) {
                 runBlocking { translator.translateFilterValues(genreList) }
-            } else genreList
-            
+            } else {
+                genreList
+            }
+
             val translatedSortList = if (translator.isTranslationEnabled()) {
                 runBlocking { translator.translateFilterValues(sortList) }
-            } else sortList
-            
+            } else {
+                sortList
+            }
+
             val translatedYearList = if (translator.isTranslationEnabled()) {
                 runBlocking { translator.translateFilterValues(yearList) }
-            } else yearList
-            
+            } else {
+                yearList
+            }
+
             val translatedMonthList = if (translator.isTranslationEnabled()) {
                 runBlocking { translator.translateFilterValues(monthList) }
-            } else monthList
-            
+            } else {
+                monthList
+            }
+
             val translatedCategoryDict = if (translator.isTranslationEnabled()) {
                 runBlocking {
                     categoryDict.mapValues { (_, values) ->
                         translator.translateFilterValues(values)
                     }
                 }
-            } else categoryDict
+            } else {
+                categoryDict
+            }
 
             preferences.edit()
                 .putString(PREF_KEY_GENRE_LIST, translatedGenreList.joinToString())
@@ -337,14 +342,14 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         if (savedOptions.isNullOrEmpty()) {
             return block(emptyArray())
         }
-        
+
         val options = savedOptions.split(", ").toTypedArray()
-        
+
         // If translation is disabled, use original options
         if (!translator.isTranslationEnabled()) {
             return block(options)
         }
-        
+
         // Translate filter options if enabled
         return runBlocking {
             try {
@@ -365,23 +370,25 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         if (savedCategories.isNullOrEmpty()) {
             return result
         }
-        
+
         runBlocking {
             try {
                 val categoryDict = json.decodeFromString<Map<String, List<String>>>(savedCategories)
                 categoryDict.forEach { (key, values) ->
                     val translatedKey = if (translator.isTranslationEnabled()) {
                         translator.fastTranslateFilterText(key)
-                    } else key
-                    
+                    } else {
+                        key
+                    }
+
                     val translatedFilters = if (translator.isTranslationEnabled()) {
-                        values.map { value -> 
-                            TagFilter("tags[]", translator.fastTranslateFilterText(value)) 
+                        values.map { value ->
+                            TagFilter("tags[]", translator.fastTranslateFilterText(value))
                         }
                     } else {
                         values.map { value -> TagFilter("tags[]", value) }
                     }
-                    
+
                     result.add(CategoryFilter(translatedKey, translatedFilters))
                 }
             } catch (e: Exception) {
@@ -391,7 +398,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 }
             }
         }
-        
+
         return result
     }
 
@@ -411,7 +418,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         screen.apply {
             // Add translation preferences first
             addTranslationPreferences()
-            
+
             addPreference(
                 ListPreference(context).apply {
                     key = PREF_KEY_VIDEO_QUALITY
