@@ -70,22 +70,24 @@ class Hanime1Translator {
                 }
 
                 // Translate author - REPLACE with English
-                if (!anime.author.isNullOrEmpty()) {
-                    val translatedAuthor = translateText(getTargetLanguage(), anime.author)
+                val author = anime.author
+                if (!author.isNullOrEmpty()) {
+                    val translatedAuthor = translateText(getTargetLanguage(), author)
                     if (translatedAuthor.isNotEmpty()) {
                         translatedAnime.author = translatedAuthor
                     } else {
-                        translatedAnime.author = anime.author
+                        translatedAnime.author = author
                     }
                 }
 
                 // Translate genre - REPLACE with English
-                if (!anime.genre.isNullOrEmpty()) {
-                    val translatedGenre = translateText(getTargetLanguage(), anime.genre)
+                val genre = anime.genre
+                if (!genre.isNullOrEmpty()) {
+                    val translatedGenre = translateText(getTargetLanguage(), genre)
                     if (translatedGenre.isNotEmpty()) {
                         translatedAnime.genre = translatedGenre
                     } else {
-                        translatedAnime.genre = anime.genre
+                        translatedAnime.genre = genre
                     }
                 }
 
@@ -142,7 +144,8 @@ class Hanime1Translator {
 
                             if (translatedText.isNotEmpty()) {
                                 translatedChunks.add(translatedText.toString())
-                                continue // Success, move to next chunk
+                                // Use return@let to continue to next chunk instead of using 'continue'
+                                return@let
                             }
                         } catch (e: Exception) {
                             // JSON parsing failed
@@ -370,14 +373,10 @@ class Hanime1Translator {
         // Simple detection for Chinese characters
         val chineseCharCount = text.count { char ->
             char in '\u4e00'..'\u9fff' || // CJK Unified Ideographs
-                char in '\u3400'..'\u4dbf' || // CJK Extension A
-                char in '\u20000'..'\u2a6df' || // CJK Extension B
-                char in '\u2a700'..'\u2b73f' || // CJK Extension C
-                char in '\u2b740'..'\u2b81f' || // CJK Extension D
-                char in '\u2b820'..'\u2ceaf' || // CJK Extension E
-                char in '\u2ceb0'..'\u2ebef' || // CJK Extension F
-                char in '\u3000'..'\u303f' || // CJK Symbols and Punctuation
-                char in '\uff00'..'\uffef' // Halfwidth and Fullwidth Forms
+            char in '\u3400'..'\u4dbf' || // CJK Extension A
+            char in '\uF900'..'\uFAFF' || // CJK Compatibility Ideographs
+            char in '\u3000'..'\u303f' || // CJK Symbols and Punctuation
+            char in '\uff00'..'\uffef' // Halfwidth and Fullwidth Forms
         }
         // Consider text as Chinese if at least 30% of characters are Chinese
         return chineseCharCount > text.length * 0.3
@@ -386,6 +385,8 @@ class Hanime1Translator {
 
 // Extension function to add translation preferences
 fun PreferenceScreen.addTranslationPreferences() {
+    val preferences = this.preferences
+    
     addPreference(
         SwitchPreferenceCompat(context).apply {
             key = Hanime1Translator.PREF_KEY_TRANSLATION_ENABLED
@@ -402,8 +403,8 @@ fun PreferenceScreen.addTranslationPreferences() {
             entries = arrayOf("English", "繁體中文", "簡體中文", "日本語", "한국어")
             entryValues = arrayOf("en", "zh-TW", "zh-CN", "ja", "ko")
             setDefaultValue(Hanime1Translator.DEFAULT_TARGET_LANGUAGE)
-            summary = "Current: ${preferences.getString(Hanime1Translator.PREF_KEY_TARGET_LANGUAGE, Hanime1Translator.DEFAULT_TARGET_LANGUAGE)?.let {
-                when (it) {
+            summary = "Current: ${preferences.getString(Hanime1Translator.PREF_KEY_TARGET_LANGUAGE, Hanime1Translator.DEFAULT_TARGET_LANGUAGE)?.let { lang ->
+                when (lang) {
                     "en" -> "English"
                     "zh-TW" -> "繁體中文"
                     "zh-CN" -> "簡體中文"
