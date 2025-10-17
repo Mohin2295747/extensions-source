@@ -15,8 +15,10 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 class Hanime1Translator {
+
     private val preferences: SharedPreferences by lazy {
-        Injekt.get<android.app.Application>().getSharedPreferences("source_${Hanime1().id}", 0x0000)
+        Injekt.get<android.app.Application>()
+            .getSharedPreferences("source_${Hanime1().id}", 0x0000)
     }
 
     private val okHttpClient =
@@ -45,65 +47,38 @@ class Hanime1Translator {
 
         val translatedAnime =
             SAnime.create().apply {
-                // Copy all basic properties first
                 url = anime.url
                 thumbnail_url = anime.thumbnail_url
             }
 
         runBlocking {
             try {
-                // Translate title - REPLACE with English
                 if (anime.title.isNotEmpty()) {
-                    val translatedTitle = translateText(getTargetLanguage(), anime.title)
-                    if (translatedTitle.isNotEmpty()) {
-                        translatedAnime.title = translatedTitle
-                    } else {
-                        translatedAnime.title = anime.title
-                    }
+                    val t = translateText(getTargetLanguage(), anime.title)
+                    translatedAnime.title = if (t.isNotEmpty()) t else anime.title
                 }
 
-                // Translate description - REPLACE with English
                 if (anime.description.isNotEmpty()) {
-                    val translatedDescription =
-                        translateText(getTargetLanguage(), anime.description)
-                    if (translatedDescription.isNotEmpty()) {
-                        translatedAnime.description = translatedDescription
-                    } else {
-                        translatedAnime.description = anime.description
-                    }
+                    val t = translateText(getTargetLanguage(), anime.description)
+                    translatedAnime.description = if (t.isNotEmpty()) t else anime.description
                 }
 
-                // Translate author - REPLACE with English
-                val author = anime.author
-                if (!author.isNullOrEmpty()) {
-                    val translatedAuthor = translateText(getTargetLanguage(), author)
-                    if (translatedAuthor.isNotEmpty()) {
-                        translatedAnime.author = translatedAuthor
-                    } else {
-                        translatedAnime.author = author
-                    }
+                anime.author?.let { author ->
+                    val t = translateText(getTargetLanguage(), author)
+                    translatedAnime.author = if (t.isNotEmpty()) t else author
                 }
 
-                // Translate genre - REPLACE with English
-                val genre = anime.genre
-                if (!genre.isNullOrEmpty()) {
-                    val translatedGenre = translateText(getTargetLanguage(), genre)
-                    if (translatedGenre.isNotEmpty()) {
-                        translatedAnime.genre = translatedGenre
-                    } else {
-                        translatedAnime.genre = genre
-                    }
+                anime.genre?.let { genre ->
+                    val t = translateText(getTargetLanguage(), genre)
+                    translatedAnime.genre = if (t.isNotEmpty()) t else genre
                 }
 
-                // Copy any untranslated properties
                 translatedAnime.status = anime.status
                 translatedAnime.initialized = anime.initialized
-            } catch (e: Exception) {
-                // If translation fails, return original anime
+            } catch (_: Exception) {
                 return@runBlocking anime
             }
         }
-
         return translatedAnime
     }
 
@@ -114,14 +89,11 @@ class Hanime1Translator {
 
     private suspend fun translateText(targetLang: String, text: String): String {
         if (text.isBlank()) return text
-
-        // Split long text into chunks to avoid API limits
         val chunks = splitTextIntoChunks(text)
         val translatedChunks = mutableListOf<String>()
 
         for (chunk in chunks) {
             if (chunk.isBlank()) continue
-
             try {
                 val url = buildTranslateUrl(targetLang, chunk)
                 val request =
@@ -132,119 +104,84 @@ class Hanime1Translator {
                             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
                         )
                         .build()
-
                 val response = okHttpClient.newCall(request).execute()
-
                 if (response.isSuccessful) {
-                    val responseBody = response.body?.string()
-                    responseBody?.let { body ->
-                        try {
-                            val jsonArray = JSONArray(body)
-                            val translationArray = jsonArray.getJSONArray(0)
-                            val translatedText = StringBuilder()
-
-                            for (i in 0 until translationArray.length()) {
-                                val sentenceArray = translationArray.getJSONArray(i)
-                                if (sentenceArray.length() > 0) {
-                                    translatedText.append(sentenceArray.getString(0))
-                                }
-                            }
-
-                            if (translatedText.isNotEmpty()) {
-                                translatedChunks.add(translatedText.toString())
-                                // Use return@let to continue to next chunk instead of using
-                                // 'continue'
-                                return@let
-                            }
-                        } catch (e: Exception) {
-                            // JSON parsing failed
+                    val body = response.body?.string() ?: ""
+                    try {
+                        val jsonArray = JSONArray(body)
+                        val translationArray = jsonArray.getJSONArray(0)
+                        val builder = StringBuilder()
+                        for (i in 0 until translationArray.length()) {
+                            val sentence = translationArray.getJSONArray(i)
+                            if (sentence.length() > 0) builder.append(sentence.getString(0))
                         }
+                        if (builder.isNotEmpty()) {
+                            translatedChunks.add(builder.toString())
+                            continue
+                        }
+                    } catch (_: Exception) {
                     }
                 }
-            } catch (e: Exception) {
-                // Translation request failed for this chunk
+            } catch (_: Exception) {
             }
-
-            // If translation failed for this chunk, keep the original
             translatedChunks.add(chunk)
         }
-
         return translatedChunks.joinToString("")
     }
 
     private fun splitTextIntoChunks(text: String, maxChunkLength: Int = 1500): List<String> {
         val chunks = mutableListOf<String>()
-        var currentChunk = StringBuilder()
-
-        // Split by sentences if possible, otherwise by length
+        var current = StringBuilder()
         val sentences = text.split('。', '！', '!', '？', '?', '\n').filter { it.isNotBlank() }
 
         if (sentences.size > 1) {
             for (sentence in sentences) {
-                val sentenceWithPunctuation =
-                    if (text.contains(sentence + '。')) {
-                        sentence + "。"
-                    } else if (text.contains(sentence + '！')) {
-                        sentence + "！"
-                    } else if (text.contains(sentence + '!')) {
-                        sentence + "!"
-                    } else if (text.contains(sentence + '？')) {
-                        sentence + "？"
-                    } else if (text.contains(sentence + '?')) {
-                        sentence + "?"
-                    } else {
-                        sentence
-                    }
-
-                if (currentChunk.length + sentenceWithPunctuation.length <= maxChunkLength) {
-                    currentChunk.append(sentenceWithPunctuation)
+                val s = when {
+                    text.contains(sentence + '。') -> sentence + "。"
+                    text.contains(sentence + '！') -> sentence + "！"
+                    text.contains(sentence + '!') -> sentence + "!"
+                    text.contains(sentence + '？') -> sentence + "？"
+                    text.contains(sentence + '?') -> sentence + "?"
+                    else -> sentence
+                }
+                if (current.length + s.length <= maxChunkLength) {
+                    current.append(s)
                 } else {
-                    if (currentChunk.isNotEmpty()) {
-                        chunks.add(currentChunk.toString())
-                        currentChunk.clear()
+                    if (current.isNotEmpty()) {
+                        chunks.add(current.toString())
+                        current = StringBuilder()
                     }
-                    // If a single sentence is too long, split it by length
-                    if (sentenceWithPunctuation.length > maxChunkLength) {
-                        var longText = sentenceWithPunctuation
-                        while (longText.length > maxChunkLength) {
-                            chunks.add(longText.substring(0, maxChunkLength))
-                            longText = longText.substring(maxChunkLength)
+                    if (s.length > maxChunkLength) {
+                        var t = s
+                        while (t.length > maxChunkLength) {
+                            chunks.add(t.substring(0, maxChunkLength))
+                            t = t.substring(maxChunkLength)
                         }
-                        if (longText.isNotEmpty()) {
-                            currentChunk.append(longText)
-                        }
+                        if (t.isNotEmpty()) current.append(t)
                     } else {
-                        currentChunk.append(sentenceWithPunctuation)
+                        current.append(s)
                     }
                 }
             }
-            if (currentChunk.isNotEmpty()) {
-                chunks.add(currentChunk.toString())
-            }
+            if (current.isNotEmpty()) chunks.add(current.toString())
         } else {
-            // Fallback: split by fixed length
-            var remainingText = text
-            while (remainingText.length > maxChunkLength) {
-                chunks.add(remainingText.substring(0, maxChunkLength))
-                remainingText = remainingText.substring(maxChunkLength)
+            var remain = text
+            while (remain.length > maxChunkLength) {
+                chunks.add(remain.substring(0, maxChunkLength))
+                remain = remain.substring(maxChunkLength)
             }
-            if (remainingText.isNotEmpty()) {
-                chunks.add(remainingText)
-            }
+            if (remain.isNotEmpty()) chunks.add(remain)
         }
-
         return chunks
     }
 
     private fun buildTranslateUrl(targetLang: String, text: String): String {
         val client = "gtx"
         val token = calculateToken(text)
-
         return try {
-            val encodedText = URLEncoder.encode(text, "UTF-8")
-            "https://translate.google.com/translate_a/single?client=$client&sl=auto&tl=$targetLang&dt=t&tk=$token&q=$encodedText"
-        } catch (e: UnsupportedEncodingException) {
-            // Fallback without encoding
+            val encoded = URLEncoder.encode(text, "UTF-8")
+            "https://translate.google.com/translate_a/single?client=$client&sl=auto&tl=$targetLang&dt=t&tk=$token&q=$encoded"
+        } catch (_: UnsupportedEncodingException) {
             "https://translate.google.com/translate_a/single?client=$client&sl=auto&tl=$targetLang&dt=t&tk=$token&q=$text"
         }
     }
@@ -252,20 +189,18 @@ class Hanime1Translator {
     private fun calculateToken(text: String): String {
         val list = mutableListOf<Int>()
         var i = 0
-
         while (i < text.length) {
-            val codePoint = text.codePointAt(i)
+            val cp = text.codePointAt(i)
             when {
-                codePoint < 128 -> list.add(codePoint)
-                codePoint < 2048 -> {
-                    list.add((codePoint shr 6) or 192)
-                    list.add((codePoint and 63) or 128)
+                cp < 128 -> list.add(cp)
+                cp < 2048 -> {
+                    list.add((cp shr 6) or 192)
+                    list.add((cp and 63) or 128)
                 }
-                codePoint in 55296..57343 && i + 1 < text.length -> {
-                    val nextCodePoint = text.codePointAt(i + 1)
-                    if (nextCodePoint in 56320..57343) {
-                        val combined =
-                            ((codePoint and 1023) shl 10) + (nextCodePoint and 1023) + 65536
+                cp in 55296..57343 && i + 1 < text.length -> {
+                    val next = text.codePointAt(i + 1)
+                    if (next in 56320..57343) {
+                        val combined = ((cp and 1023) shl 10) + (next and 1023) + 65536
                         list.add((combined shr 18) or 240)
                         list.add(((combined shr 12) and 63) or 128)
                         list.add(((combined shr 6) and 63) or 128)
@@ -274,80 +209,48 @@ class Hanime1Translator {
                     }
                 }
                 else -> {
-                    list.add((codePoint shr 12) or 224)
-                    list.add(((codePoint shr 6) and 63) or 128)
-                    list.add((codePoint and 63) or 128)
+                    list.add((cp shr 12) or 224)
+                    list.add(((cp shr 6) and 63) or 128)
+                    list.add((cp and 63) or 128)
                 }
             }
             i++
         }
 
         var j: Long = 406644
-        for (num in list) {
-            j = rl(j + num.toLong(), "+-a^+6")
-        }
-
+        for (num in list) j = rl(j + num.toLong(), "+-a^+6")
         var result = rl(j, "+-3^+b+-f") xor 3293161072L
-        if (result < 0) {
-            result = (result and 2147483647L) + 2147483648L
-        }
-        val modResult = result % 1000000L
-        return "$modResult.${406644L xor modResult}"
+        if (result < 0) result = (result and 2147483647L) + 2147483648L
+        val mod = result % 1_000_000L
+        return "$mod.${406644L xor mod}"
     }
 
-    private fun rl(value: Long, operation: String): Long {
-        var result = value
+    private fun rl(value: Long, op: String): Long {
+        var r = value
         var i = 0
-        while (i < operation.length - 2) {
+        while (i < op.length - 2) {
             val d =
-                if (operation[i + 2] in 'a'..'z') {
-                    operation[i + 2].code - 'a'.code + 10
-                } else {
-                    operation[i + 2].digitToInt()
-                }
-
-            val shiftValue =
-                if (operation[i + 1] == '+') {
-                    result ushr d
-                } else {
-                    result shl d
-                }
-
-            result =
-                if (operation[i] == '+') {
-                    (result + shiftValue) and 0xFFFFFFFFL
-                } else {
-                    result xor shiftValue
-                }
+                if (op[i + 2] in 'a'..'z') op[i + 2].code - 'a'.code + 10
+                else op[i + 2].digitToInt()
+            val shift = if (op[i + 1] == '+') r ushr d else r shl d
+            r = if (op[i] == '+') (r + shift) and 0xFFFFFFFFL else r xor shift
             i += 3
         }
-        return result
+        return r
     }
 
-    // Filter translation functions
     suspend fun translateFilterValues(values: List<String>): List<String> {
         if (!isTranslationEnabled()) return values
-
-        return values.map { value ->
-            if (isChineseText(value)) {
-                translateText(value).ifEmpty { value }
-            } else {
-                value
-            }
+        return values.map { v ->
+            if (isChineseText(v)) translateText(v).ifEmpty { v } else v
         }
     }
 
     suspend fun translateFilterName(name: String): String {
         if (!isTranslationEnabled()) return name
-
-        return if (isChineseText(name)) {
-            translateText(name).ifEmpty { name }
-        } else {
-            name
-        }
+        return if (isChineseText(name)) translateText(name).ifEmpty { name } else name
     }
 
-    // Common Chinese filter term translations
     private val filterTermTranslations =
         mapOf(
             "全部" to "All",
@@ -371,36 +274,25 @@ class Hanime1Translator {
             "發佈日期" to "Release Date",
         )
 
-    // Optimized version that uses pre-defined translations first
     suspend fun fastTranslateFilterText(text: String): String {
         if (!isTranslationEnabled()) return text
-
         return filterTermTranslations[text]
-            ?: run {
-                if (isChineseText(text)) {
-                    translateText(text).ifEmpty { text }
-                } else {
-                    text
-                }
-            }
+            ?: if (isChineseText(text)) translateText(text).ifEmpty { text } else text
     }
 
     private fun isChineseText(text: String): Boolean {
-        // Simple detection for Chinese characters
         val chineseCharCount =
-            text.count { char ->
-                char in '\u4e00'..'\u9fff' || // CJK Unified Ideographs
-                    char in '\u3400'..'\u4dbf' || // CJK Extension A
-                    char in '\uF900'..'\uFAFF' || // CJK Compatibility Ideographs
-                    char in '\u3000'..'\u303f' || // CJK Symbols and Punctuation
-                    char in '\uff00'..'\uffef' // Halfwidth and Fullwidth Forms
+            text.count { ch ->
+                ch in '\u4e00'..'\u9fff' ||
+                    ch in '\u3400'..'\u4dbf' ||
+                    ch in '\uF900'..'\uFAFF' ||
+                    ch in '\u3000'..'\u303f' ||
+                    ch in '\uff00'..'\uffef'
             }
-        // Consider text as Chinese if at least 30% of characters are Chinese
         return chineseCharCount > text.length * 0.3
     }
 }
 
-// Extension function to add translation preferences
 fun PreferenceScreen.addTranslationPreferences() {
     val preferences = this.preferences
 
@@ -410,7 +302,7 @@ fun PreferenceScreen.addTranslationPreferences() {
             title = "Enable Translation"
             summary = "Translate all Chinese text to English"
             setDefaultValue(false)
-        }
+        },
     )
 
     addPreference(
@@ -421,28 +313,31 @@ fun PreferenceScreen.addTranslationPreferences() {
             entryValues = arrayOf("en", "zh-TW", "zh-CN", "ja", "ko")
             setDefaultValue(Hanime1Translator.DEFAULT_TARGET_LANGUAGE)
             summary =
-                "Current: ${preferences.getString(Hanime1Translator.PREF_KEY_TARGET_LANGUAGE, Hanime1Translator.DEFAULT_TARGET_LANGUAGE)?.let { lang ->
-                when (lang) {
-                    "en" -> "English"
-                    "zh-TW" -> "繁體中文"
-                    "zh-CN" -> "簡體中文"
-                    "ja" -> "日本語"
-                    "ko" -> "한국어"
-                    else -> "English"
-                }
-            }}"
+                "Current: ${preferences.getString(
+                    Hanime1Translator.PREF_KEY_TARGET_LANGUAGE,
+                    Hanime1Translator.DEFAULT_TARGET_LANGUAGE,
+                )?.let { lang ->
+                    when (lang) {
+                        "en" -> "English"
+                        "zh-TW" -> "繁體中文"
+                        "zh-CN" -> "簡體中文"
+                        "ja" -> "日本語"
+                        "ko" -> "한국어"
+                        else -> "English"
+                    }
+                }}"
             setOnPreferenceChangeListener { _, newValue ->
                 summary =
                     "Current: ${when (newValue as String) {
-                    "en" -> "English"
-                    "zh-TW" -> "繁體中文"
-                    "zh-CN" -> "簡體中文"
-                    "ja" -> "日本語"
-                    "ko" -> "한국어"
-                    else -> "English"
-                }}"
+                        "en" -> "English"
+                        "zh-TW" -> "繁體中文"
+                        "zh-CN" -> "簡體中文"
+                        "ja" -> "日本語"
+                        "ko" -> "한국어"
+                        else -> "English"
+                    }}"
                 true
             }
-        }
+        },
     )
 }
