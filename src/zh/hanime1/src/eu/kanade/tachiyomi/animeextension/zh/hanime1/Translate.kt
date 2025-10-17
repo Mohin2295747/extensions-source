@@ -369,7 +369,7 @@ class Hanime1Translator {
     private fun isChineseText(text: String): Boolean {
         // Simple detection for Chinese characters
         val chineseCharCount = text.count { char ->
-                char in '\u4e00'..'\u9fff' || // CJK Unified Ideographs
+            char in '\u4e00'..'\u9fff' || // CJK Unified Ideographs
                 char in '\u3400'..'\u4dbf' || // CJK Extension A
                 char in '\u20000'..'\u2a6df' || // CJK Extension B
                 char in '\u2a700'..'\u2b73f' || // CJK Extension C
