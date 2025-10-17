@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.util.Log
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
+import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
 import eu.kanade.tachiyomi.animesource.model.AnimeFilter
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
@@ -17,10 +18,12 @@ import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.awaitSuccess
 import eu.kanade.tachiyomi.util.asJsoup
 import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonArray
@@ -101,8 +104,10 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             if (type == "裏番" || type == "泡麵番") {
                 runBlocking {
                     try {
-                        val animesPage = searchAnime(1, title, AnimeFilterList(emptyList()))
-                        thumbnail_url = animesPage.animes.firstOrNull()?.thumbnail_url ?: thumbnail_url
+                        val searchRequest = searchAnimeRequest(1, title, AnimeFilterList(emptyList()))
+                        val searchResponse = client.newCall(searchRequest).execute()
+                        val searchPage = searchAnimeParse(searchResponse)
+                        thumbnail_url = searchPage.animes.firstOrNull()?.thumbnail_url ?: thumbnail_url
                     } catch (e: Exception) {
                         Log.e(name, "Failed to get bangumi cover image", e)
                     }
@@ -269,6 +274,13 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         }
                     }
                 }
+                is AnimeFilter.Header -> {}
+                is AnimeFilter.Separator -> {}
+                is AnimeFilter.CheckBox -> {}
+                is AnimeFilter.Group -> {}
+                is AnimeFilter.Select<*> -> {}
+                is AnimeFilter.Sort -> {}
+                is AnimeFilter.Text -> {}
             }
         }
 
@@ -296,7 +308,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             Log.e(name, "Failed to update filters", throwable)
         }
 
-        launch(exceptionHandler) {
+        CoroutineScope(Dispatchers.IO).launch(exceptionHandler) {
             try {
                 val response = client.newCall(GET("$baseUrl/search")).awaitSuccess()
                 val doc = response.asJsoup()
@@ -359,10 +371,10 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 }
 
                 preferences.edit()
-                    .putString(PREF_KEY_GENRE_LIST, translatedGenreList.joinToString())
-                    .putString(PREF_KEY_SORT_LIST, translatedSortList.joinToString())
-                    .putString(PREF_KEY_YEAR_LIST, translatedYearList.joinToString())
-                    .putString(PREF_KEY_MONTH_LIST, translatedMonthList.joinToString())
+                    .putString(PREF_KEY_GENRE_LIST, translatedGenreList.joinToString(","))
+                    .putString(PREF_KEY_SORT_LIST, translatedSortList.joinToString(","))
+                    .putString(PREF_KEY_YEAR_LIST, translatedYearList.joinToString(","))
+                    .putString(PREF_KEY_MONTH_LIST, translatedMonthList.joinToString(","))
                     .putString(PREF_KEY_CATEGORY_LIST, json.encodeToString(translatedCategoryDict))
                     .apply()
 
@@ -374,19 +386,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         }
     }
 
-    private fun launch(
-        exceptionHandler: CoroutineExceptionHandler,
-        block: suspend () -> Unit,
-    ) {
-        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO + exceptionHandler, block = block)
-    }
-
     private fun <T : QueryFilter> createFilter(prefKey: String, block: (Array<String>) -> T): T {
         val savedOptions = preferences.getString(prefKey, null)
         val options = if (savedOptions.isNullOrEmpty()) {
             emptyArray()
         } else {
-            savedOptions.split(", ").toTypedArray()
+            savedOptions.split(",").map { it.trim() }.toTypedArray()
         }
 
         return if (!translator.isTranslationEnabled() || options.isEmpty()) {
@@ -451,7 +456,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
-        addTranslationPreferences()
+        screen.addTranslationPreferences()
 
         screen.addPreference(
             ListPreference(screen.context).apply {
