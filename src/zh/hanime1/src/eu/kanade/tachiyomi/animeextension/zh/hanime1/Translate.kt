@@ -373,10 +373,10 @@ class Hanime1Translator {
         // Simple detection for Chinese characters
         val chineseCharCount = text.count { char ->
             char in '\u4e00'..'\u9fff' || // CJK Unified Ideographs
-            char in '\u3400'..'\u4dbf' || // CJK Extension A
-            char in '\uF900'..'\uFAFF' || // CJK Compatibility Ideographs
-            char in '\u3000'..'\u303f' || // CJK Symbols and Punctuation
-            char in '\uff00'..'\uffef' // Halfwidth and Fullwidth Forms
+                char in '\u3400'..'\u4dbf' || // CJK Extension A
+                char in '\uF900'..'\uFAFF' || // CJK Compatibility Ideographs
+                char in '\u3000'..'\u303f' || // CJK Symbols and Punctuation
+                char in '\uff00'..'\uffef' // Halfwidth and Fullwidth Forms
         }
         // Consider text as Chinese if at least 30% of characters are Chinese
         return chineseCharCount > text.length * 0.3
