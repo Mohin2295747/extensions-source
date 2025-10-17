@@ -43,7 +43,9 @@ class Hanime1Translator {
     }
 
     suspend fun translateAnimeDetails(anime: SAnime): SAnime {
-        if (!isTranslationEnabled()) return anime
+        if (!isTranslationEnabled()) {
+            return anime
+        }
 
         val translatedAnime =
             SAnime.create().apply {
@@ -83,17 +85,23 @@ class Hanime1Translator {
     }
 
     suspend fun translateText(text: String): String {
-        if (text.isBlank()) return text
+        if (text.isBlank()) {
+            return text
+        }
         return translateText(getTargetLanguage(), text)
     }
 
     private suspend fun translateText(targetLang: String, text: String): String {
-        if (text.isBlank()) return text
+        if (text.isBlank()) {
+            return text
+        }
         val chunks = splitTextIntoChunks(text)
         val translatedChunks = mutableListOf<String>()
 
         for (chunk in chunks) {
-            if (chunk.isBlank()) continue
+            if (chunk.isBlank()) {
+                continue
+            }
             try {
                 val url = buildTranslateUrl(targetLang, chunk)
                 val request =
@@ -113,7 +121,9 @@ class Hanime1Translator {
                         val builder = StringBuilder()
                         for (i in 0 until translationArray.length()) {
                             val sentence = translationArray.getJSONArray(i)
-                            if (sentence.length() > 0) builder.append(sentence.getString(0))
+                            if (sentence.length() > 0) {
+                                builder.append(sentence.getString(0))
+                            }
                         }
                         if (builder.isNotEmpty()) {
                             translatedChunks.add(builder.toString())
@@ -157,20 +167,26 @@ class Hanime1Translator {
                             chunks.add(t.substring(0, maxChunkLength))
                             t = t.substring(maxChunkLength)
                         }
-                        if (t.isNotEmpty()) current.append(t)
+                        if (t.isNotEmpty()) {
+                            current.append(t)
+                        }
                     } else {
                         current.append(s)
                     }
                 }
             }
-            if (current.isNotEmpty()) chunks.add(current.toString())
+            if (current.isNotEmpty()) {
+                chunks.add(current.toString())
+            }
         } else {
             var remain = text
             while (remain.length > maxChunkLength) {
                 chunks.add(remain.substring(0, maxChunkLength))
                 remain = remain.substring(maxChunkLength)
             }
-            if (remain.isNotEmpty()) chunks.add(remain)
+            if (remain.isNotEmpty()) {
+                chunks.add(remain)
+            }
         }
         return chunks
     }
@@ -218,9 +234,13 @@ class Hanime1Translator {
         }
 
         var j: Long = 406644
-        for (num in list) j = rl(j + num.toLong(), "+-a^+6")
+        for (num in list) {
+            j = rl(j + num.toLong(), "+-a^+6")
+        }
         var result = rl(j, "+-3^+b+-f") xor 3293161072L
-        if (result < 0) result = (result and 2147483647L) + 2147483648L
+        if (result < 0) {
+            result = (result and 2147483647L) + 2147483648L
+        }
         val mod = result % 1_000_000L
         return "$mod.${406644L xor mod}"
     }
@@ -240,14 +260,18 @@ class Hanime1Translator {
     }
 
     suspend fun translateFilterValues(values: List<String>): List<String> {
-        if (!isTranslationEnabled()) return values
+        if (!isTranslationEnabled()) {
+            return values
+        }
         return values.map { v ->
             if (isChineseText(v)) translateText(v).ifEmpty { v } else v
         }
     }
 
     suspend fun translateFilterName(name: String): String {
-        if (!isTranslationEnabled()) return name
+        if (!isTranslationEnabled()) {
+            return name
+        }
         return if (isChineseText(name)) translateText(name).ifEmpty { name } else name
     }
 
@@ -275,7 +299,9 @@ class Hanime1Translator {
         )
 
     suspend fun fastTranslateFilterText(text: String): String {
-        if (!isTranslationEnabled()) return text
+        if (!isTranslationEnabled()) {
+            return text
+        }
         return filterTermTranslations[text]
             ?: if (isChineseText(text)) translateText(text).ifEmpty { text } else text
     }
