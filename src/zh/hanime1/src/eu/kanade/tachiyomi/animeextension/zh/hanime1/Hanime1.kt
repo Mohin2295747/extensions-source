@@ -251,42 +251,55 @@ if (!anime.description.isNullOrEmpty()) {
             urlBuilder.addQueryParameter("query", query)
         }
 
-        filters.forEach { filter ->
-            when (filter) {
-                is QueryFilter -> {
-                    if (filter.selected.isNotEmpty()) {
-                        urlBuilder.addQueryParameter(filter.key, filter.selected)
-                    }
-                }
-                is TagFilter -> {
-                    if (filter.state) {
-                        urlBuilder.addQueryParameter(filter.key, filter.name)
-                    }
-                }
-                is AnimeFilter.Group<*> -> {
-                    filter.state.forEach { innerFilter ->
-                        when (innerFilter) {
-                            is QueryFilter -> {
-                                if (innerFilter.selected.isNotEmpty()) {
-                                    urlBuilder.addQueryParameter(innerFilter.key, innerFilter.selected)
-                                }
-                            }
-                            is TagFilter -> {
-                                if (innerFilter.state) {
-                                    urlBuilder.addQueryParameter(innerFilter.key, innerFilter.name)
-                                }
-                            }
-                        }
-                    }
-                }
-                is AnimeFilter.Header -> {}
-                is AnimeFilter.Separator -> {}
-                is AnimeFilter.CheckBox -> {}
-                is AnimeFilter.Select<*> -> {}
-                is AnimeFilter.Sort -> {}
-                is AnimeFilter.Text -> {}
+        filter.state.forEach { innerFilter ->
+    when (innerFilter) {
+        is QueryFilter -> {
+            if (innerFilter.selected.isNotEmpty()) {
+                urlBuilder.addQueryParameter(innerFilter.key, innerFilter.selected)
             }
         }
+        is TagFilter -> {
+            if (innerFilter.state) {
+                urlBuilder.addQueryParameter(innerFilter.key, innerFilter.name)
+            }
+        }
+        else -> {
+            // Handle other types if necessary or ignore
+        }
+    }
+}
+        is AnimeFilter.Group<*> -> {
+            filter.state.forEach { innerFilter ->
+                when (innerFilter) {
+                    is QueryFilter -> {
+                        if (innerFilter.selected.isNotEmpty()) {
+                            urlBuilder.addQueryParameter(innerFilter.key, innerFilter.selected)
+                        }
+                    }
+                    is TagFilter -> {
+                        if (innerFilter.state) {
+                            urlBuilder.addQueryParameter(innerFilter.key, innerFilter.name)
+                        }
+                    }
+                    is AnimeFilter.Header -> {}
+                    is AnimeFilter.Separator -> {}
+                    is AnimeFilter.CheckBox -> {}
+                    is AnimeFilter.Select<*> -> {}
+                    is AnimeFilter.Sort -> {}
+                    is AnimeFilter.Text -> {}
+                    is AnimeFilter.TriState -> {}
+                }
+            }
+        }
+        is AnimeFilter.Header -> {}
+        is AnimeFilter.Separator -> {}
+        is AnimeFilter.CheckBox -> {}
+        is AnimeFilter.Select<*> -> {}
+        is AnimeFilter.Sort -> {}
+        is AnimeFilter.Text -> {}
+        is AnimeFilter.TriState -> {}
+    }
+}
 
         if (page > 1) {
             urlBuilder.addQueryParameter("page", page.toString())
