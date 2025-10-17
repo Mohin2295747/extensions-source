@@ -20,10 +20,10 @@ class Hanime1Translator {
   }
 
   private val okHttpClient =
-      OkHttpClient.Builder()
-          .connectTimeout(10, TimeUnit.SECONDS)
-          .readTimeout(10, TimeUnit.SECONDS)
-          .build()
+    OkHttpClient.Builder()
+      .connectTimeout(10, TimeUnit.SECONDS)
+      .readTimeout(10, TimeUnit.SECONDS)
+      .build()
 
   companion object {
     const val PREF_KEY_TRANSLATION_ENABLED = "pref_translation_enabled"
@@ -37,18 +37,18 @@ class Hanime1Translator {
 
   fun getTargetLanguage(): String {
     return preferences.getString(PREF_KEY_TARGET_LANGUAGE, DEFAULT_TARGET_LANGUAGE)
-        ?: DEFAULT_TARGET_LANGUAGE
+      ?: DEFAULT_TARGET_LANGUAGE
   }
 
   suspend fun translateAnimeDetails(anime: SAnime): SAnime {
     if (!isTranslationEnabled()) return anime
 
     val translatedAnime =
-        SAnime.create().apply {
-          // Copy all basic properties first
-          url = anime.url
-          thumbnail_url = anime.thumbnail_url
-        }
+      SAnime.create().apply {
+        // Copy all basic properties first
+        url = anime.url
+        thumbnail_url = anime.thumbnail_url
+      }
 
     runBlocking {
       try {
@@ -124,11 +124,10 @@ class Hanime1Translator {
       try {
         val url = buildTranslateUrl(targetLang, chunk)
         val request =
-            Request.Builder()
-                .url(url)
-                .header(
-                    "User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                .build()
+          Request.Builder()
+            .url(url)
+            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            .build()
 
         val response = okHttpClient.newCall(request).execute()
 
@@ -178,19 +177,19 @@ class Hanime1Translator {
     if (sentences.size > 1) {
       for (sentence in sentences) {
         val sentenceWithPunctuation =
-            if (text.contains(sentence + '。')) {
-              sentence + "。"
-            } else if (text.contains(sentence + '！')) {
-              sentence + "！"
-            } else if (text.contains(sentence + '!')) {
-              sentence + "!"
-            } else if (text.contains(sentence + '？')) {
-              sentence + "？"
-            } else if (text.contains(sentence + '?')) {
-              sentence + "?"
-            } else {
-              sentence
-            }
+          if (text.contains(sentence + '。')) {
+            sentence + "。"
+          } else if (text.contains(sentence + '！')) {
+            sentence + "！"
+          } else if (text.contains(sentence + '!')) {
+            sentence + "!"
+          } else if (text.contains(sentence + '？')) {
+            sentence + "？"
+          } else if (text.contains(sentence + '?')) {
+            sentence + "?"
+          } else {
+            sentence
+          }
 
         if (currentChunk.length + sentenceWithPunctuation.length <= maxChunkLength) {
           currentChunk.append(sentenceWithPunctuation)
@@ -295,25 +294,25 @@ class Hanime1Translator {
     var i = 0
     while (i < operation.length - 2) {
       val d =
-          if (operation[i + 2] in 'a'..'z') {
-            operation[i + 2].code - 'a'.code + 10
-          } else {
-            operation[i + 2].digitToInt()
-          }
+        if (operation[i + 2] in 'a'..'z') {
+          operation[i + 2].code - 'a'.code + 10
+        } else {
+          operation[i + 2].digitToInt()
+        }
 
       val shiftValue =
-          if (operation[i + 1] == '+') {
-            result ushr d
-          } else {
-            result shl d
-          }
+        if (operation[i + 1] == '+') {
+          result ushr d
+        } else {
+          result shl d
+        }
 
       result =
-          if (operation[i] == '+') {
-            (result + shiftValue) and 0xFFFFFFFFL
-          } else {
-            result xor shiftValue
-          }
+        if (operation[i] == '+') {
+          (result + shiftValue) and 0xFFFFFFFFL
+        } else {
+          result xor shiftValue
+        }
       i += 3
     }
     return result
@@ -344,52 +343,52 @@ class Hanime1Translator {
 
   // Common Chinese filter term translations
   private val filterTermTranslations =
-      mapOf(
-          "全部" to "All",
-          "裏番" to "R-18",
-          "泡面番" to "Short Anime",
-          "泡麵番" to "Short Anime",
-          "Motion Anime" to "Motion Anime",
-          "最新上市" to "Latest Release",
-          "最新上傳" to "Latest Upload",
-          "本日排行" to "Daily Ranking",
-          "本週排行" to "Weekly Ranking",
-          "本月排行" to "Monthly Ranking",
-          "全部年份" to "All Years",
-          "全部月份" to "All Months",
-          "廣泛配對" to "Broad Match",
-          "標籤" to "Tags",
-          "影片類型" to "Video Type",
-          "排序方式" to "Sort By",
-          "發佈年份" to "Release Year",
-          "發佈月份" to "Release Month",
-          "發佈日期" to "Release Date",
-      )
+    mapOf(
+      "全部" to "All",
+      "裏番" to "R-18",
+      "泡面番" to "Short Anime",
+      "泡麵番" to "Short Anime",
+      "Motion Anime" to "Motion Anime",
+      "最新上市" to "Latest Release",
+      "最新上傳" to "Latest Upload",
+      "本日排行" to "Daily Ranking",
+      "本週排行" to "Weekly Ranking",
+      "本月排行" to "Monthly Ranking",
+      "全部年份" to "All Years",
+      "全部月份" to "All Months",
+      "廣泛配對" to "Broad Match",
+      "標籤" to "Tags",
+      "影片類型" to "Video Type",
+      "排序方式" to "Sort By",
+      "發佈年份" to "Release Year",
+      "發佈月份" to "Release Month",
+      "發佈日期" to "Release Date",
+    )
 
   // Optimized version that uses pre-defined translations first
   suspend fun fastTranslateFilterText(text: String): String {
     if (!isTranslationEnabled()) return text
 
     return filterTermTranslations[text]
-        ?: run {
-          if (isChineseText(text)) {
-            translateText(text).ifEmpty { text }
-          } else {
-            text
-          }
+      ?: run {
+        if (isChineseText(text)) {
+          translateText(text).ifEmpty { text }
+        } else {
+          text
         }
+      }
   }
 
   private fun isChineseText(text: String): Boolean {
     // Simple detection for Chinese characters
     val chineseCharCount =
-        text.count { char ->
-          char in '\u4e00'..'\u9fff' || // CJK Unified Ideographs
-              char in '\u3400'..'\u4dbf' || // CJK Extension A
-              char in '\uF900'..'\uFAFF' || // CJK Compatibility Ideographs
-              char in '\u3000'..'\u303f' || // CJK Symbols and Punctuation
-              char in '\uff00'..'\uffef' // Halfwidth and Fullwidth Forms
-        }
+      text.count { char ->
+        char in '\u4e00'..'\u9fff' || // CJK Unified Ideographs
+          char in '\u3400'..'\u4dbf' || // CJK Extension A
+          char in '\uF900'..'\uFAFF' || // CJK Compatibility Ideographs
+          char in '\u3000'..'\u303f' || // CJK Symbols and Punctuation
+          char in '\uff00'..'\uffef' // Halfwidth and Fullwidth Forms
+      }
     // Consider text as Chinese if at least 30% of characters are Chinese
     return chineseCharCount > text.length * 0.3
   }
@@ -400,23 +399,23 @@ fun PreferenceScreen.addTranslationPreferences() {
   val preferences = this.preferences
 
   addPreference(
-      SwitchPreferenceCompat(context).apply {
-        key = Hanime1Translator.PREF_KEY_TRANSLATION_ENABLED
-        title = "Enable Translation"
-        summary = "Translate all Chinese text to English"
-        setDefaultValue(false)
-      },
+    SwitchPreferenceCompat(context).apply {
+      key = Hanime1Translator.PREF_KEY_TRANSLATION_ENABLED
+      title = "Enable Translation"
+      summary = "Translate all Chinese text to English"
+      setDefaultValue(false)
+    }
   )
 
   addPreference(
-      androidx.preference.ListPreference(context).apply {
-        key = Hanime1Translator.PREF_KEY_TARGET_LANGUAGE
-        title = "Target Language"
-        entries = arrayOf("English", "繁體中文", "簡體中文", "日本語", "한국어")
-        entryValues = arrayOf("en", "zh-TW", "zh-CN", "ja", "ko")
-        setDefaultValue(Hanime1Translator.DEFAULT_TARGET_LANGUAGE)
-        summary =
-            "Current: ${preferences.getString(Hanime1Translator.PREF_KEY_TARGET_LANGUAGE, Hanime1Translator.DEFAULT_TARGET_LANGUAGE)?.let { lang ->
+    androidx.preference.ListPreference(context).apply {
+      key = Hanime1Translator.PREF_KEY_TARGET_LANGUAGE
+      title = "Target Language"
+      entries = arrayOf("English", "繁體中文", "簡體中文", "日本語", "한국어")
+      entryValues = arrayOf("en", "zh-TW", "zh-CN", "ja", "ko")
+      setDefaultValue(Hanime1Translator.DEFAULT_TARGET_LANGUAGE)
+      summary =
+        "Current: ${preferences.getString(Hanime1Translator.PREF_KEY_TARGET_LANGUAGE, Hanime1Translator.DEFAULT_TARGET_LANGUAGE)?.let { lang ->
                 when (lang) {
                     "en" -> "English"
                     "zh-TW" -> "繁體中文"
@@ -426,9 +425,9 @@ fun PreferenceScreen.addTranslationPreferences() {
                     else -> "English"
                 }
             }}"
-        setOnPreferenceChangeListener { _, newValue ->
-          summary =
-              "Current: ${when (newValue as String) {
+      setOnPreferenceChangeListener { _, newValue ->
+        summary =
+          "Current: ${when (newValue as String) {
                     "en" -> "English"
                     "zh-TW" -> "繁體中文"
                     "zh-CN" -> "簡體中文"
@@ -436,8 +435,8 @@ fun PreferenceScreen.addTranslationPreferences() {
                     "ko" -> "한국어"
                     else -> "English"
                 }}"
-          true
-        }
-      },
+        true
+      }
+    }
   )
 }
