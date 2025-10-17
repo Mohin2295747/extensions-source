@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.animeextension.zh.hanime1
 import android.content.SharedPreferences
 import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
+import eu.kanade.tachiyomi.animesource.model.SAnime
 import java.io.UnsupportedEncodingException
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
@@ -12,7 +13,6 @@ import okhttp3.Request
 import org.json.JSONArray
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import eu.kanade.tachiyomi.animesource.model.SAnime
 
 class Hanime1Translator {
 
