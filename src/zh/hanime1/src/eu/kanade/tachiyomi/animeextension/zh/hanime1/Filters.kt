@@ -3,43 +3,47 @@ package eu.kanade.tachiyomi.animeextension.zh.hanime1
 import eu.kanade.tachiyomi.animesource.model.AnimeFilter
 
 open class QueryFilter(name: String, val key: String, values: Array<String>) :
-    AnimeFilter.Select<String>(GoogleTranslator.translate(name), GoogleTranslator.translateList(values)) {
+    AnimeFilter.Select<String>(name, values) {
     val selected: String
-        get() = if (state == 0) "" else values[state]
+        get() = if (state == 0) {
+            ""
+        } else {
+            values[state]
+        }
 }
 
 open class TagFilter(val key: String, name: String, state: Boolean = false) :
-    AnimeFilter.CheckBox(GoogleTranslator.translate(name), state)
+    AnimeFilter.CheckBox(name, state)
 
 class GenreFilter(values: Array<String>) :
     QueryFilter(
-        "影片類型",
+        "Video Type",
         "genre",
-        GoogleTranslator.translateList(values.ifEmpty { arrayOf("全部", "裏番", "泡面番", "Motion Anime") }),
+        values.ifEmpty { arrayOf("All", "R-18", "Short Anime", "Motion Anime") },
     )
 
 class SortFilter(values: Array<String>) :
     QueryFilter(
-        "排序方式",
+        "Sort By",
         "sort",
-        GoogleTranslator.translateList(values.ifEmpty { arrayOf("最新上市", "最新上傳", "本日排行", "本週排行", "本月排行") }),
+        values.ifEmpty { arrayOf("Latest Release", "Latest Upload", "Daily Ranking", "Weekly Ranking", "Monthly Ranking") },
     )
 
-object HotFilter : TagFilter("sort", GoogleTranslator.translate("本週排行"), true)
+object HotFilter : TagFilter("sort", "Weekly Ranking", true)
 
 class YearFilter(values: Array<String>) :
-    QueryFilter("發佈年份", "year", GoogleTranslator.translateList(values.ifEmpty { arrayOf("全部年份") }))
+    QueryFilter("Release Year", "year", values.ifEmpty { arrayOf("All Years") })
 
 class MonthFilter(values: Array<String>) :
-    QueryFilter("發佈月份", "month", GoogleTranslator.translateList(values.ifEmpty { arrayOf("全部月份") }))
+    QueryFilter("Release Month", "month", values.ifEmpty { arrayOf("All Months") })
 
 class DateFilter(yearFilter: YearFilter, monthFilter: MonthFilter) :
-    AnimeFilter.Group<QueryFilter>(GoogleTranslator.translate("發佈日期"), listOf(yearFilter, monthFilter))
+    AnimeFilter.Group<QueryFilter>("Release Date", listOf(yearFilter, monthFilter))
 
 class CategoryFilter(name: String, filters: List<TagFilter>) :
-    AnimeFilter.Group<TagFilter>(GoogleTranslator.translate(name), filters)
+    AnimeFilter.Group<TagFilter>(name, filters)
 
-class BroadMatchFilter : TagFilter("broad", GoogleTranslator.translate("廣泛配對"))
+class BroadMatchFilter : TagFilter("broad", "Broad Match")
 
 class TagsFilter(filters: List<AnimeFilter<out Any>>) :
-    AnimeFilter.Group<AnimeFilter<out Any>>(GoogleTranslator.translate("標籤"), filters)
+    AnimeFilter.Group<AnimeFilter<out Any>>("Tags", filters)
