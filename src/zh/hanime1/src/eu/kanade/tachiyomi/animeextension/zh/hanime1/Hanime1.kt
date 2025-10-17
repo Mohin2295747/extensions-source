@@ -250,34 +250,30 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         urlBuilder.addQueryParameter(filter.key, filter.selected)
                     }
                 }
-                is BroadMatchFilter -> {
-                    if (filter.state) {
-                        urlBuilder.addQueryParameter(filter.key, "on")
-                    }
-                }
                 is TagFilter -> {
                     if (filter.state) {
                         urlBuilder.addQueryParameter(filter.key, filter.name)
                     }
                 }
-                is TagsFilter -> {
+                is AnimeFilter.Group<*> -> {
                     filter.state.forEach { innerFilter ->
-                        if (innerFilter is TagFilter && innerFilter.state) {
-                            urlBuilder.addQueryParameter(innerFilter.key, innerFilter.name)
-                        }
-                    }
-                }
-                is DateFilter -> {
-                    filter.state.forEach { dateFilter ->
-                        if (dateFilter is QueryFilter && dateFilter.selected.isNotEmpty()) {
-                            urlBuilder.addQueryParameter(dateFilter.key, dateFilter.selected)
+                        when (innerFilter) {
+                            is QueryFilter -> {
+                                if (innerFilter.selected.isNotEmpty()) {
+                                    urlBuilder.addQueryParameter(innerFilter.key, innerFilter.selected)
+                                }
+                            }
+                            is TagFilter -> {
+                                if (innerFilter.state) {
+                                    urlBuilder.addQueryParameter(innerFilter.key, innerFilter.name)
+                                }
+                            }
                         }
                     }
                 }
                 is AnimeFilter.Header -> {}
                 is AnimeFilter.Separator -> {}
                 is AnimeFilter.CheckBox -> {}
-                is AnimeFilter.Group -> {}
                 is AnimeFilter.Select<*> -> {}
                 is AnimeFilter.Sort -> {}
                 is AnimeFilter.Text -> {}
