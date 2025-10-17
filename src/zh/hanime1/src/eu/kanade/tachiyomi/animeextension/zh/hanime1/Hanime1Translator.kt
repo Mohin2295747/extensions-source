@@ -72,13 +72,21 @@ class Hanime1Translator {
                 }
 
                 anime.author?.let { author ->
-                    val translatedAuthor = translateText(getTargetLanguage(), author)
-                    translatedAnime.author = translatedAuthor.ifEmpty { author }
+                    if (author.isNotEmpty()) {
+                        val translatedAuthor = translateText(getTargetLanguage(), author)
+                        translatedAnime.author = translatedAuthor.ifEmpty { author }
+                    } else {
+                        translatedAnime.author = author
+                    }
                 }
 
                 anime.genre?.let { genre ->
-                    val translatedGenre = translateText(getTargetLanguage(), genre)
-                    translatedAnime.genre = translatedGenre.ifEmpty { genre }
+                    if (genre.isNotEmpty()) {
+                        val translatedGenre = translateText(getTargetLanguage(), genre)
+                        translatedAnime.genre = translatedGenre.ifEmpty { genre }
+                    } else {
+                        translatedAnime.genre = genre
+                    }
                 }
 
                 translatedAnime
@@ -352,6 +360,8 @@ class Hanime1Translator {
 }
 
 fun PreferenceScreen.addTranslationPreferences() {
+    val context = this.context
+
     addPreference(
         SwitchPreferenceCompat(context).apply {
             key = Hanime1Translator.PREF_KEY_TRANSLATION_ENABLED
@@ -369,7 +379,7 @@ fun PreferenceScreen.addTranslationPreferences() {
             entryValues = arrayOf("en", "zh-TW", "zh-CN", "ja", "ko")
             setDefaultValue(Hanime1Translator.DEFAULT_TARGET_LANGUAGE)
 
-            val currentLang = preferences.getString(key, Hanime1Translator.DEFAULT_TARGET_LANGUAGE)
+            val currentLang = preferenceManager.sharedPreferences.getString(key, Hanime1Translator.DEFAULT_TARGET_LANGUAGE)
             summary = "Current: ${getLanguageDisplayName(currentLang)}"
 
             setOnPreferenceChangeListener { _, newValue ->
