@@ -249,11 +249,21 @@ class Hanime1Translator {
         var r = value
         var i = 0
         while (i < op.length - 2) {
-            val d =
-                if (op[i + 2] in 'a'..'z') op[i + 2].code - 'a'.code + 10
-                else op[i + 2].digitToInt()
-            val shift = if (op[i + 1] == '+') r ushr d else r shl d
-            r = if (op[i] == '+') (r + shift) and 0xFFFFFFFFL else r xor shift
+            val d = if (op[i + 2] in 'a'..'z') {
+                op[i + 2].code - 'a'.code + 10
+            } else {
+                op[i + 2].digitToInt()
+            }
+            val shift = if (op[i + 1] == '+') {
+                r ushr d
+            } else {
+                r shl d
+            }
+            r = if (op[i] == '+') {
+                (r + shift) and 0xFFFFFFFFL
+            } else {
+                r xor shift
+            }
             i += 3
         }
         return r
