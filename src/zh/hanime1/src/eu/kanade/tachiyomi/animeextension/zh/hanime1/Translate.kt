@@ -18,7 +18,7 @@ class Hanime1Translator {
     private val preferences: SharedPreferences by lazy {
         Injekt.get<android.app.Application>().getSharedPreferences("source_${Hanime1().id}", 0x0000)
     }
-    
+
     private val okHttpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
@@ -40,13 +40,13 @@ class Hanime1Translator {
 
     suspend fun translateAnimeDetails(anime: SAnime): SAnime {
         if (!isTranslationEnabled()) return anime
-        
+
         val translatedAnime = SAnime.create().apply {
             // Copy all basic properties first
             url = anime.url
             thumbnail_url = anime.thumbnail_url
         }
-        
+
         runBlocking {
             try {
                 // Translate title - REPLACE with English
@@ -98,7 +98,7 @@ class Hanime1Translator {
                 return@runBlocking anime
             }
         }
-        
+
         return translatedAnime
     }
 
@@ -106,85 +106,26 @@ class Hanime1Translator {
         if (text.isBlank()) return text
         return translateText(getTargetLanguage(), text)
     }
-    // Add these functions to your Hanime1Translator class
-
-suspend fun translateFilterValues(values: List<String>): List<String> {
-    if (!isTranslationEnabled()) return values
-    
-    return values.map { value ->
-        if (isChineseText(value)) {
-            translateText(value).ifEmpty { value }
-        } else {
-            value
-        }
-    }
-}
-
-suspend fun translateFilterName(name: String): String {
-    if (!isTranslationEnabled()) return name
-    
-    return if (isChineseText(name)) {
-        translateText(name).ifEmpty { name }
-    } else {
-        name
-    }
-}
-
-// Common Chinese filter term translations
-private val filterTermTranslations = mapOf(
-    "全部" to "All",
-    "裏番" to "R-18",
-    "泡面番" to "Short Anime", 
-    "泡麵番" to "Short Anime",
-    "Motion Anime" to "Motion Anime",
-    "最新上市" to "Latest Release",
-    "最新上傳" to "Latest Upload",
-    "本日排行" to "Daily Ranking",
-    "本週排行" to "Weekly Ranking",
-    "本月排行" to "Monthly Ranking",
-    "全部年份" to "All Years",
-    "全部月份" to "All Months",
-    "廣泛配對" to "Broad Match",
-    "標籤" to "Tags",
-    "影片類型" to "Video Type",
-    "排序方式" to "Sort By",
-    "發佈年份" to "Release Year",
-    "發佈月份" to "Release Month",
-    "發佈日期" to "Release Date"
-)
-
-// Optimized version that uses pre-defined translations first
-suspend fun fastTranslateFilterText(text: String): String {
-    if (!isTranslationEnabled()) return text
-    
-    return filterTermTranslations[text] ?: run {
-        if (isChineseText(text)) {
-            translateText(text).ifEmpty { text }
-        } else {
-            text
-        }
-    }
-}
 
     private suspend fun translateText(targetLang: String, text: String): String {
         if (text.isBlank()) return text
-        
+
         // Split long text into chunks to avoid API limits
         val chunks = splitTextIntoChunks(text)
         val translatedChunks = mutableListOf<String>()
-        
+
         for (chunk in chunks) {
             if (chunk.isBlank()) continue
-            
+
             try {
                 val url = buildTranslateUrl(targetLang, chunk)
                 val request = Request.Builder()
                     .url(url)
                     .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
                     .build()
-                
+
                 val response = okHttpClient.newCall(request).execute()
-                
+
                 if (response.isSuccessful) {
                     val responseBody = response.body?.string()
                     responseBody?.let { body ->
@@ -192,14 +133,14 @@ suspend fun fastTranslateFilterText(text: String): String {
                             val jsonArray = JSONArray(body)
                             val translationArray = jsonArray.getJSONArray(0)
                             val translatedText = StringBuilder()
-                            
+
                             for (i in 0 until translationArray.length()) {
                                 val sentenceArray = translationArray.getJSONArray(i)
                                 if (sentenceArray.length() > 0) {
                                     translatedText.append(sentenceArray.getString(0))
                                 }
                             }
-                            
+
                             if (translatedText.isNotEmpty()) {
                                 translatedChunks.add(translatedText.toString())
                                 continue // Success, move to next chunk
@@ -212,29 +153,37 @@ suspend fun fastTranslateFilterText(text: String): String {
             } catch (e: Exception) {
                 // Translation request failed for this chunk
             }
-            
+
             // If translation failed for this chunk, keep the original
             translatedChunks.add(chunk)
         }
-        
+
         return translatedChunks.joinToString("")
     }
 
     private fun splitTextIntoChunks(text: String, maxChunkLength: Int = 1500): List<String> {
         val chunks = mutableListOf<String>()
         var currentChunk = StringBuilder()
-        
+
         // Split by sentences if possible, otherwise by length
         val sentences = text.split('。', '！', '!', '？', '?', '\n').filter { it.isNotBlank() }
-        
+
         if (sentences.size > 1) {
             for (sentence in sentences) {
-                val sentenceWithPunctuation = sentence + if (text.contains(sentence + '。')) "。" else 
-                    if (text.contains(sentence + '！')) "！" else 
-                    if (text.contains(sentence + '!')) "!" else 
-                    if (text.contains(sentence + '？')) "？" else 
-                    if (text.contains(sentence + '?')) "?" else ""
-                
+                val sentenceWithPunctuation = if (text.contains(sentence + '。')) {
+                    sentence + "。"
+                } else if (text.contains(sentence + '！')) {
+                    sentence + "！"
+                } else if (text.contains(sentence + '!')) {
+                    sentence + "!"
+                } else if (text.contains(sentence + '？')) {
+                    sentence + "？"
+                } else if (text.contains(sentence + '?')) {
+                    sentence + "?"
+                } else {
+                    sentence
+                }
+
                 if (currentChunk.length + sentenceWithPunctuation.length <= maxChunkLength) {
                     currentChunk.append(sentenceWithPunctuation)
                 } else {
@@ -271,14 +220,14 @@ suspend fun fastTranslateFilterText(text: String): String {
                 chunks.add(remainingText)
             }
         }
-        
+
         return chunks
     }
 
     private fun buildTranslateUrl(targetLang: String, text: String): String {
         val client = "gtx"
         val token = calculateToken(text)
-        
+
         return try {
             val encodedText = URLEncoder.encode(text, "UTF-8")
             "https://translate.google.com/translate_a/single?client=$client&sl=auto&tl=$targetLang&dt=t&tk=$token&q=$encodedText"
@@ -324,7 +273,7 @@ suspend fun fastTranslateFilterText(text: String): String {
         for (num in list) {
             j = rl(j + num.toLong(), "+-a^+6")
         }
-        
+
         var result = rl(j, "+-3^+b+-f") xor 3293161072L
         if (result < 0) {
             result = (result and 2147483647L) + 2147483648L
@@ -342,13 +291,13 @@ suspend fun fastTranslateFilterText(text: String): String {
             } else {
                 operation[i + 2].digitToInt()
             }
-            
+
             val shiftValue = if (operation[i + 1] == '+') {
                 result ushr d
             } else {
                 result shl d
             }
-            
+
             result = if (operation[i] == '+') {
                 (result + shiftValue) and 0xFFFFFFFFL
             } else {
@@ -357,6 +306,82 @@ suspend fun fastTranslateFilterText(text: String): String {
             i += 3
         }
         return result
+    }
+
+    // Filter translation functions
+    suspend fun translateFilterValues(values: List<String>): List<String> {
+        if (!isTranslationEnabled()) return values
+
+        return values.map { value ->
+            if (isChineseText(value)) {
+                translateText(value).ifEmpty { value }
+            } else {
+                value
+            }
+        }
+    }
+
+    suspend fun translateFilterName(name: String): String {
+        if (!isTranslationEnabled()) return name
+
+        return if (isChineseText(name)) {
+            translateText(name).ifEmpty { name }
+        } else {
+            name
+        }
+    }
+
+    // Common Chinese filter term translations
+    private val filterTermTranslations = mapOf(
+        "全部" to "All",
+        "裏番" to "R-18",
+        "泡面番" to "Short Anime",
+        "泡麵番" to "Short Anime",
+        "Motion Anime" to "Motion Anime",
+        "最新上市" to "Latest Release",
+        "最新上傳" to "Latest Upload",
+        "本日排行" to "Daily Ranking",
+        "本週排行" to "Weekly Ranking",
+        "本月排行" to "Monthly Ranking",
+        "全部年份" to "All Years",
+        "全部月份" to "All Months",
+        "廣泛配對" to "Broad Match",
+        "標籤" to "Tags",
+        "影片類型" to "Video Type",
+        "排序方式" to "Sort By",
+        "發佈年份" to "Release Year",
+        "發佈月份" to "Release Month",
+        "發佈日期" to "Release Date",
+    )
+
+    // Optimized version that uses pre-defined translations first
+    suspend fun fastTranslateFilterText(text: String): String {
+        if (!isTranslationEnabled()) return text
+
+        return filterTermTranslations[text] ?: run {
+            if (isChineseText(text)) {
+                translateText(text).ifEmpty { text }
+            } else {
+                text
+            }
+        }
+    }
+
+    private fun isChineseText(text: String): Boolean {
+        // Simple detection for Chinese characters
+        val chineseCharCount = text.count { char ->
+            char in '\u4e00'..'\u9fff' || // CJK Unified Ideographs
+            char in '\u3400'..'\u4dbf' || // CJK Extension A
+            char in '\u20000'..'\u2a6df' || // CJK Extension B
+            char in '\u2a700'..'\u2b73f' || // CJK Extension C
+            char in '\u2b740'..'\u2b81f' || // CJK Extension D
+            char in '\u2b820'..'\u2ceaf' || // CJK Extension E
+            char in '\u2ceb0'..'\u2ebef' || // CJK Extension F
+            char in '\u3000'..'\u303f' || // CJK Symbols and Punctuation
+            char in '\uff00'..'\uffef' // Halfwidth and Fullwidth Forms
+        }
+        // Consider text as Chinese if at least 30% of characters are Chinese
+        return chineseCharCount > text.length * 0.3
     }
 }
 
@@ -368,9 +393,9 @@ fun PreferenceScreen.addTranslationPreferences() {
             title = "Enable Translation"
             summary = "Translate all Chinese text to English"
             setDefaultValue(false)
-        }
+        },
     )
-    
+
     addPreference(
         androidx.preference.ListPreference(context).apply {
             key = Hanime1Translator.PREF_KEY_TARGET_LANGUAGE
@@ -378,7 +403,7 @@ fun PreferenceScreen.addTranslationPreferences() {
             entries = arrayOf("English", "繁體中文", "簡體中文", "日本語", "한국어")
             entryValues = arrayOf("en", "zh-TW", "zh-CN", "ja", "ko")
             setDefaultValue(Hanime1Translator.DEFAULT_TARGET_LANGUAGE)
-            summary = "Current: ${preferences.getString(Hanime1Translator.PREF_KEY_TARGET_LANGUAGE, Hanime1Translator.DEFAULT_TARGET_LANGUAGE)?.let { 
+            summary = "Current: ${preferences.getString(Hanime1Translator.PREF_KEY_TARGET_LANGUAGE, Hanime1Translator.DEFAULT_TARGET_LANGUAGE)?.let {
                 when (it) {
                     "en" -> "English"
                     "zh-TW" -> "繁體中文"
@@ -399,6 +424,6 @@ fun PreferenceScreen.addTranslationPreferences() {
                 }}"
                 true
             }
-        }
+        },
     )
 }
