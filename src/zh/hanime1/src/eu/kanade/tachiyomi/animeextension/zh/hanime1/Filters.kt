@@ -31,13 +31,17 @@ class SortFilter(
 ) : QueryFilter(
     "Sort By",
     "sort",
-    if (values.isNotEmpty()) values else arrayOf(
-        "Latest Release",
-        "Latest Upload",
-        "Daily Ranking",
-        "Weekly Ranking",
-        "Monthly Ranking",
-    ),
+    if (values.isNotEmpty()) {
+        values
+    } else {
+        arrayOf(
+            "Latest Release",
+            "Latest Upload",
+            "Daily Ranking",
+            "Weekly Ranking",
+            "Monthly Ranking",
+        )
+    },
 )
 
 class HotFilter : TagFilter("sort", "Weekly Ranking", true)
