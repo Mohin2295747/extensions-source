@@ -103,45 +103,45 @@ class Hanime1Translator {
         return translateText(getTargetLanguage(), text)
     }
 
-    private suspend fun translateText(targetLang: String, text: String): String {
-        if (text.isBlank()) {
-            return text
+    @OptIn(ExperimentalStdlibApi::class)
+private suspend fun translateText(targetLang: String, text: String): String {
+    if (text.isBlank()) return text
+
+    val chunks = splitTextIntoChunks(text)
+    val translatedChunks = mutableListOf<String>()
+
+    for (chunk in chunks) {
+        if (chunk.isBlank()) {
+            translatedChunks.add(chunk)
+            continue
         }
 
-        val chunks = splitTextIntoChunks(text)
-        val translatedChunks = mutableListOf<String>()
+        try {
+            val url = buildTranslateUrl(targetLang, chunk)
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                .build()
 
-        for (chunk in chunks) {
-            if (chunk.isBlank()) {
-                translatedChunks.add(chunk)
-                continue
-            }
-
-            try {
-                val url = buildTranslateUrl(targetLang, chunk)
-                val request = Request.Builder()
-                    .url(url)
-                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                    .build()
-
-                val response = okHttpClient.newCall(request).execute()
-                if (response.isSuccessful) {
-                    response.body?.use { body ->
-                        val responseText = body.string()
-                        val translated = parseTranslationResponse(responseText)
-                        if (translated.isNotEmpty()) {
-                            translatedChunks.add(translated)
-                            continue
-                        }
+            val response = okHttpClient.newCall(request).execute()
+            if (response.isSuccessful) {
+                response.body?.use { body ->
+                    val responseText = body.string()
+                    val translated = parseTranslationResponse(responseText)
+                    if (translated.isNotEmpty()) {
+                        translatedChunks.add(translated)
+                        continue
                     }
                 }
-            } catch (e: Exception) {
-                // Continue with original text on error
             }
-            translatedChunks.add(chunk)
+        } catch (e: Exception) {
+            // Continue with original text on error
         }
-        return translatedChunks.joinToString("")
+        translatedChunks.add(chunk)
     }
+
+    return translatedChunks.joinToString("")
+}
 
     private fun parseTranslationResponse(responseText: String): String {
         return try {
@@ -361,6 +361,7 @@ class Hanime1Translator {
 
 fun PreferenceScreen.addTranslationPreferences() {
     val context = this.context
+    val prefs = context.getSharedPreferences("hanime_prefs", Context.MODE_PRIVATE)
 
     addPreference(
         SwitchPreferenceCompat(context).apply {
@@ -379,7 +380,7 @@ fun PreferenceScreen.addTranslationPreferences() {
             entryValues = arrayOf("en", "zh-TW", "zh-CN", "ja", "ko")
             setDefaultValue(Hanime1Translator.DEFAULT_TARGET_LANGUAGE)
 
-            val currentLang = preferenceManager.sharedPreferences.getString(key, Hanime1Translator.DEFAULT_TARGET_LANGUAGE)
+            val currentLang = prefs.getString(key, Hanime1Translator.DEFAULT_TARGET_LANGUAGE) ?: Hanime1Translator.DEFAULT_TARGET_LANGUAGE
             summary = "Current: ${getLanguageDisplayName(currentLang)}"
 
             setOnPreferenceChangeListener { _, newValue ->
