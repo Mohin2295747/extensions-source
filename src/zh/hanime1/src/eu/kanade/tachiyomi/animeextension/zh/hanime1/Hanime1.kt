@@ -465,7 +465,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     summary = "Current: ${newValue as String}"
                     true
                 }
-            }
+            },
         )
 
         screen.addPreference(
@@ -485,7 +485,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     }
                     true
                 }
-            }
+            },
         )
     }
 
