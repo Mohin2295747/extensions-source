@@ -1,9 +1,9 @@
 package eu.kanade.tachiyomi.animeextension.zh.hanime1
 
+import eu.kanade.tachiyomi.animesource.model.SAnime
 import android.content.SharedPreferences
 import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
-import eu.kanade.tachiyomi.animesource.model.SAnime
 import java.io.UnsupportedEncodingException
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
