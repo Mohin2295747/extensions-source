@@ -360,7 +360,6 @@ fun PreferenceScreen.addTranslationPreferences() {
             setDefaultValue(false)
         },
     )
-}
 
     addPreference(
         ListPreference(context).apply {
