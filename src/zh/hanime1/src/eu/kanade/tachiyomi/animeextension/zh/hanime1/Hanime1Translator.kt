@@ -10,11 +10,9 @@ import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONArray
 import org.json.JSONObject
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -60,6 +58,21 @@ class Hanime1Translator {
 
     fun clearTranslationCache() {
         cachePreferences.edit().clear().apply()
+    }
+
+    fun getCacheSize(): String {
+        val allEntries = cachePreferences.all
+        var totalSize = 0L
+        for ((_, value) in allEntries) {
+            if (value is String) {
+                totalSize += value.toByteArray(Charsets.UTF_8).size
+            }
+        }
+        return when {
+            totalSize < 1024 -> "${totalSize}B"
+            totalSize < 1024 * 1024 -> "${totalSize / 1024}KB"
+            else -> "${totalSize / (1024 * 1024)}MB"
+        }
     }
 
     suspend fun translateAnimeDetails(anime: SAnime): SAnime {
@@ -139,14 +152,10 @@ class Hanime1Translator {
         val chunks = splitTextIntoChunks(text)
         val translatedChunks = mutableListOf<String>()
 
-        // Batch translate chunks in groups of 10-15
-        val batchSize = 12
-        for (i in chunks.indices step batchSize) {
-            val batch = chunks.subList(i, minOf(i + batchSize, chunks.size))
-            if (batch.isNotEmpty()) {
-                val batchTranslated = translateBatch(targetLang, batch)
-                translatedChunks.addAll(batchTranslated)
-            }
+        // Translate chunks sequentially to ensure all translations complete
+        for (chunk in chunks) {
+            val translatedChunk = translateSingleText(targetLang, chunk)
+            translatedChunks.add(if (translatedChunk.isNotEmpty()) translatedChunk else chunk)
         }
 
         val result = translatedChunks.joinToString("")
@@ -158,62 +167,6 @@ class Hanime1Translator {
         return result.ifEmpty { text }
     }
 
-    private suspend fun translateBatch(targetLang: String, texts: List<String>): List<String> {
-        if (texts.isEmpty()) return emptyList()
-
-        val apiKey = getDeepLApiKey()
-        if (apiKey.isEmpty()) return texts
-
-        try {
-            // Combine texts with separator
-            val combinedText = texts.joinToString(" ||| ")
-            val jsonBody = JSONObject().apply {
-                put(
-                    "text",
-                    JSONArray().apply {
-                        put(combinedText)
-                    },
-                )
-                put("target_lang", targetLang)
-            }
-
-            val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaType())
-
-            val request = Request.Builder()
-                .url("https://api-free.deepl.com/v2/translate")
-                .header("Authorization", "DeepL-Auth-Key $apiKey")
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                .post(requestBody)
-                .build()
-
-            val response = okHttpClient.newCall(request).execute()
-            if (response.isSuccessful) {
-                response.body?.use { body ->
-                    val responseText = body.string()
-                    val translated = parseDeepLResponse(responseText)
-                    if (translated.isNotEmpty()) {
-                        // Split the combined translation back into individual texts
-                        return translated.split(" ||| ").mapIndexed { index, translatedText ->
-                            translatedText.ifEmpty { texts[index] }
-                        }
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            // Fall back to individual translation on error
-            return texts.mapIndexed { index, text ->
-                try {
-                    val individualTranslation = translateSingleText(targetLang, text)
-                    individualTranslation.ifEmpty { text }
-                } catch (e: Exception) {
-                    text
-                }
-            }
-        }
-
-        return texts
-    }
-
     private suspend fun translateSingleText(targetLang: String, text: String): String {
         if (text.isBlank()) return text
 
@@ -221,23 +174,15 @@ class Hanime1Translator {
         if (apiKey.isEmpty()) return text
 
         try {
-            val jsonBody = JSONObject().apply {
-                put(
-                    "text",
-                    JSONArray().apply {
-                        put(text)
-                    },
-                )
-                put("target_lang", targetLang)
-            }
-
-            val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaType())
+            val formBody = FormBody.Builder()
+                .add("auth_key", apiKey)
+                .add("text", text)
+                .add("target_lang", targetLang)
+                .build()
 
             val request = Request.Builder()
                 .url("https://api-free.deepl.com/v2/translate")
-                .header("Authorization", "DeepL-Auth-Key $apiKey")
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                .post(requestBody)
+                .post(formBody)
                 .build()
 
             val response = okHttpClient.newCall(request).execute()
@@ -246,9 +191,13 @@ class Hanime1Translator {
                     val responseText = body.string()
                     return parseDeepLResponse(responseText)
                 }
+            } else {
+                // Log error for debugging
+                println("DeepL API error: ${response.code} - ${response.message}")
             }
         } catch (e: Exception) {
             // Return original text on error
+            println("Translation error: ${e.message}")
         }
 
         return text
@@ -410,6 +359,7 @@ class Hanime1Translator {
 
 fun PreferenceScreen.addTranslationPreferences() {
     val context = this.context
+    val translator = Hanime1Translator()
 
     addPreference(
         SwitchPreferenceCompat(context).apply {
@@ -439,7 +389,7 @@ fun PreferenceScreen.addTranslationPreferences() {
             entryValues = arrayOf("EN", "ZH", "ZH", "JA", "KO")
             setDefaultValue(Hanime1Translator.DEFAULT_TARGET_LANGUAGE)
 
-            val currentLang = Hanime1Translator().getTargetLanguage()
+            val currentLang = translator.getTargetLanguage()
             summary = "Current: ${getLanguageDisplayName(currentLang)}"
 
             setOnPreferenceChangeListener { _, newValue ->
@@ -450,12 +400,14 @@ fun PreferenceScreen.addTranslationPreferences() {
     )
 
     addPreference(
-        androidx.preference.Preference().apply {
+        Preference(context).apply {
             key = Hanime1Translator.PREF_KEY_CLEAR_CACHE
             title = "Clear Translation Cache"
-            summary = "Remove all cached translations"
+            summary = "Current cache size: ${translator.getCacheSize()}\nClick to clear cached translations"
             setOnPreferenceClickListener {
-                Hanime1Translator().clearTranslationCache()
+                translator.clearTranslationCache()
+                // Update the summary after clearing
+                summary = "Current cache size: ${translator.getCacheSize()}\nClick to clear cached translations"
                 true
             }
         },
