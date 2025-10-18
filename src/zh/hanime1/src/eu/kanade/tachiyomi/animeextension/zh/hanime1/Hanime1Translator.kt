@@ -1,7 +1,6 @@
 package eu.kanade.tachiyomi.animeextension.zh.hanime1
 
 import android.app.Application
-import android.content.Context
 import android.content.SharedPreferences
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
@@ -383,8 +382,6 @@ class Hanime1Translator {
 
 fun PreferenceScreen.addTranslationPreferences() {
     val context = this.context
-    
-    // Remove this line:
     // val prefs = context.getSharedPreferences("hanime_prefs", android.content.Context.MODE_PRIVATE)
     
     addPreference(
@@ -393,7 +390,7 @@ fun PreferenceScreen.addTranslationPreferences() {
             title = "Enable Translation"
             summary = "Translate all Chinese text to English"
             setDefaultValue(false)
-        },
+        }
     )
 
     addPreference(
