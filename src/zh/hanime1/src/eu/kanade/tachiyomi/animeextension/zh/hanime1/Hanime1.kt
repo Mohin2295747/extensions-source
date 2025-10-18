@@ -77,64 +77,61 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     private val translator = Hanime1Translator()
 
     override fun animeDetailsParse(response: Response): SAnime {
-        val doc = response.asJsoup()
-        val rawAnime =
-            SAnime.create().apply {
-                genre =
-                    doc.select(".single-video-tag").not("[data-toggle]").eachText().joinToString()
-                author = doc.select("#video-artist-name").text()
+    val doc = response.asJsoup()
 
-                doc.select("script[type=application/ld+json]").firstOrNull()?.data()?.let { jsonData
-                    ->
-                    try {
-                        val info = json.decodeFromString<JsonElement>(jsonData).jsonObject
-                        title = info["name"]?.jsonPrimitive?.content ?: ""
-                        description = info["description"]?.jsonPrimitive?.content ?: ""
-                        thumbnail_url =
-                            info["thumbnailUrl"]?.jsonArray?.firstOrNull()?.jsonPrimitive?.content
-                    } catch (e: Exception) {
-                        Log.e(name, "Failed to parse JSON-LD data", e)
-                    }
-                }
+    val rawAnime = SAnime.create().apply {
+        genre = doc.select(".single-video-tag").not("[data-toggle]").eachText().joinToString()
+        author = doc.select("#video-artist-name").text()
 
-                // Fallback if JSON parsing failed
-                // Fallback if JSON parsing failed
-                if (title.isNullOrBlank()) {
-                    title = doc.select("h1.video-title").text()
-                }
-                if (description.isNullOrBlank()) {
-                    description = doc.select(".video-description").text()
-                }
+        // Parse JSON-LD block if available
+        doc.select("script[type=application/ld+json]").firstOrNull()?.data()?.let { jsonData ->
+            try {
+                val info = json.decodeFromString<JsonElement>(jsonData).jsonObject
+                title = info["name"]?.jsonPrimitive?.content ?: ""
+                description = info["description"]?.jsonPrimitive?.content ?: ""
+                // Remove if SAnime has no thumbnail_url
+                thumbnail_url = info["thumbnailUrl"]
+                    ?.jsonArray?.firstOrNull()?.jsonPrimitive?.content
+            } catch (e: Exception) {
+                // Remove if Log not imported
+                // Log.e("Hanime1", "Failed to parse JSON-LD data", e)
+            }
+        }
 
-                // Translating description safely
-                if (!anime.description.isNullOrEmpty()) {
-                    val translatedDescription =
-                        translateText(getTargetLanguage(), anime.description)
-                    translatedAnime.description =
-                        translatedDescription.ifEmpty { anime.description!! }
-                } else {
-                    translatedAnime.description = anime.description ?: ""
-                }
+        // Fallback if JSON parsing failed
+        if (title.isNullOrBlank()) {
+            title = doc.select("h1.video-title").text()
+        }
+        if (description.isNullOrBlank()) {
+            description = doc.select(".video-description").text()
+        }
 
-                val type = doc.select("a#video-artist-name + a").text().trim()
-                if (type == "裏番" || type == "泡麵番") {
-                    runBlocking {
-                        try {
-                            val searchRequest =
-                                searchAnimeRequest(1, title, AnimeFilterList(emptyList()))
-                            val searchResponse = client.newCall(searchRequest).execute()
-                            val searchPage = searchAnimeParse(searchResponse)
-                            thumbnail_url =
-                                searchPage.animes.firstOrNull()?.thumbnail_url ?: thumbnail_url
-                        } catch (e: Exception) {
-                            Log.e(name, "Failed to get bangumi cover image", e)
-                        }
-                    }
+        // Optional translation hook (replace with real translator if used)
+        if (!description.isNullOrEmpty()) {
+            val translatedDescription =
+                translateText(getTargetLanguage(), description!!)
+            description = translatedDescription.ifEmpty { description!! }
+        }
+
+        // Optional extra metadata
+        val type = doc.select("a#video-artist-name + a").text().trim()
+        if (type == "裏番" || type == "泡麵番") {
+            runBlocking {
+                try {
+                    val searchRequest = searchAnimeRequest(1, title, AnimeFilterList(emptyList()))
+                    val searchResponse = client.newCall(searchRequest).execute()
+                    val searchPage = searchAnimeParse(searchResponse)
+                    // Assign cover if available
+                    thumbnail_url = searchPage.animes.firstOrNull()?.thumbnail_url ?: thumbnail_url
+                } catch (e: Exception) {
+                    // Log.e("Hanime1", "Failed to get bangumi cover image", e)
                 }
             }
-
-        return runBlocking { translator.translateAnimeDetails(rawAnime) }
+        }
     }
+
+    return runBlocking { translator.translateAnimeDetails(rawAnime) }
+}
 
     override fun episodeListParse(response: Response): List<SEpisode> {
         val doc = response.asJsoup()
