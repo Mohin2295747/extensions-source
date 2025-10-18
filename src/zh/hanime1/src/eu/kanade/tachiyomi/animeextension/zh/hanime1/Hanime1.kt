@@ -77,61 +77,65 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     private val translator = Hanime1Translator()
 
     override fun animeDetailsParse(response: Response): SAnime {
-    val doc = response.asJsoup()
+        val doc = response.asJsoup()
 
-    val rawAnime = SAnime.create().apply {
-        genre = doc.select(".single-video-tag").not("[data-toggle]").eachText().joinToString()
-        author = doc.select("#video-artist-name").text()
+        val rawAnime =
+            SAnime.create().apply {
+                genre =
+                    doc.select(".single-video-tag").not("[data-toggle]").eachText().joinToString()
+                author = doc.select("#video-artist-name").text()
 
-        // Parse JSON-LD block if available
-        doc.select("script[type=application/ld+json]").firstOrNull()?.data()?.let { jsonData ->
-            try {
-                val info = json.decodeFromString<JsonElement>(jsonData).jsonObject
-                title = info["name"]?.jsonPrimitive?.content ?: ""
-                description = info["description"]?.jsonPrimitive?.content ?: ""
-                // Remove if SAnime has no thumbnail_url
-                thumbnail_url = info["thumbnailUrl"]
-                    ?.jsonArray?.firstOrNull()?.jsonPrimitive?.content
-            } catch (e: Exception) {
-                // Remove if Log not imported
-                // Log.e("Hanime1", "Failed to parse JSON-LD data", e)
-            }
-        }
+                // Parse JSON-LD block if available
+                doc.select("script[type=application/ld+json]").firstOrNull()?.data()?.let { jsonData
+                    ->
+                    try {
+                        val info = json.decodeFromString<JsonElement>(jsonData).jsonObject
+                        title = info["name"]?.jsonPrimitive?.content ?: ""
+                        description = info["description"]?.jsonPrimitive?.content ?: ""
+                        // Remove if SAnime has no thumbnail_url
+                        thumbnail_url =
+                            info["thumbnailUrl"]?.jsonArray?.firstOrNull()?.jsonPrimitive?.content
+                    } catch (e: Exception) {
+                        // Remove if Log not imported
+                        // Log.e("Hanime1", "Failed to parse JSON-LD data", e)
+                    }
+                }
 
-        // Fallback if JSON parsing failed
-        if (title.isNullOrBlank()) {
-            title = doc.select("h1.video-title").text()
-        }
-        if (description.isNullOrBlank()) {
-            description = doc.select(".video-description").text()
-        }
+                // Fallback if JSON parsing failed
+                if (title.isNullOrBlank()) {
+                    title = doc.select("h1.video-title").text()
+                }
+                if (description.isNullOrBlank()) {
+                    description = doc.select(".video-description").text()
+                }
 
-        // Optional translation hook (replace with real translator if used)
-        if (!description.isNullOrEmpty()) {
-            val translatedDescription =
-                translateText(getTargetLanguage(), description!!)
-            description = translatedDescription.ifEmpty { description!! }
-        }
+                // Optional translation hook (replace with real translator if used)
+                if (!description.isNullOrEmpty()) {
+                    val translatedDescription = translateText(getTargetLanguage(), description!!)
+                    description = translatedDescription.ifEmpty { description!! }
+                }
 
-        // Optional extra metadata
-        val type = doc.select("a#video-artist-name + a").text().trim()
-        if (type == "裏番" || type == "泡麵番") {
-            runBlocking {
-                try {
-                    val searchRequest = searchAnimeRequest(1, title, AnimeFilterList(emptyList()))
-                    val searchResponse = client.newCall(searchRequest).execute()
-                    val searchPage = searchAnimeParse(searchResponse)
-                    // Assign cover if available
-                    thumbnail_url = searchPage.animes.firstOrNull()?.thumbnail_url ?: thumbnail_url
-                } catch (e: Exception) {
-                    // Log.e("Hanime1", "Failed to get bangumi cover image", e)
+                // Optional extra metadata
+                val type = doc.select("a#video-artist-name + a").text().trim()
+                if (type == "裏番" || type == "泡麵番") {
+                    runBlocking {
+                        try {
+                            val searchRequest =
+                                searchAnimeRequest(1, title, AnimeFilterList(emptyList()))
+                            val searchResponse = client.newCall(searchRequest).execute()
+                            val searchPage = searchAnimeParse(searchResponse)
+                            // Assign cover if available
+                            thumbnail_url =
+                                searchPage.animes.firstOrNull()?.thumbnail_url ?: thumbnail_url
+                        } catch (e: Exception) {
+                            // Log.e("Hanime1", "Failed to get bangumi cover image", e)
+                        }
+                    }
                 }
             }
-        }
-    }
 
-    return runBlocking { translator.translateAnimeDetails(rawAnime) }
-}
+        return runBlocking { translator.translateAnimeDetails(rawAnime) }
+    }
 
     override fun episodeListParse(response: Response): List<SEpisode> {
         val doc = response.asJsoup()
@@ -147,7 +151,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
                 if (href == response.request.url.toString()) {
                     doc.select("script[type=application/ld+json]").firstOrNull()?.data()?.let {
-                            jsonData ->
+                        jsonData ->
                         try {
                             val info = json.decodeFromString<JsonElement>(jsonData).jsonObject
                             info["uploadDate"]?.jsonPrimitive?.content?.let { dateStr ->
@@ -181,12 +185,15 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             }
 
         if (videos.isNotEmpty()) {
+            // This sorts but doesn’t guarantee exact quality match first if multiple qualities
+            // exist;
+            // you might want a different approach depending on preferences.
             return videos.sortedByDescending { it.quality == preferQuality }
         }
 
         // Fallback: try to find video from JSON-LD
         return doc.select("script[type=application/ld+json]").firstOrNull()?.data()?.let { jsonData
-            ->,
+            ->
             try {
                 val info = json.decodeFromString<JsonElement>(jsonData).jsonObject
                 val videoUrl = info["contentUrl"]?.jsonPrimitive?.content
@@ -196,7 +203,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     emptyList()
                 }
             } catch (e: Exception) {
-                Log.e(name, "Failed to parse video URL from JSON-LD", e)
+                Log.e("Hanime1", "Failed to parse video URL from JSON-LD", e)
                 emptyList()
             }
         } ?: emptyList()
@@ -318,7 +325,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
         val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
             filterUpdateState.set(FilterUpdateState.FAILED)
-            Log.e(name, "Failed to update filters", throwable)
+            Log.e("Hanime1", "Failed to update filters", throwable)
         }
 
         CoroutineScope(Dispatchers.IO).launch(exceptionHandler) {
@@ -341,6 +348,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 val categoryDict = mutableMapOf<String, MutableList<String>>()
                 var currentCategory = ""
 
+                // ✅ Corrected arrow placement here
                 doc.select("div#tags div.modal-body").firstOrNull()?.children()?.forEach { element
                     ->
                     when (element.tagName()) {
@@ -445,34 +453,34 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         }
 
         return runBlocking {
-             try {
-                 val categoryDict =
-                    json.decodeFromString<Map<String, List<String>>>(savedCategories)
-                  categoryDict.map { (key, values) ->
-                    val translatedKey =
-                         if (translator.isTranslationEnabled()) {
-                              translator.fastTranslateFilterText(key)
-                         } else {
-                               key
-                         }
-
-                     val tagFilters =
-                          values.map { value ->
-                             val translatedValue =
-                                  if (translator.isTranslationEnabled()) {
-                                      translator.fastTranslateFilterText(value)
-                                 } else {
-                                    value
-                                 }
-                            TagFilter("tags[]", translatedValue)
+                try {
+                    val categoryDict =
+                        json.decodeFromString<Map<String, List<String>>>(savedCategories)
+                    categoryDict.map { (key, values) ->
+                        val translatedKey =
+                            if (translator.isTranslationEnabled()) {
+                                translator.fastTranslateFilterText(key)
+                            } else {
+                                key
                             }
 
-                     CategoryFilter(translatedKey, tagFilters)
+                        val tagFilters =
+                            values.map { value ->
+                                val translatedValue =
+                                    if (translator.isTranslationEnabled()) {
+                                        translator.fastTranslateFilterText(value)
+                                    } else {
+                                        value
+                                    }
+                                TagFilter("tags[]", translatedValue)
+                            }
+
+                        CategoryFilter(translatedKey, tagFilters)
+                    }
+                } catch (e: Exception) {
+                    emptyList()
                 }
-             } catch (e: Exception) {
-                 emptyList()
-             }
-        }
+            }
             .also { result.addAll(it) }
     }
 
@@ -504,7 +512,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     summary = "Current: ${newValue as String}"
                     true
                 }
-            },
+            }
         )
 
         screen.addPreference(
@@ -522,7 +530,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     }
                     true
                 }
-            },
+            }
         )
     }
 
