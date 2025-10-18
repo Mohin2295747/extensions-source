@@ -400,7 +400,7 @@ fun PreferenceScreen.addTranslationPreferences() {
     )
 
     addPreference(
-        Preference(context, null).apply {
+        Preference().apply {
             key = Hanime1Translator.PREF_KEY_CLEAR_CACHE
             title = "Clear Translation Cache"
             summary = "Current cache size: ${translator.getCacheSize()}\nClick to clear cached translations"
