@@ -43,8 +43,8 @@ class Hanime1Translator {
     }
 
     fun isTranslationEnabled(): Boolean {
-        return preferences.getBoolean(PREF_KEY_TRANSLATION_ENABLED, false) && 
-               getDeepLApiKey().isNotEmpty()
+        return preferences.getBoolean(PREF_KEY_TRANSLATION_ENABLED, false) &&
+                getDeepLApiKey().isNotEmpty()
     }
 
     fun getTargetLanguage(): String {
@@ -148,7 +148,6 @@ class Hanime1Translator {
         }
 
         val result = translatedChunks.joinToString("")
-        
         // Cache the result
         if (result.isNotEmpty() && result != text) {
             cachePreferences.edit().putString(cacheKey, result).apply()
@@ -166,11 +165,13 @@ class Hanime1Translator {
         try {
             // Combine texts with separator
             val combinedText = texts.joinToString(" ||| ")
-            
             val jsonBody = JSONObject().apply {
-                put("text", JSONArray().apply {
-                    put(combinedText)
-                })
+                put(
+                    "text",
+                    JSONArray().apply {
+                        put(combinedText)
+                    },
+                )
                 put("target_lang", targetLang)
             }
 
@@ -219,9 +220,12 @@ class Hanime1Translator {
 
         try {
             val jsonBody = JSONObject().apply {
-                put("text", JSONArray().apply {
-                    put(text)
-                })
+                put(
+                    "text",
+                    JSONArray().apply {
+                        put(text)
+                    },
+                )
                 put("target_lang", targetLang)
             }
 
