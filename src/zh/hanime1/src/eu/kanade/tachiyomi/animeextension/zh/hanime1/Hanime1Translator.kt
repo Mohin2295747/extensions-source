@@ -190,7 +190,7 @@ class Hanime1Translator {
                 val remaining = text.substring(currentPos)
                 if (
                     currentChunk.isNotEmpty() &&
-                        currentChunk.length + remaining.length > maxChunkLength
+                    currentChunk.length + remaining.length > maxChunkLength
                 ) {
                     chunks.add(currentChunk.toString())
                     currentChunk = StringBuilder(remaining)
@@ -388,7 +388,7 @@ fun PreferenceScreen.addTranslationPreferences() {
             title = "Enable Translation"
             summary = "Translate all Chinese text to English"
             setDefaultValue(false)
-        }
+        },
     )
 
     addPreference(
@@ -408,7 +408,7 @@ fun PreferenceScreen.addTranslationPreferences() {
                 summary = "Current: ${getLanguageDisplayName(newValue as String)}"
                 true
             }
-        }
+        },
     )
 }
 
