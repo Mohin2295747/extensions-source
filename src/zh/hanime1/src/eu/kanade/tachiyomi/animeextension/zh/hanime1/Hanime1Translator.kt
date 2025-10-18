@@ -383,8 +383,10 @@ class Hanime1Translator {
 
 fun PreferenceScreen.addTranslationPreferences() {
     val context = this.context
-    val prefs = context.getSharedPreferences("hanime_prefs", android.content.Context.MODE_PRIVATE)
-
+    
+    // Remove this line:
+    // val prefs = context.getSharedPreferences("hanime_prefs", android.content.Context.MODE_PRIVATE)
+    
     addPreference(
         SwitchPreferenceCompat(context).apply {
             key = Hanime1Translator.PREF_KEY_TRANSLATION_ENABLED
@@ -402,9 +404,8 @@ fun PreferenceScreen.addTranslationPreferences() {
             entryValues = arrayOf("en", "zh-TW", "zh-CN", "ja", "ko")
             setDefaultValue(Hanime1Translator.DEFAULT_TARGET_LANGUAGE)
 
-            val currentLang =
-                prefs.getString(key, Hanime1Translator.DEFAULT_TARGET_LANGUAGE)
-                    ?: Hanime1Translator.DEFAULT_TARGET_LANGUAGE
+            // Get the current value from the actual preferences used by the translator
+            val currentLang = Hanime1Translator().getTargetLanguage()
             summary = "Current: ${getLanguageDisplayName(currentLang)}"
 
             setOnPreferenceChangeListener { _, newValue ->
