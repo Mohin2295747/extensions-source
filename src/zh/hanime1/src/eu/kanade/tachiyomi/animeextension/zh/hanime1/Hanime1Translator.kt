@@ -69,9 +69,9 @@ class Hanime1Translator {
                 val originalDescription = anime.description
                 if (!originalDescription.isNullOrEmpty()) {
                     val translatedDescription =
-                    translateText(getTargetLanguage(), originalDescription)
+                        translateText(getTargetLanguage(), originalDescription)
                     translatedAnime.description =
-                    translatedDescription.ifEmpty { originalDescription }
+                        translatedDescription.ifEmpty { originalDescription }
                 } else {
                     translatedAnime.description = originalDescription
                 }
