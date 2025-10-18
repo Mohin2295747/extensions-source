@@ -86,8 +86,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 author = doc.select("#video-artist-name").text()
 
                 // Parse JSON-LD block if available
-                doc.select("script[type=application/ld+json]").firstOrNull()?.data()?.let { jsonData
-                    ->
+                doc.select("script[type=application/ld+json]").firstOrNull()?.data()?.let { jsonData ->
                     try {
                         val info = json.decodeFromString<JsonElement>(jsonData).jsonObject
                         title = info["name"]?.jsonPrimitive?.content ?: ""
@@ -192,8 +191,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         }
 
         // Fallback: try to find video from JSON-LD
-        return doc.select("script[type=application/ld+json]").firstOrNull()?.data()?.let { jsonData
-            ->
+        return doc.select("script[type=application/ld+json]").firstOrNull()?.data()?.let { jsonData ->
             try {
                 val info = json.decodeFromString<JsonElement>(jsonData).jsonObject
                 val videoUrl = info["contentUrl"]?.jsonPrimitive?.content
@@ -349,8 +347,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 var currentCategory = ""
 
                 // ✅ Corrected arrow placement here
-                doc.select("div#tags div.modal-body").firstOrNull()?.children()?.forEach { element
-                    ->
+                doc.select("div#tags div.modal-body").firstOrNull()?.children()?.forEach { element ->
                     when (element.tagName()) {
                         "h5" -> currentCategory = element.text()
                         "label" -> {
