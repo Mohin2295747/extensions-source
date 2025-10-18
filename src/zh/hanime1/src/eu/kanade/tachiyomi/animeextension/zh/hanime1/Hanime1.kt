@@ -85,7 +85,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 author = doc.select("#video-artist-name").text()
 
                 doc.select("script[type=application/ld+json]").firstOrNull()?.data()?.let { jsonData
-                    ->,
+                    ->
                     try {
                         val info = json.decodeFromString<JsonElement>(jsonData).jsonObject
                         title = info["name"]?.jsonPrimitive?.content ?: ""
