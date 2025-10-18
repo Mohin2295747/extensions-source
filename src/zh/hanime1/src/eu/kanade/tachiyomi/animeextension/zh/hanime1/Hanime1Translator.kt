@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.SharedPreferences
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
+import androidx.preference.Preference
 import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.animesource.model.SAnime
@@ -13,6 +14,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
 import org.json.JSONObject
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -448,7 +450,7 @@ fun PreferenceScreen.addTranslationPreferences() {
     )
 
     addPreference(
-        androidx.preference.Preference(context).apply {
+        Preference(context).apply {
             key = Hanime1Translator.PREF_KEY_CLEAR_CACHE
             title = "Clear Translation Cache"
             summary = "Remove all cached translations"
