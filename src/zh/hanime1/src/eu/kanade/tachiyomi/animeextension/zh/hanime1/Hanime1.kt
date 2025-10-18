@@ -110,7 +110,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
                 // Optional translation hook (replace with real translator if used)
                 if (!description.isNullOrEmpty()) {
-                    val translatedDescription = translator.fastTranslateFilterText(description!!)
+                    val translatedDescription = runBlocking { translator.fastTranslateFilterText(description!!) }
                     description = translatedDescription.ifEmpty { description!! }
                 }
 
