@@ -383,14 +383,13 @@ class Hanime1Translator {
 fun PreferenceScreen.addTranslationPreferences() {
     val context = this.context
     // val prefs = context.getSharedPreferences("hanime_prefs", android.content.Context.MODE_PRIVATE)
-    
     addPreference(
         SwitchPreferenceCompat(context).apply {
             key = Hanime1Translator.PREF_KEY_TRANSLATION_ENABLED
             title = "Enable Translation"
             summary = "Translate all Chinese text to English"
             setDefaultValue(false)
-        }
+        },
     )
 
     addPreference(
