@@ -85,7 +85,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 author = doc.select("#video-artist-name").text()
 
                 doc.select("script[type=application/ld+json]").firstOrNull()?.data()?.let { jsonData
-                    ->
+                    ->,
                     try {
                         val info = json.decodeFromString<JsonElement>(jsonData).jsonObject
                         title = info["name"]?.jsonPrimitive?.content ?: ""
@@ -150,7 +150,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
                 if (href == response.request.url.toString()) {
                     doc.select("script[type=application/ld+json]").firstOrNull()?.data()?.let {
-                        jsonData ->
+                            jsonData ->
                         try {
                             val info = json.decodeFromString<JsonElement>(jsonData).jsonObject
                             info["uploadDate"]?.jsonPrimitive?.content?.let { dateStr ->
@@ -189,7 +189,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
         // Fallback: try to find video from JSON-LD
         return doc.select("script[type=application/ld+json]").firstOrNull()?.data()?.let { jsonData
-            ->
+            ->,
             try {
                 val info = json.decodeFromString<JsonElement>(jsonData).jsonObject
                 val videoUrl = info["contentUrl"]?.jsonPrimitive?.content
@@ -448,34 +448,34 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         }
 
         return runBlocking {
-                try {
-                    val categoryDict =
-                        json.decodeFromString<Map<String, List<String>>>(savedCategories)
-                    categoryDict.map { (key, values) ->
-                        val translatedKey =
-                            if (translator.isTranslationEnabled()) {
-                                translator.fastTranslateFilterText(key)
-                            } else {
-                                key
+             try {
+                 val categoryDict =
+                    json.decodeFromString<Map<String, List<String>>>(savedCategories)
+                  categoryDict.map { (key, values) ->
+                    val translatedKey =
+                         if (translator.isTranslationEnabled()) {
+                              translator.fastTranslateFilterText(key)
+                         } else {
+                               key
+                         }
+
+                     val tagFilters =
+                          values.map { value ->
+                             val translatedValue =
+                                  if (translator.isTranslationEnabled()) {
+                                      translator.fastTranslateFilterText(value)
+                                 } else {
+                                    value
+                                 }
+                            TagFilter("tags[]", translatedValue)
                             }
 
-                        val tagFilters =
-                            values.map { value ->
-                                val translatedValue =
-                                    if (translator.isTranslationEnabled()) {
-                                        translator.fastTranslateFilterText(value)
-                                    } else {
-                                        value
-                                    }
-                                TagFilter("tags[]", translatedValue)
-                            }
-
-                        CategoryFilter(translatedKey, tagFilters)
-                    }
-                } catch (e: Exception) {
-                    emptyList()
+                     CategoryFilter(translatedKey, tagFilters)
                 }
-            }
+             } catch (e: Exception) {
+                 emptyList()
+             }
+        }
             .also { result.addAll(it) }
     }
 
@@ -507,7 +507,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     summary = "Current: ${newValue as String}"
                     true
                 }
-            }
+            },
         )
 
         screen.addPreference(
@@ -525,7 +525,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     }
                     true
                 }
-            }
+            },
         )
     }
 
