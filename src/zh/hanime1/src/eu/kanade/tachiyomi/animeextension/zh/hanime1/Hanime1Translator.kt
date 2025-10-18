@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.animeextension.zh.hanime1
 
 import android.app.Application
+import android.content.Context
 import android.content.SharedPreferences
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
@@ -65,13 +66,14 @@ class Hanime1Translator {
                     translatedAnime.title = anime.title
                 }
 
-                if (anime.description?.isNotEmpty() == true) {
+                val originalDescription = anime.description
+                if (!originalDescription.isNullOrEmpty()) {
                     val translatedDescription =
-                        translateText(getTargetLanguage(), anime.description)
+                    translateText(getTargetLanguage(), originalDescription)
                     translatedAnime.description =
-                        translatedDescription.ifEmpty { anime.description }
+                    translatedDescription.ifEmpty { originalDescription }
                 } else {
-                    translatedAnime.description = anime.description
+                    translatedAnime.description = originalDescription
                 }
 
                 anime.author?.let { author ->
@@ -132,14 +134,16 @@ class Hanime1Translator {
 
                 val response = okHttpClient.newCall(request).execute()
                 if (response.isSuccessful) {
+                    var added = false
                     response.body?.use { body ->
                         val responseText = body.string()
                         val translated = parseTranslationResponse(responseText)
                         if (translated.isNotEmpty()) {
                             translatedChunks.add(translated)
-                            continue
+                            added = true
                         }
                     }
+                    if (added) continue
                 }
             } catch (e: Exception) {
                 // Continue with original text on error
@@ -149,7 +153,6 @@ class Hanime1Translator {
 
         return translatedChunks.joinToString("")
     }
-
     private fun parseTranslationResponse(responseText: String): String {
         return try {
             val jsonArray = JSONArray(responseText)
