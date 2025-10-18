@@ -6,6 +6,8 @@ import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.animesource.model.SAnime
+import java.net.URLEncoder
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -13,20 +15,18 @@ import okhttp3.Request
 import org.json.JSONArray
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import java.net.URLEncoder
-import java.util.concurrent.TimeUnit
 
 class Hanime1Translator {
 
     private val preferences: SharedPreferences by lazy {
-        Injekt.get<Application>()
-            .getSharedPreferences("source_${Hanime1().id}", 0)
+        Injekt.get<Application>().getSharedPreferences("source_${Hanime1().id}", 0)
     }
 
-    private val okHttpClient = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
-        .build()
+    private val okHttpClient =
+        OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .build()
 
     companion object {
         const val PREF_KEY_TRANSLATION_ENABLED = "pref_translation_enabled"
@@ -50,12 +50,13 @@ class Hanime1Translator {
 
         return withContext(Dispatchers.IO) {
             try {
-                val translatedAnime = SAnime.create().apply {
-                    url = anime.url
-                    thumbnail_url = anime.thumbnail_url
-                    status = anime.status
-                    initialized = anime.initialized
-                }
+                val translatedAnime =
+                    SAnime.create().apply {
+                        url = anime.url
+                        thumbnail_url = anime.thumbnail_url
+                        status = anime.status
+                        initialized = anime.initialized
+                    }
 
                 if (anime.title.isNotEmpty()) {
                     val translatedTitle = translateText(getTargetLanguage(), anime.title)
@@ -65,11 +66,13 @@ class Hanime1Translator {
                 }
 
                 if (anime.description?.isNotEmpty() == true) {
-    val translatedDescription = translateText(getTargetLanguage(), anime.description)
-    translatedAnime.description = translatedDescription.ifEmpty { anime.description }
-} else {
-    translatedAnime.description = anime.description
-}
+                    val translatedDescription =
+                        translateText(getTargetLanguage(), anime.description)
+                    translatedAnime.description =
+                        translatedDescription.ifEmpty { anime.description }
+                } else {
+                    translatedAnime.description = anime.description
+                }
 
                 anime.author?.let { author ->
                     if (author.isNotEmpty()) {
@@ -104,44 +107,48 @@ class Hanime1Translator {
     }
 
     @OptIn(ExperimentalStdlibApi::class)
-private suspend fun translateText(targetLang: String, text: String): String {
-    if (text.isBlank()) return text
+    private suspend fun translateText(targetLang: String, text: String): String {
+        if (text.isBlank()) return text
 
-    val chunks = splitTextIntoChunks(text)
-    val translatedChunks = mutableListOf<String>()
+        val chunks = splitTextIntoChunks(text)
+        val translatedChunks = mutableListOf<String>()
 
-    for (chunk in chunks) {
-        if (chunk.isBlank()) {
-            translatedChunks.add(chunk)
-            continue
-        }
+        for (chunk in chunks) {
+            if (chunk.isBlank()) {
+                translatedChunks.add(chunk)
+                continue
+            }
 
-        try {
-            val url = buildTranslateUrl(targetLang, chunk)
-            val request = Request.Builder()
-                .url(url)
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                .build()
+            try {
+                val url = buildTranslateUrl(targetLang, chunk)
+                val request =
+                    Request.Builder()
+                        .url(url)
+                        .header(
+                            "User-Agent",
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                        )
+                        .build()
 
-            val response = okHttpClient.newCall(request).execute()
-            if (response.isSuccessful) {
-                response.body?.use { body ->
-                    val responseText = body.string()
-                    val translated = parseTranslationResponse(responseText)
-                    if (translated.isNotEmpty()) {
-                        translatedChunks.add(translated)
-                        continue
+                val response = okHttpClient.newCall(request).execute()
+                if (response.isSuccessful) {
+                    response.body?.use { body ->
+                        val responseText = body.string()
+                        val translated = parseTranslationResponse(responseText)
+                        if (translated.isNotEmpty()) {
+                            translatedChunks.add(translated)
+                            continue
+                        }
                     }
                 }
+            } catch (e: Exception) {
+                // Continue with original text on error
             }
-        } catch (e: Exception) {
-            // Continue with original text on error
+            translatedChunks.add(chunk)
         }
-        translatedChunks.add(chunk)
-    }
 
-    return translatedChunks.joinToString("")
-}
+        return translatedChunks.joinToString("")
+    }
 
     private fun parseTranslationResponse(responseText: String): String {
         return try {
@@ -172,14 +179,19 @@ private suspend fun translateText(targetLang: String, text: String): String {
         // Try to split by sentences first
         var currentPos = 0
         while (currentPos < text.length) {
-            val nextEnder = sentenceEnders.map { ender ->
-                text.indexOf(ender, currentPos).takeIf { it != -1 }
-            }.filterNotNull().minOrNull()
+            val nextEnder =
+                sentenceEnders
+                    .map { ender -> text.indexOf(ender, currentPos).takeIf { it != -1 } }
+                    .filterNotNull()
+                    .minOrNull()
 
             if (nextEnder == null) {
                 // No more sentence enders, add remaining text
                 val remaining = text.substring(currentPos)
-                if (currentChunk.isNotEmpty() && currentChunk.length + remaining.length > maxChunkLength) {
+                if (
+                    currentChunk.isNotEmpty() &&
+                        currentChunk.length + remaining.length > maxChunkLength
+                ) {
                     chunks.add(currentChunk.toString())
                     currentChunk = StringBuilder(remaining)
                 } else {
@@ -226,11 +238,12 @@ private suspend fun translateText(targetLang: String, text: String): String {
     private fun buildTranslateUrl(targetLang: String, text: String): String {
         val client = "gtx"
         val token = calculateToken(text)
-        val encodedText = try {
-            URLEncoder.encode(text, "UTF-8")
-        } catch (e: Exception) {
-            text
-        }
+        val encodedText =
+            try {
+                URLEncoder.encode(text, "UTF-8")
+            } catch (e: Exception) {
+                text
+            }
         return "https://translate.google.com/translate_a/single?client=$client&sl=auto&tl=$targetLang&dt=t&tk=$token&q=$encodedText"
     }
 
@@ -265,23 +278,26 @@ private suspend fun translateText(targetLang: String, text: String): String {
             val direction = op[i + 1]
             val shiftChar = op[i + 2]
 
-            val shiftAmount = if (shiftChar in 'a'..'z') {
-                shiftChar - 'a' + 10
-            } else {
-                shiftChar - '0'
-            }
+            val shiftAmount =
+                if (shiftChar in 'a'..'z') {
+                    shiftChar - 'a' + 10
+                } else {
+                    shiftChar - '0'
+                }
 
-            val shift = when (direction) {
-                '+' -> result ushr shiftAmount
-                '-' -> result shl shiftAmount
-                else -> 0
-            }
+            val shift =
+                when (direction) {
+                    '+' -> result ushr shiftAmount
+                    '-' -> result shl shiftAmount
+                    else -> 0
+                }
 
-            result = when (operator) {
-                '+' -> (result + shift) and 0xFFFFFFFF.toInt()
-                '-' -> (result xor shift) and 0xFFFFFFFF.toInt()
-                else -> result
-            }
+            result =
+                when (operator) {
+                    '+' -> (result + shift) and 0xFFFFFFFF.toInt()
+                    '-' -> (result xor shift) and 0xFFFFFFFF.toInt()
+                    else -> result
+                }
 
             i += 3
         }
@@ -312,49 +328,52 @@ private suspend fun translateText(targetLang: String, text: String): String {
         }
     }
 
-    private val filterTermTranslations = mapOf(
-        "全部" to "All",
-        "裏番" to "R-18",
-        "泡面番" to "Short Anime",
-        "泡麵番" to "Short Anime",
-        "Motion Anime" to "Motion Anime",
-        "最新上市" to "Latest Release",
-        "最新上傳" to "Latest Upload",
-        "本日排行" to "Daily Ranking",
-        "本週排行" to "Weekly Ranking",
-        "本月排行" to "Monthly Ranking",
-        "全部年份" to "All Years",
-        "全部月份" to "All Months",
-        "廣泛配對" to "Broad Match",
-        "標籤" to "Tags",
-        "影片類型" to "Video Type",
-        "排序方式" to "Sort By",
-        "發佈年份" to "Release Year",
-        "發佈月份" to "Release Month",
-        "發佈日期" to "Release Date",
-    )
+    private val filterTermTranslations =
+        mapOf(
+            "全部" to "All",
+            "裏番" to "R-18",
+            "泡面番" to "Short Anime",
+            "泡麵番" to "Short Anime",
+            "Motion Anime" to "Motion Anime",
+            "最新上市" to "Latest Release",
+            "最新上傳" to "Latest Upload",
+            "本日排行" to "Daily Ranking",
+            "本週排行" to "Weekly Ranking",
+            "本月排行" to "Monthly Ranking",
+            "全部年份" to "All Years",
+            "全部月份" to "All Months",
+            "廣泛配對" to "Broad Match",
+            "標籤" to "Tags",
+            "影片類型" to "Video Type",
+            "排序方式" to "Sort By",
+            "發佈年份" to "Release Year",
+            "發佈月份" to "Release Month",
+            "發佈日期" to "Release Date",
+        )
 
     suspend fun fastTranslateFilterText(text: String): String {
         if (!isTranslationEnabled()) {
             return text
         }
-        return filterTermTranslations[text] ?: if (isChineseText(text)) {
-            translateText(text).ifEmpty { text }
-        } else {
-            text
-        }
+        return filterTermTranslations[text]
+            ?: if (isChineseText(text)) {
+                translateText(text).ifEmpty { text }
+            } else {
+                text
+            }
     }
 
     private fun isChineseText(text: String): Boolean {
         if (text.isBlank()) return false
 
-        val chineseCharCount = text.count { ch ->
-            ch in '\u4e00'..'\u9fff' ||
-                ch in '\u3400'..'\u4dbf' ||
-                ch in '\uF900'..'\uFAFF' ||
-                ch in '\u3000'..'\u303f' ||
-                ch in '\uff00'..'\uffef'
-        }
+        val chineseCharCount =
+            text.count { ch ->
+                ch in '\u4e00'..'\u9fff' ||
+                    ch in '\u3400'..'\u4dbf' ||
+                    ch in '\uF900'..'\uFAFF' ||
+                    ch in '\u3000'..'\u303f' ||
+                    ch in '\uff00'..'\uffef'
+            }
         return chineseCharCount > text.length * 0.3
     }
 }
@@ -369,7 +388,7 @@ fun PreferenceScreen.addTranslationPreferences() {
             title = "Enable Translation"
             summary = "Translate all Chinese text to English"
             setDefaultValue(false)
-        },
+        }
     )
 
     addPreference(
@@ -380,14 +399,16 @@ fun PreferenceScreen.addTranslationPreferences() {
             entryValues = arrayOf("en", "zh-TW", "zh-CN", "ja", "ko")
             setDefaultValue(Hanime1Translator.DEFAULT_TARGET_LANGUAGE)
 
-            val currentLang = prefs.getString(key, Hanime1Translator.DEFAULT_TARGET_LANGUAGE) ?: Hanime1Translator.DEFAULT_TARGET_LANGUAGE
+            val currentLang =
+                prefs.getString(key, Hanime1Translator.DEFAULT_TARGET_LANGUAGE)
+                    ?: Hanime1Translator.DEFAULT_TARGET_LANGUAGE
             summary = "Current: ${getLanguageDisplayName(currentLang)}"
 
             setOnPreferenceChangeListener { _, newValue ->
                 summary = "Current: ${getLanguageDisplayName(newValue as String)}"
                 true
             }
-        },
+        }
     )
 }
 
