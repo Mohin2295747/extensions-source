@@ -44,7 +44,7 @@ class Hanime1Translator {
 
     fun isTranslationEnabled(): Boolean {
         return preferences.getBoolean(PREF_KEY_TRANSLATION_ENABLED, false) &&
-        getDeepLApiKey().isNotEmpty()
+            getDeepLApiKey().isNotEmpty()
     }
 
     fun getTargetLanguage(): String {
