@@ -450,7 +450,7 @@ fun PreferenceScreen.addTranslationPreferences() {
     )
 
     addPreference(
-        Preference(context).apply {
+        androidx.preference.Preference(context).apply {
             key = Hanime1Translator.PREF_KEY_CLEAR_CACHE
             title = "Clear Translation Cache"
             summary = "Remove all cached translations"
