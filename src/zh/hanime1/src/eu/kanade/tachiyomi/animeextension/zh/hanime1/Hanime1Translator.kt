@@ -383,7 +383,7 @@ class Hanime1Translator {
 
 fun PreferenceScreen.addTranslationPreferences() {
     val context = this.context
-    val prefs = context.getSharedPreferences("hanime_prefs", Context.MODE_PRIVATE)
+    val prefs = context.getSharedPreferences("hanime_prefs", android.content.Context.MODE_PRIVATE)
 
     addPreference(
         SwitchPreferenceCompat(context).apply {
