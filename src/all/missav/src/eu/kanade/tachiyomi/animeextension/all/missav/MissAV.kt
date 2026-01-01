@@ -19,6 +19,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.nodes.Element
+import rx.Observable
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -71,18 +72,24 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
         val url = baseUrl.toHttpUrl().newBuilder().apply {
-            val genre = filters.firstInstanceOrNull<GenreList>()?.selected
+            val genreFilter = filters.get(1) as? GenreList
+            val genre = if (genreFilter?.state == 0) null else GenreList.GENRES[genreFilter?.state ?: 0].second
+            
             if (query.isNotEmpty()) {
                 addEncodedPathSegments("en/search")
                 addPathSegment(query.trim())
-            } else if (genre != null) {
+            } else if (genre != null && genre.isNotEmpty()) {
                 addEncodedPathSegments(genre)
             } else {
                 addEncodedPathSegments("en/new")
             }
-            filters.firstInstanceOrNull<SortFilter>()?.selected?.let {
+            
+            val sortFilter = filters.get(0) as? SortFilter
+            val sort = if (sortFilter?.state == 0) null else SortFilter.SORT[sortFilter?.state ?: 0].second
+            sort?.let {
                 addQueryParameter("sort", it)
             }
+            
             addQueryParameter("page", page.toString())
         }.build().toString()
 
@@ -93,41 +100,43 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun searchAnimeParse(response: Response) = popularAnimeParse(response)
 
-    override suspend fun fetchSearchAnime(page: Int, query: String, filters: AnimeFilterList): AnimesPage {
-        val pageResult = super.fetchSearchAnime(page, query, filters)
-        val params = getSearchParameters(filters)
-
-        if ((params.genres.isNotEmpty() || params.blacklisted.isNotEmpty()) && query.isEmpty()) {
-            val filteredEntries = mutableListOf<SAnime>()
-
-            for (anime in pageResult.animes) {
-                try {
-                    val detailsResponse = client.newCall(GET(anime.url, headers)).execute()
-                    val details = animeDetailsParse(detailsResponse)
-                    detailsResponse.close()
-
-                    val animeGenres = details.genre?.split(", ") ?: emptyList()
-
-                    val includesGenres = params.genres.all { includedGenre ->
-                        animeGenres.any { it.equals(includedGenre, ignoreCase = true) }
+    override fun fetchSearchAnime(page: Int, query: String, filters: AnimeFilterList): Observable<AnimesPage> {
+        return super.fetchSearchAnime(page, query, filters)
+            .map { pageResult ->
+                val params = getSearchParameters(filters)
+                
+                if ((params.genres.isNotEmpty() || params.blacklisted.isNotEmpty()) && query.isEmpty()) {
+                    val filteredEntries = mutableListOf<SAnime>()
+                    
+                    for (anime in pageResult.animes) {
+                        try {
+                            val detailsResponse = client.newCall(GET(anime.url, headers)).execute()
+                            val details = animeDetailsParse(detailsResponse)
+                            detailsResponse.close()
+                            
+                            val animeGenres = details.genre?.split(", ") ?: emptyList()
+                            
+                            val includesGenres = params.genres.all { includedGenre ->
+                                animeGenres.any { it.equals(includedGenre, ignoreCase = true) }
+                            }
+                            
+                            val excludesGenres = params.blacklisted.none { excludedGenre ->
+                                animeGenres.any { it.equals(excludedGenre, ignoreCase = true) }
+                            }
+                            
+                            if (includesGenres && excludesGenres) {
+                                filteredEntries.add(anime)
+                            }
+                        } catch (e: Exception) {
+                            filteredEntries.add(anime)
+                        }
                     }
-
-                    val excludesGenres = params.blacklisted.none { excludedGenre ->
-                        animeGenres.any { it.equals(excludedGenre, ignoreCase = true) }
-                    }
-
-                    if (includesGenres && excludesGenres) {
-                        filteredEntries.add(anime)
-                    }
-                } catch (e: Exception) {
-                    filteredEntries.add(anime)
+                    
+                    AnimesPage(filteredEntries, pageResult.hasNextPage)
+                } else {
+                    pageResult
                 }
             }
-
-            return AnimesPage(filteredEntries, pageResult.hasNextPage)
-        }
-
-        return pageResult
     }
 
     override fun animeDetailsParse(response: Response): SAnime {

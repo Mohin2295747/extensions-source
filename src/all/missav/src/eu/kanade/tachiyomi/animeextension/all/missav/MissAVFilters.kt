@@ -3,19 +3,16 @@ package eu.kanade.tachiyomi.animeextension.all.missav
 import eu.kanade.tachiyomi.animesource.model.AnimeFilter
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 
-class SelectFilter(
-    name: String,
-    private val options: List<Pair<String, String>>,
-) : AnimeFilter.Select<String>(
-    name,
-    options.map { it.first }.toTypedArray(),
-) {
-    val selected get() = options[state].second.takeUnless { state == 0 }
-}
-
-class SortFilter : SelectFilter(
+class SortFilter : AnimeFilter.Select<String>(
     "Sort by",
-    SORT,
+    arrayOf(
+        "Release date",
+        "Recent update",
+        "Today views",
+        "Weekly views",
+        "Monthly views",
+        "Total views",
+    ),
 ) {
     companion object {
         val SORT = listOf(
@@ -29,9 +26,20 @@ class SortFilter : SelectFilter(
     }
 }
 
-class GenreList : SelectFilter(
+class GenreList : AnimeFilter.Select<String>(
     "Genres (Single)",
-    GENRES,
+    arrayOf(
+        "",
+        "Uncensored Leak",
+        "Hd",
+        "Exclusive",
+        "Creampie",
+        "Big Breasts",
+        "Individual",
+        "Wife",
+        "Mature Woman",
+        "Ordinary Person",
+    ),
 ) {
     companion object {
         val GENRES = listOf(
@@ -84,7 +92,7 @@ data class FilterSearchParams(
 internal fun getSearchParameters(filters: AnimeFilterList): FilterSearchParams {
     if (filters.isEmpty()) return FilterSearchParams()
 
-    val multiGenreFilter = filters.firstInstanceOrNull<MultiGenreFilter>()
+    val multiGenreFilter = filters.getOrNull(2) as? MultiGenreFilter
 
     if (multiGenreFilter != null) {
         val included = mutableListOf<String>()
@@ -104,6 +112,3 @@ internal fun getSearchParameters(filters: AnimeFilterList): FilterSearchParams {
 
     return FilterSearchParams()
 }
-
-private inline fun <reified T> List<*>.firstInstanceOrNull(): T? =
-    filterIsInstance<T>().firstOrNull()
