@@ -71,15 +71,24 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
         val url = baseUrl.toHttpUrl().newBuilder().apply {
-            val genreFilter = filters.get(1) as? GenreList
-            val genre = if (genreFilter?.state == 0) null else GenreList.GENRES[genreFilter?.state ?: 0].second
-
+            val params = getSearchParameters(filters)
+            
+            // If we have multi-genre filters, don't use a specific genre URL
             if (query.isNotEmpty()) {
                 addEncodedPathSegments("en/search")
                 addPathSegment(query.trim())
-            } else if (genre != null && genre.isNotEmpty()) {
-                addEncodedPathSegments(genre)
+            } else if (params.genres.isEmpty() && params.blacklisted.isEmpty()) {
+                // Only use single genre filter if no multi-genre filters are active
+                val genreFilter = filters.get(1) as? GenreList
+                val genre = if (genreFilter?.state == 0) null else GenreList.GENRES[genreFilter?.state ?: 0].second
+                
+                if (genre != null && genre.isNotEmpty()) {
+                    addEncodedPathSegments(genre)
+                } else {
+                    addEncodedPathSegments("en/new")
+                }
             } else {
+                // For multi-genre filtering, use the general new page
                 addEncodedPathSegments("en/new")
             }
 
@@ -99,48 +108,6 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun searchAnimeParse(response: Response) = popularAnimeParse(response)
 
-    @Deprecated("Use non-RxJava API instead")
-    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
-    override fun fetchSearchAnime(page: Int, query: String, filters: AnimeFilterList): rx.Observable<AnimesPage> {
-        return super.fetchSearchAnime(page, query, filters)
-            .map { pageResult ->
-                val params = getSearchParameters(filters)
-
-                if ((params.genres.isNotEmpty() || params.blacklisted.isNotEmpty()) && query.isEmpty()) {
-                    val filteredEntries = mutableListOf<SAnime>()
-
-                    for (anime in pageResult.animes) {
-                        try {
-                            val detailsResponse = client.newCall(GET(anime.url, headers)).execute()
-                            val details = animeDetailsParse(detailsResponse)
-                            detailsResponse.close()
-
-                            val animeGenres = details.genre?.split(", ") ?: emptyList()
-
-                            val includesGenres = params.genres.all { includedGenre ->
-                                animeGenres.any { it.equals(includedGenre, ignoreCase = true) }
-                            }
-
-                            val excludesGenres = params.blacklisted.none { excludedGenre ->
-                                animeGenres.any { it.equals(excludedGenre, ignoreCase = true) }
-                            }
-
-                            if (includesGenres && excludesGenres) {
-                                filteredEntries.add(anime)
-                            }
-                        } catch (e: Exception) {
-                            filteredEntries.add(anime)
-                        }
-                    }
-
-                    AnimesPage(filteredEntries, pageResult.hasNextPage)
-                } else {
-                    pageResult
-                }
-            }
-    }
-
-    // New non-RxJava API
     override suspend fun getSearchAnime(page: Int, query: String, filters: AnimeFilterList): AnimesPage {
         val pageResult = super.getSearchAnime(page, query, filters)
         val params = getSearchParameters(filters)
@@ -168,7 +135,8 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                         filteredEntries.add(anime)
                     }
                 } catch (e: Exception) {
-                    filteredEntries.add(anime)
+                    // If we can't fetch details, skip this anime
+                    continue
                 }
             }
 
