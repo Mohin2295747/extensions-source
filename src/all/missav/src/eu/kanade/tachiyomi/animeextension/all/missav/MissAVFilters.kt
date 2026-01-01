@@ -72,7 +72,7 @@ class MultiGenreFilter : AnimeFilter.Group<AnimeFilter.TriState>(
         TriFilterVal("Wife"),
         TriFilterVal("Mature Woman"),
         TriFilterVal("Ordinary Person"),
-    )
+    ),
 )
 
 fun getFilters() = AnimeFilterList(
