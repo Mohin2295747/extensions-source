@@ -10,7 +10,8 @@ open class SelectFilter(
     name,
     options.map { it.first }.toTypedArray(),
 ) {
-    val selected get() = options[state].second.takeUnless { state == 0 }
+    val selected: String?
+        get() = options[state].second.takeUnless { state == 0 }
 }
 
 class SortFilter : SelectFilter(
@@ -19,7 +20,6 @@ class SortFilter : SelectFilter(
 ) {
     companion object {
         val SORT = listOf(
-            Pair("", ""),
             Pair("Release date", "released_at"),
             Pair("Recent update", "published_at"),
             Pair("Today views", "today_views"),
@@ -37,10 +37,10 @@ class GenreList : SelectFilter(
     companion object {
         val GENRES = listOf(
             Pair("", ""),
-            Pair("Uncensored Leak", "en/uncensored-leak"),
             Pair("Hd", "en/genres/Hd"),
             Pair("Exclusive", "en/genres/Exclusive"),
             Pair("Creampie", "en/genres/Creampie"),
+            Pair("Uncensored Leak", "en/uncensored-leak"),
             Pair("Big Breasts", "en/genres/Big%20Breasts"),
             Pair("Individual", "en/genres/Individual"),
             Pair("Wife", "en/genres/Wife"),
@@ -339,30 +339,26 @@ class GenreList : SelectFilter(
     }
 }
 
-/** concrete checkbox (CheckBox is abstract) */
-class GenreCheckBox(
-    val path: String,
-    name: String,
-) : AnimeFilter.CheckBox(name)
-
 class MultiGenreFilter :
-    AnimeFilter.Group<GenreCheckBox>(
+    AnimeFilter.Group<AnimeFilter.CheckBox>(
         "Genres (Multiple)",
-        GenreList.GENRES
-            .filter { it.first.isNotBlank() }
-            .map { (name, path) ->
-                GenreCheckBox(path, name)
-            },
+        GENRES.map { (name, _) -> AnimeFilter.CheckBox(name) },
     ) {
 
-    /** returns same genre paths as single-genre */
     val selectedGenrePaths: List<String>
         get() = state
             .filter { it.state }
-            .map { it.path }
+            .map { checkbox ->
+                GENRES.firstOrNull { it.first == checkbox.name }?.second.orEmpty()
+            }
+            .filter { it.isNotEmpty() }
+
+    companion object {
+        private val GENRES = GenreList.GENRES
+    }
 }
 
-class UncensoredFilter : AnimeFilter.CheckBox("Uncensored Only")
+class UncensoredFilter : AnimeFilter.CheckBox("Uncensored Only", false)
 
 class ResetAllFilter : AnimeFilter.Header("↺ Reset All Filters")
 
@@ -373,5 +369,6 @@ fun getFilters() = AnimeFilterList(
     GenreList(),
     MultiGenreFilter(),
     AnimeFilter.Separator(),
-    AnimeFilter.Header("Multi-genre filtering is client-side"),
+    AnimeFilter.Header("Note: Multi-genre filtering is done client-side"),
+    AnimeFilter.Header("and may be slower but more accurate"),
 )
