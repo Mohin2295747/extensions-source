@@ -73,7 +73,6 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
         val url = baseUrl.toHttpUrl().newBuilder().apply {
             val params = getSearchParameters(filters)
-            
             // If we have multi-genre filters, don't use a specific genre URL
             if (query.isNotEmpty()) {
                 addEncodedPathSegments("en/search")
