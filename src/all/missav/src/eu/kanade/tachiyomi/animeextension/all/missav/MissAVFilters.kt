@@ -3,7 +3,7 @@ package eu.kanade.tachiyomi.animeextension.all.missav
 import eu.kanade.tachiyomi.animesource.model.AnimeFilter
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 
-abstract class SelectFilter(
+open class SelectFilter(
     name: String,
     private val options: List<Pair<String, String>>,
 ) : AnimeFilter.Select<String>(
