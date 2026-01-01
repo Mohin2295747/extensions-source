@@ -116,10 +116,8 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
     override suspend fun searchAnime(page: Int, query: String, filters: AnimeFilterList): AnimesPage {
         // Get the initial page results
         val pageResult = super.searchAnime(page, query, filters)
-        
         // Get filter states
         val multiGenreFilter = filters.firstInstanceOrNull<MultiGenreFilter>()
-        
         // Only apply client-side filtering if:
         // 1. We have multiple genres selected
         // 2. There's no text query (text search overrides genre filters)
@@ -127,22 +125,18 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
         if (multiGenreFilter?.selectedGenres?.isNotEmpty() == true && query.isEmpty() && pageResult.animes.isNotEmpty()) {
             // Apply client-side filtering for multiple genres
             val filteredEntries = mutableListOf<SAnime>()
-            
             for (anime in pageResult.animes) {
                 try {
                     // Fetch anime details to get genres
                     val detailsResponse = client.newCall(GET(anime.url, headers)).execute()
                     val details = animeDetailsParse(detailsResponse)
                     detailsResponse.close()
-                    
                     // Get anime genres
                     val animeGenres = details.genre?.split(", ") ?: emptyList()
-                    
                     // Check if anime contains ALL selected genres
                     val matchesAllGenres = multiGenreFilter.selectedGenres.all { selectedGenre ->
                         animeGenres.any { it.equals(selectedGenre, ignoreCase = true) }
                     }
-                    
                     if (matchesAllGenres) {
                         filteredEntries.add(anime)
                     }
@@ -151,11 +145,9 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                     filteredEntries.add(anime)
                 }
             }
-            
             return AnimesPage(filteredEntries, pageResult.hasNextPage)
         }
-        
-        return pageResult
+         return pageResult
     }
 
     override fun animeDetailsParse(response: Response): SAnime {
