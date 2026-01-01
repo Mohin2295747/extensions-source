@@ -93,8 +93,8 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun searchAnimeParse(response: Response) = popularAnimeParse(response)
 
-    override suspend fun searchAnime(page: Int, query: String, filters: AnimeFilterList): AnimesPage {
-        val pageResult = super.searchAnime(page, query, filters)
+    override suspend fun getAnimeList(page: Int, query: String, filters: AnimeFilterList): AnimesPage {
+        val pageResult = super.getAnimeList(page, query, filters)
         val params = getSearchParameters(filters)
 
         if ((params.genres.isNotEmpty() || params.blacklisted.isNotEmpty()) && query.isEmpty()) {
@@ -155,7 +155,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                     .eachText()
                     .forEach { append("\n$it") }
             }
-            thumbnail_url = if (preferences.fetchHDCovers) {
+            thumbnail_url = if (preferences.getBoolean("fetch_hd_covers", false)) {
                 JavCoverFetcher.getCoverByTitle(jpTitle) ?: siteCover
             } else {
                 siteCover

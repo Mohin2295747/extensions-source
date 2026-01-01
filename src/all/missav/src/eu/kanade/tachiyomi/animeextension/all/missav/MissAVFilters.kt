@@ -3,7 +3,7 @@ package eu.kanade.tachiyomi.animeextension.all.missav
 import eu.kanade.tachiyomi.animesource.model.AnimeFilter
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 
-abstract class SelectFilter(
+open class SelectFilter(
     name: String,
     private val options: List<Pair<String, String>>,
 ) : AnimeFilter.Select<String>(
@@ -49,19 +49,21 @@ class GenreList : SelectFilter(
     }
 }
 
-class MultiGenreFilter : AnimeFilter.Group<AnimeFilter.TriState>("Genres (Multi-select)", GENRES.map { AnimeFilter.TriState(it) }) {
+class MultiGenreFilter : AnimeFilter.Group<AnimeFilter.TriState>("Genres (Multi-select)", getGenreTriStates()) {
     companion object {
-        val GENRES = listOf(
-            "Uncensored Leak",
-            "Hd",
-            "Exclusive",
-            "Creampie",
-            "Big Breasts",
-            "Individual",
-            "Wife",
-            "Mature Woman",
-            "Ordinary Person",
-        )
+        private fun getGenreTriStates(): List<AnimeFilter.TriState> {
+            return listOf(
+                "Uncensored Leak",
+                "Hd",
+                "Exclusive",
+                "Creampie",
+                "Big Breasts",
+                "Individual",
+                "Wife",
+                "Mature Woman",
+                "Ordinary Person",
+            ).map { AnimeFilter.TriState(it) }
+        }
     }
 }
 
