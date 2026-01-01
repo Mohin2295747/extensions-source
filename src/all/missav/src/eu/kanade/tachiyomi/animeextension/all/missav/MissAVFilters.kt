@@ -105,4 +105,3 @@ internal fun getSearchParameters(filters: AnimeFilterList): FilterSearchParams {
 
 private inline fun <reified T> List<*>.firstInstanceOrNull(): T? =
     filterIsInstance<T>().firstOrNull()
-    
