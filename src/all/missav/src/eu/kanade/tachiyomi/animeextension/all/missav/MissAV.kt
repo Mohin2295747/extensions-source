@@ -147,7 +147,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
             }
             return AnimesPage(filteredEntries, pageResult.hasNextPage)
         }
-         return pageResult
+        return pageResult
     }
 
     override fun animeDetailsParse(response: Response): SAnime {
