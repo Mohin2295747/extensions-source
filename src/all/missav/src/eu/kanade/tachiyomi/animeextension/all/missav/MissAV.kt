@@ -72,7 +72,6 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
         val url = baseUrl.toHttpUrl().newBuilder().apply {
             val params = getSearchParameters(filters)
-            
             // If we have multi-genre filters, don't use a specific genre URL
             if (query.isNotEmpty()) {
                 addEncodedPathSegments("en/search")
@@ -80,8 +79,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
             } else if (params.genres.isEmpty() && params.blacklisted.isEmpty()) {
                 // Only use single genre filter if no multi-genre filters are active
                 val genreFilter = filters.get(1) as? GenreList
-                val genre = if (genreFilter?.state == 0) null else GenreList.GENRES[genreFilter?.state ?: 0].second
-                
+                val genre = if (genreFilter?.state == 0) null else GenreList.GENRES[genreFilter?.state ?: 0].second 
                 if (genre != null && genre.isNotEmpty()) {
                     addEncodedPathSegments(genre)
                 } else {
