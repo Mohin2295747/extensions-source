@@ -57,28 +57,25 @@ class GenreList : AnimeFilter.Select<String>(
     }
 }
 
-class MultiGenreFilter(name: String) : AnimeFilter.Group<AnimeFilter.TriState>(name, getGenreTriStates()) {
-    companion object {
-        private fun getGenreTriStates(): List<AnimeFilter.TriState> {
-            return listOf(
-                "Uncensored Leak",
-                "Hd",
-                "Exclusive",
-                "Creampie",
-                "Big Breasts",
-                "Individual",
-                "Wife",
-                "Mature Woman",
-                "Ordinary Person",
-            ).map { AnimeFilter.TriState(it) }
-        }
-    }
-}
+class MultiGenreFilter : AnimeFilter.Group<AnimeFilter.TriState>(
+    "Genres (Multi-select)",
+    listOf(
+        AnimeFilter.TriState("Uncensored Leak"),
+        AnimeFilter.TriState("Hd"),
+        AnimeFilter.TriState("Exclusive"),
+        AnimeFilter.TriState("Creampie"),
+        AnimeFilter.TriState("Big Breasts"),
+        AnimeFilter.TriState("Individual"),
+        AnimeFilter.TriState("Wife"),
+        AnimeFilter.TriState("Mature Woman"),
+        AnimeFilter.TriState("Ordinary Person"),
+    )
+)
 
 fun getFilters() = AnimeFilterList(
     SortFilter(),
     GenreList(),
-    MultiGenreFilter("Genres (Multi-select)"),
+    MultiGenreFilter(),
     AnimeFilter.Separator(),
     AnimeFilter.Header("Multi-genre filtering is client-side and may be slow"),
     AnimeFilter.Header("Green ✓ = Include | Red ✗ = Exclude | Empty = Ignore"),
