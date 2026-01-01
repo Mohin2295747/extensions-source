@@ -19,7 +19,6 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.nodes.Element
-import rx.Observable
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -100,7 +99,9 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun searchAnimeParse(response: Response) = popularAnimeParse(response)
 
-    override fun fetchSearchAnime(page: Int, query: String, filters: AnimeFilterList): Observable<AnimesPage> {
+    @Deprecated("Use non-RxJava API instead")
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+    override fun fetchSearchAnime(page: Int, query: String, filters: AnimeFilterList): rx.Observable<AnimesPage> {
         return super.fetchSearchAnime(page, query, filters)
             .map { pageResult ->
                 val params = getSearchParameters(filters)
@@ -137,6 +138,44 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                     pageResult
                 }
             }
+    }
+
+    // New non-RxJava API
+    override suspend fun getSearchAnime(page: Int, query: String, filters: AnimeFilterList): AnimesPage {
+        val pageResult = super.getSearchAnime(page, query, filters)
+        val params = getSearchParameters(filters)
+
+        if ((params.genres.isNotEmpty() || params.blacklisted.isNotEmpty()) && query.isEmpty()) {
+            val filteredEntries = mutableListOf<SAnime>()
+
+            for (anime in pageResult.animes) {
+                try {
+                    val detailsResponse = client.newCall(GET(anime.url, headers)).execute()
+                    val details = animeDetailsParse(detailsResponse)
+                    detailsResponse.close()
+
+                    val animeGenres = details.genre?.split(", ") ?: emptyList()
+
+                    val includesGenres = params.genres.all { includedGenre ->
+                        animeGenres.any { it.equals(includedGenre, ignoreCase = true) }
+                    }
+
+                    val excludesGenres = params.blacklisted.none { excludedGenre ->
+                        animeGenres.any { it.equals(excludedGenre, ignoreCase = true) }
+                    }
+
+                    if (includesGenres && excludesGenres) {
+                        filteredEntries.add(anime)
+                    }
+                } catch (e: Exception) {
+                    filteredEntries.add(anime)
+                }
+            }
+
+            return AnimesPage(filteredEntries, pageResult.hasNextPage)
+        }
+
+        return pageResult
     }
 
     override fun animeDetailsParse(response: Response): SAnime {
