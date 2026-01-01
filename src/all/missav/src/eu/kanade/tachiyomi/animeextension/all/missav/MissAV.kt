@@ -74,7 +74,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
         val url = baseUrl.toHttpUrl().newBuilder().apply {
             val genreFilter = filters.get(1) as? GenreList
             val genre = if (genreFilter?.state == 0) null else GenreList.GENRES[genreFilter?.state ?: 0].second
-            
+
             if (query.isNotEmpty()) {
                 addEncodedPathSegments("en/search")
                 addPathSegment(query.trim())
@@ -83,13 +83,13 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
             } else {
                 addEncodedPathSegments("en/new")
             }
-            
+
             val sortFilter = filters.get(0) as? SortFilter
             val sort = if (sortFilter?.state == 0) null else SortFilter.SORT[sortFilter?.state ?: 0].second
             sort?.let {
                 addQueryParameter("sort", it)
             }
-            
+
             addQueryParameter("page", page.toString())
         }.build().toString()
 
@@ -104,26 +104,26 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
         return super.fetchSearchAnime(page, query, filters)
             .map { pageResult ->
                 val params = getSearchParameters(filters)
-                
+
                 if ((params.genres.isNotEmpty() || params.blacklisted.isNotEmpty()) && query.isEmpty()) {
                     val filteredEntries = mutableListOf<SAnime>()
-                    
+
                     for (anime in pageResult.animes) {
                         try {
                             val detailsResponse = client.newCall(GET(anime.url, headers)).execute()
                             val details = animeDetailsParse(detailsResponse)
                             detailsResponse.close()
-                            
+
                             val animeGenres = details.genre?.split(", ") ?: emptyList()
-                            
+
                             val includesGenres = params.genres.all { includedGenre ->
                                 animeGenres.any { it.equals(includedGenre, ignoreCase = true) }
                             }
-                            
+
                             val excludesGenres = params.blacklisted.none { excludedGenre ->
                                 animeGenres.any { it.equals(excludedGenre, ignoreCase = true) }
                             }
-                            
+
                             if (includesGenres && excludesGenres) {
                                 filteredEntries.add(anime)
                             }
@@ -131,7 +131,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                             filteredEntries.add(anime)
                         }
                     }
-                    
+
                     AnimesPage(filteredEntries, pageResult.hasNextPage)
                 } else {
                     pageResult
@@ -224,9 +224,6 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun episodeListParse(response: Response): List<SEpisode> {
         throw UnsupportedOperationException()
     }
-
-    private inline fun <reified T> List<*>.firstInstanceOrNull(): T? =
-        filterIsInstance<T>().firstOrNull()
 
     companion object {
         private const val PREF_QUALITY = "preferred_quality"
