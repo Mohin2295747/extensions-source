@@ -25,8 +25,11 @@ import uy.kohesive.injekt.api.get
 class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override val name = "MissAV"
+
     override val lang = "all"
+
     override val baseUrl = "https://missav.ai"
+
     override val supportsLatest = true
 
     override fun headersBuilder() = super.headersBuilder()
@@ -45,6 +48,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun popularAnimeParse(response: Response): AnimesPage {
         val document = response.asJsoup()
+
         val entries = document.select("div.thumbnail").map { element ->
             SAnime.create().apply {
                 element.select("a.text-secondary").also {
@@ -54,7 +58,9 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                 thumbnail_url = element.selectFirst("img")?.attr("abs:data-src")
             }
         }
+
         val hasNextPage = document.selectFirst("a[rel=next]") != null
+
         return AnimesPage(entries, hasNextPage)
     }
 
@@ -64,19 +70,16 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun latestUpdatesParse(response: Response) = popularAnimeParse(response)
 
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
-        val params = getSearchParameters(filters)
-        
         val url = baseUrl.toHttpUrl().newBuilder().apply {
+            val genre = filters.firstInstanceOrNull<GenreList>()?.selected
             if (query.isNotEmpty()) {
                 addEncodedPathSegments("en/search")
                 addPathSegment(query.trim())
-            } else if (params.genres.isNotEmpty() || params.blacklisted.isNotEmpty()) {
-                // If we have filter params but no query, use new page and filter client-side
-                addEncodedPathSegments("en/new")
+            } else if (genre != null) {
+                addEncodedPathSegments(genre)
             } else {
                 addEncodedPathSegments("en/new")
             }
-            
             filters.firstInstanceOrNull<SortFilter>()?.selected?.let {
                 addQueryParameter("sort", it)
             }
@@ -89,51 +92,47 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun getFilterList() = getFilters()
 
     override fun searchAnimeParse(response: Response) = popularAnimeParse(response)
-    
+
     override suspend fun searchAnime(page: Int, query: String, filters: AnimeFilterList): AnimesPage {
         val pageResult = super.searchAnime(page, query, filters)
-        
-        // Apply client-side filtering for genres
         val params = getSearchParameters(filters)
-        
+
         if ((params.genres.isNotEmpty() || params.blacklisted.isNotEmpty()) && query.isEmpty()) {
             val filteredEntries = mutableListOf<SAnime>()
-            
+
             for (anime in pageResult.animes) {
                 try {
                     val detailsResponse = client.newCall(GET(anime.url, headers)).execute()
                     val details = animeDetailsParse(detailsResponse)
                     detailsResponse.close()
-                    
+
                     val animeGenres = details.genre?.split(", ") ?: emptyList()
-                    
-                    // Check included genres
+
                     val includesGenres = params.genres.all { includedGenre ->
                         animeGenres.any { it.equals(includedGenre, ignoreCase = true) }
                     }
-                    
-                    // Check excluded genres
+
                     val excludesGenres = params.blacklisted.none { excludedGenre ->
                         animeGenres.any { it.equals(excludedGenre, ignoreCase = true) }
                     }
-                    
+
                     if (includesGenres && excludesGenres) {
                         filteredEntries.add(anime)
                     }
                 } catch (e: Exception) {
-                    // If we can't fetch details, include the anime anyway
                     filteredEntries.add(anime)
                 }
             }
-            
+
             return AnimesPage(filteredEntries, pageResult.hasNextPage)
         }
-        
+
         return pageResult
     }
 
     override fun animeDetailsParse(response: Response): SAnime {
         val document = response.asJsoup()
+
         val jpTitle = document.select("div.text-secondary span:contains(title) + span").text()
         val siteCover = document.selectFirst("video.player")?.attr("abs:data-poster")
 
@@ -148,13 +147,19 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
             status = SAnime.COMPLETED
             description = buildString {
                 document.selectFirst("div.mb-1")?.text()?.also { append("$it\n") }
+
                 document.getInfo("/labels/")?.also { append("\nLabel: $it") }
                 document.getInfo("/series/")?.also { append("\nSeries: $it") }
+
                 document.select("div.text-secondary:not(:has(a)):has(span)")
                     .eachText()
                     .forEach { append("\n$it") }
             }
-            thumbnail_url = siteCover
+            thumbnail_url = if (preferences.fetchHDCovers) {
+                JavCoverFetcher.getCoverByTitle(jpTitle) ?: siteCover
+            } else {
+                siteCover
+            }
         }
     }
 
@@ -169,25 +174,28 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
             SEpisode.create().apply {
                 url = anime.url
                 name = "Episode"
-            }
+            },
         )
     }
 
     override fun videoListParse(response: Response): List<Video> {
         val document = response.asJsoup()
+
         val playlists = document.selectFirst("script:containsData(function(p,a,c,k,e,d))")
             ?.data()
             ?.let(Unpacker::unpack)?.ifEmpty { null }
             ?: return emptyList()
 
         val masterPlaylist = playlists.substringAfter("source=\"").substringBefore("\";")
+
         return playlistExtractor.extractFromHls(masterPlaylist, referer = "$baseUrl/")
     }
 
     override fun List<Video>.sort(): List<Video> {
         val quality = preferences.getString(PREF_QUALITY, PREF_QUALITY_DEFAULT)!!
+
         return sortedWith(
-            compareBy { it.quality.contains(quality) }
+            compareBy { it.quality.contains(quality) },
         ).reversed()
     }
 

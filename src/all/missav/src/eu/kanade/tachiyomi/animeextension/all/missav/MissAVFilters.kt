@@ -81,13 +81,13 @@ data class FilterSearchParams(
 
 internal fun getSearchParameters(filters: AnimeFilterList): FilterSearchParams {
     if (filters.isEmpty()) return FilterSearchParams()
-    
+
     val multiGenreFilter = filters.firstInstanceOrNull<MultiGenreFilter>()
-    
+
     if (multiGenreFilter != null) {
         val included = mutableListOf<String>()
         val excluded = mutableListOf<String>()
-        
+
         multiGenreFilter.state.forEach { triState ->
             val genreName = triState.name
             when (triState.state) {
@@ -96,10 +96,10 @@ internal fun getSearchParameters(filters: AnimeFilterList): FilterSearchParams {
                 else -> {}
             }
         }
-        
+
         return FilterSearchParams(included, excluded)
     }
-    
+
     return FilterSearchParams()
 }
 
