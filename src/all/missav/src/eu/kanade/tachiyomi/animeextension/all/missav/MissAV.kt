@@ -15,6 +15,7 @@ import eu.kanade.tachiyomi.lib.playlistutils.PlaylistUtils
 import eu.kanade.tachiyomi.lib.unpacker.Unpacker
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.util.asJsoup
+import kotlinx.coroutines.delay
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
@@ -72,6 +73,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
         val url = baseUrl.toHttpUrl().newBuilder().apply {
             val params = getSearchParameters(filters)
+            
             // If we have multi-genre filters, don't use a specific genre URL
             if (query.isNotEmpty()) {
                 addEncodedPathSegments("en/search")
@@ -80,6 +82,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                 // Only use single genre filter if no multi-genre filters are active
                 val genreFilter = filters.get(1) as? GenreList
                 val genre = if (genreFilter?.state == 0) null else GenreList.GENRES[genreFilter?.state ?: 0].second
+                
                 if (genre != null && genre.isNotEmpty()) {
                     addEncodedPathSegments(genre)
                 } else {
@@ -110,35 +113,62 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
         val pageResult = super.getSearchAnime(page, query, filters)
         val params = getSearchParameters(filters)
 
+        // Only apply client-side filtering if we have multi-genre filters and no text query
         if ((params.genres.isNotEmpty() || params.blacklisted.isNotEmpty()) && query.isEmpty()) {
             val filteredEntries = mutableListOf<SAnime>()
-
-            for (anime in pageResult.animes) {
+            var processedCount = 0
+            val maxToProcess = 20 // Limit to avoid timeout
+            
+            for (anime in pageResult.animes.take(maxToProcess)) {
                 try {
+                    // Add a small delay between requests to avoid being blocked
+                    if (processedCount > 0) {
+                        delay(100)
+                    }
+                    
                     val detailsResponse = client.newCall(GET(anime.url, headers)).execute()
-                    val details = animeDetailsParse(detailsResponse)
-                    detailsResponse.close()
+                    
+                    if (detailsResponse.isSuccessful) {
+                        val details = animeDetailsParse(detailsResponse)
+                        detailsResponse.close()
 
-                    val animeGenres = details.genre?.split(", ") ?: emptyList()
+                        val animeGenres = details.genre?.split(", ") ?: emptyList()
 
-                    val includesGenres = params.genres.all { includedGenre ->
-                        animeGenres.any { it.equals(includedGenre, ignoreCase = true) }
-                    }
+                        val includesGenres = params.genres.all { includedGenre ->
+                            animeGenres.any { it.equals(includedGenre, ignoreCase = true) }
+                        }
 
-                    val excludesGenres = params.blacklisted.none { excludedGenre ->
-                        animeGenres.any { it.equals(excludedGenre, ignoreCase = true) }
-                    }
+                        val excludesGenres = params.blacklisted.none { excludedGenre ->
+                            animeGenres.any { it.equals(excludedGenre, ignoreCase = true) }
+                        }
 
-                    if (includesGenres && excludesGenres) {
-                        filteredEntries.add(anime)
+                        if (includesGenres && excludesGenres) {
+                            filteredEntries.add(anime)
+                        }
+                        processedCount++
+                    } else {
+                        detailsResponse.close()
                     }
                 } catch (e: Exception) {
                     // If we can't fetch details, skip this anime
                     continue
                 }
+                
+                // If we're taking too long, break early
+                if (processedCount >= 10) {
+                    break
+                }
             }
-
-            return AnimesPage(filteredEntries, pageResult.hasNextPage)
+            
+            // If we didn't find any matches but processed some anime, return original results
+            // to avoid showing "no results" when filtering just didn't match
+            if (filteredEntries.isEmpty() && processedCount > 0) {
+                // Return empty page with no results (filter didn't match anything)
+                return AnimesPage(emptyList(), false)
+            } else if (filteredEntries.isNotEmpty()) {
+                return AnimesPage(filteredEntries, pageResult.hasNextPage && filteredEntries.size >= 20)
+            }
+            // If we didn't process anything (all failed), return original results
         }
 
         return pageResult
