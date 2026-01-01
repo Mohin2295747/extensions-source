@@ -57,18 +57,21 @@ class GenreList : AnimeFilter.Select<String>(
     }
 }
 
+// Custom TriState implementation
+class TriFilterVal(name: String) : AnimeFilter.TriState(name)
+
 class MultiGenreFilter : AnimeFilter.Group<AnimeFilter.TriState>(
     "Genres (Multi-select)",
     listOf(
-        AnimeFilter.TriState("Uncensored Leak"),
-        AnimeFilter.TriState("Hd"),
-        AnimeFilter.TriState("Exclusive"),
-        AnimeFilter.TriState("Creampie"),
-        AnimeFilter.TriState("Big Breasts"),
-        AnimeFilter.TriState("Individual"),
-        AnimeFilter.TriState("Wife"),
-        AnimeFilter.TriState("Mature Woman"),
-        AnimeFilter.TriState("Ordinary Person"),
+        TriFilterVal("Uncensored Leak"),
+        TriFilterVal("Hd"),
+        TriFilterVal("Exclusive"),
+        TriFilterVal("Creampie"),
+        TriFilterVal("Big Breasts"),
+        TriFilterVal("Individual"),
+        TriFilterVal("Wife"),
+        TriFilterVal("Mature Woman"),
+        TriFilterVal("Ordinary Person"),
     ),
 )
 
