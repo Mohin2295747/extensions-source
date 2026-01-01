@@ -1,7 +1,0 @@
-ext {
-    extName = 'Xfani'
-    extClass = '.Xfani'
-    extVersionCode = 5
-}
-
-apply from: "$rootDir/common.gradle"
