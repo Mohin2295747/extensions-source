@@ -57,7 +57,7 @@ class GenreList : AnimeFilter.Select<String>(
     }
 }
 
-class MultiGenreFilter : AnimeFilter.Group<AnimeFilter.TriState>("Genres (Multi-select)", getGenreTriStates()) {
+class MultiGenreFilter(name: String) : AnimeFilter.Group<AnimeFilter.TriState>(name, getGenreTriStates()) {
     companion object {
         private fun getGenreTriStates(): List<AnimeFilter.TriState> {
             return listOf(
@@ -78,7 +78,7 @@ class MultiGenreFilter : AnimeFilter.Group<AnimeFilter.TriState>("Genres (Multi-
 fun getFilters() = AnimeFilterList(
     SortFilter(),
     GenreList(),
-    MultiGenreFilter(),
+    MultiGenreFilter("Genres (Multi-select)"),
     AnimeFilter.Separator(),
     AnimeFilter.Header("Multi-genre filtering is client-side and may be slow"),
     AnimeFilter.Header("Green ✓ = Include | Red ✗ = Exclude | Empty = Ignore"),
