@@ -72,19 +72,16 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
         val url = baseUrl.toHttpUrl().newBuilder().apply {
-            // Get filter states
-            val genreFilter = filters.firstInstanceOrNull<GenreList>()?.selected
+            val genre = filters.firstInstanceOrNull<GenreList>()?.selected
             val multiGenreFilter = filters.firstInstanceOrNull<MultiGenreFilter>()
             val sortFilter = filters.firstInstanceOrNull<SortFilter>()?.selected
-            
+
             if (query.isNotEmpty()) {
                 addEncodedPathSegments("en/search")
                 addPathSegment(query.trim())
-            } else if (genreFilter != null && genreFilter.isNotEmpty()) {
-                // Use single genre if selected (for backward compatibility)
-                addEncodedPathSegments(genreFilter)
+            } else if (genre != null && genre.isNotEmpty()) {
+                addEncodedPathSegments(genre)
             } else if (multiGenreFilter?.selectedGenres?.isNotEmpty() == true) {
-                // If multiple genres selected, use the first one and filter client-side
                 val firstGenre = multiGenreFilter.selectedGenres.first()
                 val genrePath = GenreList.GENRES.find { it.first == firstGenre }?.second
                 if (genrePath != null && genrePath.isNotEmpty()) {
@@ -95,7 +92,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
             } else {
                 addEncodedPathSegments("en/new")
             }
-            
+
             sortFilter?.let {
                 addQueryParameter("sort", it)
             }
@@ -108,28 +105,27 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun getFilterList() = getFilters()
 
     override fun searchAnimeParse(response: Response) = popularAnimeParse(response)
-    
+
     override suspend fun getAnimeList(page: Int, query: String, filters: AnimeFilterList): AnimesPage {
         val pageResult = super.getAnimeList(page, query, filters)
-        
-        // Apply client-side filtering for multiple genres
+
         val multiGenreFilter = filters.firstInstanceOrNull<MultiGenreFilter>()
-        
+
         if (multiGenreFilter?.selectedGenres?.isNotEmpty() == true && query.isEmpty()) {
             val filteredEntries = pageResult.animes.filter { anime ->
                 val detailsResponse = client.newCall(GET(anime.url, headers)).execute()
                 val details = animeDetailsParse(detailsResponse)
                 detailsResponse.close()
-                
+
                 val animeGenres = details.genre?.split(", ") ?: emptyList()
                 multiGenreFilter.selectedGenres.all { selectedGenre ->
                     animeGenres.any { it.equals(selectedGenre, ignoreCase = true) }
                 }
             }
-            
+
             return AnimesPage(filteredEntries, pageResult.hasNextPage)
         }
-        
+
         return pageResult
     }
 
