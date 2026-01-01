@@ -93,8 +93,8 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun searchAnimeParse(response: Response) = popularAnimeParse(response)
 
-    override suspend fun getAnimeList(page: Int, query: String, filters: AnimeFilterList): AnimesPage {
-        val pageResult = super.getAnimeList(page, query, filters)
+    override suspend fun fetchSearchAnime(page: Int, query: String, filters: AnimeFilterList): AnimesPage {
+        val pageResult = super.fetchSearchAnime(page, query, filters)
         val params = getSearchParameters(filters)
 
         if ((params.genres.isNotEmpty() || params.blacklisted.isNotEmpty()) && query.isEmpty()) {
