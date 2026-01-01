@@ -79,7 +79,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
             } else if (params.genres.isEmpty() && params.blacklisted.isEmpty()) {
                 // Only use single genre filter if no multi-genre filters are active
                 val genreFilter = filters.get(1) as? GenreList
-                val genre = if (genreFilter?.state == 0) null else GenreList.GENRES[genreFilter?.state ?: 0].second 
+                val genre = if (genreFilter?.state == 0) null else GenreList.GENRES[genreFilter?.state ?: 0].second
                 if (genre != null && genre.isNotEmpty()) {
                     addEncodedPathSegments(genre)
                 } else {
