@@ -12,11 +12,8 @@ open class QueryFilter(name: String, val key: String, values: Array<String>) :
         }
 }
 
-open class TagFilter(val key: String, displayName: String, state: Boolean = false) :
-    AnimeFilter.CheckBox(displayName, state) {
-    // Store the original Chinese value for server requests
-    val chineseValue: String = Tags.getOriginalTag(displayName) ?: displayName
-}
+open class TagFilter(val key: String, name: String, state: Boolean = false) :
+    AnimeFilter.CheckBox(name, state)
 
 class GenreFilter(values: Array<String>) :
     QueryFilter(
@@ -30,7 +27,7 @@ class GenreFilter(values: Array<String>) :
         } else {
             // Default fallback in English
             arrayOf("All", "H-Anime", "Short Anime", "Motion Anime")
-        },
+        }
     )
 
 class SortFilter(values: Array<String>) :
@@ -44,11 +41,12 @@ class SortFilter(values: Array<String>) :
             }.toTypedArray()
         } else {
             // Default fallback in English
-            arrayOf("Newest", "Latest Upload", "Today Ranking", "Weekly Ranking", "Monthly Ranking")
-        },
+            arrayOf("Newest", "Latest Upload", "Today's Ranking", "Weekly Ranking", "Monthly Ranking")
+        }
     )
 
-object HotFilter : TagFilter("sort", "Weekly Ranking", true)
+// Change from object to class
+class HotFilter : TagFilter("sort", "Weekly Ranking", true)
 
 class YearFilter(values: Array<String>) :
     QueryFilter(
@@ -61,7 +59,7 @@ class YearFilter(values: Array<String>) :
             }.toTypedArray()
         } else {
             arrayOf("All Years")
-        },
+        }
     )
 
 class MonthFilter(values: Array<String>) :
@@ -75,7 +73,7 @@ class MonthFilter(values: Array<String>) :
             }.toTypedArray()
         } else {
             arrayOf("All Months")
-        },
+        }
     )
 
 class DateFilter(yearFilter: YearFilter, monthFilter: MonthFilter) :
@@ -84,7 +82,6 @@ class DateFilter(yearFilter: YearFilter, monthFilter: MonthFilter) :
 class CategoryFilter(name: String, filters: List<TagFilter>) :
     AnimeFilter.Group<TagFilter>(name, filters)
 
-// Update the BroadMatchFilter to extend the new TagFilter
 class BroadMatchFilter : TagFilter("broad", "Broad Match")
 
 class TagsFilter(filters: List<AnimeFilter<out Any>>) :

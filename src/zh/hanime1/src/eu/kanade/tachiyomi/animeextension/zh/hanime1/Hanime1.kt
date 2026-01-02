@@ -150,7 +150,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun popularAnimeParse(response: Response): AnimesPage = searchAnimeParse(response)
 
     override fun popularAnimeRequest(page: Int) =
-        searchAnimeRequest(page, "", AnimeFilterList(HotFilter))
+        searchAnimeRequest(page, "", AnimeFilterList(HotFilter()))
 
     private fun String.appendInvisibleChar(): String {
         // The search result title will be same as one episode name of anime.
@@ -311,10 +311,10 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         }
         json.decodeFromString<Map<String, List<String>>>(savedCategories).forEach { (chineseCategory, chineseTags) ->
             // Get translated category name
-            val categoryName = Tags.getTranslatedCategory(chineseCategory) ?: chineseCategory
+            val categoryName = Tags.getTranslatedCategory(chineseCategory)
             // Create translated tag filters
             val tagFilters = chineseTags.map { chineseTag ->
-                val tagName = Tags.getTranslatedTag(chineseTag) ?: chineseTag
+                val tagName = Tags.getTranslatedTag(chineseTag)
                 TagFilter("tags[]", tagName)
             }
             result.add(CategoryFilter(categoryName, tagFilters))
