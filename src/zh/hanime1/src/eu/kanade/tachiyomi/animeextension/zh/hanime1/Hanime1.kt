@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.util.Log
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
+import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
 import eu.kanade.tachiyomi.animesource.model.AnimeFilter
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
@@ -206,7 +207,15 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             when (it) {
                 is QueryFilter -> {
                     if (it.selected.isNotEmpty()) {
-                        searchUrl.addQueryParameter(it.key, it.selected)
+                        // For QueryFilters, we need to send the Chinese value
+                        val chineseValue = when (it.key) {
+                            "genre" -> Tags.getOriginalGenre(it.selected) ?: it.selected
+                            "sort" -> Tags.getOriginalSort(it.selected) ?: it.selected
+                            "year" -> Tags.getOriginalYear(it.selected) ?: it.selected
+                            "month" -> Tags.getOriginalMonth(it.selected) ?: it.selected
+                            else -> it.selected
+                        }
+                        searchUrl.addQueryParameter(it.key, chineseValue)
                     }
                 }
 
@@ -218,7 +227,9 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
                 is TagFilter -> {
                     if (it.state) {
-                        searchUrl.addQueryParameter(it.key, it.name)
+                        // Send the original Chinese tag value to the server
+                        val chineseTag = Tags.getOriginalTag(it.name) ?: it.name
+                        searchUrl.addQueryParameter(it.key, chineseTag)
                     }
                 }
 
@@ -245,33 +256,42 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             CoroutineExceptionHandler { _, _ -> filterUpdateState = FilterUpdateState.FAILED }
         GlobalScope.launch(Dispatchers.IO + exceptionHandler) {
             val jsoup = client.newCall(GET("$baseUrl/search")).awaitSuccess().asJsoup()
-            val genreList = jsoup.select("div.genre-option div.hentai-sort-options").eachText()
-            val sortList =
+            
+            // Extract Chinese lists
+            val chineseGenreList = jsoup.select("div.genre-option div.hentai-sort-options").eachText()
+            val chineseSortList =
                 jsoup.select("div.hentai-sort-options-wrapper div.hentai-sort-options").eachText()
-            val yearList = jsoup.select("select#year option").eachAttr("value")
+            val chineseYearList = jsoup.select("select#year option").eachAttr("value")
                 .map { it.ifEmpty { "全部年份" } }
-            val monthList = jsoup.select("select#month option").eachAttr("value")
+            val chineseMonthList = jsoup.select("select#month option").eachAttr("value")
                 .map { it.ifEmpty { "全部月份" } }
+            
             val categoryDict = mutableMapOf<String, MutableList<String>>()
             var currentKey = ""
             jsoup.select("div#tags div.modal-body").first()?.children()?.forEach {
                 if (it.tagName() == "h5") {
                     currentKey = it.text()
+                    categoryDict[currentKey] = mutableListOf()
                 }
                 if (it.tagName() == "label") {
-                    if (currentKey in categoryDict) {
-                        categoryDict[currentKey]
-                    } else {
-                        categoryDict[currentKey] = mutableListOf()
-                        categoryDict[currentKey]
-                    }!!.add(it.select("input[name]").attr("value"))
+                    val inputTag = it.select("input[name]")
+                    if (inputTag.isNotEmpty()) {
+                        val tagValue = inputTag.attr("value").trim()
+                        if (tagValue.isNotEmpty() && currentKey.isNotEmpty()) {
+                            categoryDict[currentKey]?.add(tagValue)
+                        }
+                    }
                 }
             }
-            preferences.edit().putString(PREF_KEY_GENRE_LIST, genreList.joinToString())
-                .putString(PREF_KEY_SORT_LIST, sortList.joinToString())
-                .putString(PREF_KEY_YEAR_LIST, yearList.joinToString())
-                .putString(PREF_KEY_MONTH_LIST, monthList.joinToString())
-                .putString(PREF_KEY_CATEGORY_LIST, json.encodeToString(categoryDict)).apply()
+            
+            // Save Chinese versions (server needs these)
+            preferences.edit()
+                .putString(PREF_KEY_CHINESE_GENRE_LIST, chineseGenreList.joinToString(SEPARATOR))
+                .putString(PREF_KEY_CHINESE_SORT_LIST, chineseSortList.joinToString(SEPARATOR))
+                .putString(PREF_KEY_CHINESE_YEAR_LIST, chineseYearList.joinToString(SEPARATOR))
+                .putString(PREF_KEY_CHINESE_MONTH_LIST, chineseMonthList.joinToString(SEPARATOR))
+                .putString(PREF_KEY_CATEGORY_LIST, json.encodeToString(categoryDict))
+                .apply()
             filterUpdateState = FilterUpdateState.COMPLETED
         }
     }
@@ -281,7 +301,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         if (savedOptions.isNullOrEmpty()) {
             return block(emptyArray())
         }
-        return block(savedOptions.split(", ").toTypedArray())
+        return block(savedOptions.split(SEPARATOR).toTypedArray())
     }
 
     private fun createCategoryFilters(): List<AnimeFilter<out Any>> {
@@ -292,19 +312,29 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         if (savedCategories.isNullOrEmpty()) {
             return result
         }
-        json.decodeFromString<Map<String, List<String>>>(savedCategories).forEach {
-            result.add(CategoryFilter(it.key, it.value.map { value -> TagFilter("tags[]", value) }))
+        
+        json.decodeFromString<Map<String, List<String>>>(savedCategories).forEach { (chineseCategory, chineseTags) ->
+            // Get translated category name
+            val categoryName = Tags.getTranslatedCategory(chineseCategory) ?: chineseCategory
+            
+            // Create translated tag filters
+            val tagFilters = chineseTags.map { chineseTag ->
+                val tagName = Tags.getTranslatedTag(chineseTag) ?: chineseTag
+                TagFilter("tags[]", tagName)
+            }
+            
+            result.add(CategoryFilter(categoryName, tagFilters))
         }
         return result
     }
 
     override fun getFilterList(): AnimeFilterList {
         return AnimeFilterList(
-            createFilter(PREF_KEY_GENRE_LIST) { GenreFilter(it) },
-            createFilter(PREF_KEY_SORT_LIST) { SortFilter(it) },
+            createFilter(PREF_KEY_CHINESE_GENRE_LIST) { GenreFilter(it) },
+            createFilter(PREF_KEY_CHINESE_SORT_LIST) { SortFilter(it) },
             DateFilter(
-                createFilter(PREF_KEY_YEAR_LIST) { YearFilter(it) },
-                createFilter(PREF_KEY_MONTH_LIST) { MonthFilter(it) },
+                createFilter(PREF_KEY_CHINESE_YEAR_LIST) { YearFilter(it) },
+                createFilter(PREF_KEY_CHINESE_MONTH_LIST) { MonthFilter(it) },
             ),
             TagsFilter(createCategoryFilters()),
         )
@@ -312,17 +342,27 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         screen.apply {
+            // Language toggle (optional)
+            addPreference(
+                SwitchPreferenceCompat(context).apply {
+                    key = PREF_KEY_USE_ENGLISH
+                    title = "Use English filters"
+                    summary = "Show filter names in English"
+                    setDefaultValue(true)
+                }
+            )
+            
             addPreference(
                 ListPreference(context).apply {
                     key = PREF_KEY_VIDEO_QUALITY
-                    title = "設置首選畫質"
+                    title = "Preferred video quality"
                     entries = arrayOf("1080P", "720P", "480P")
                     entryValues = entries
                     setDefaultValue(DEFAULT_QUALITY)
                     summary =
-                        "當前選擇：${preferences.getString(PREF_KEY_VIDEO_QUALITY, DEFAULT_QUALITY)}"
+                        "Current selection: ${preferences.getString(PREF_KEY_VIDEO_QUALITY, DEFAULT_QUALITY)}"
                     setOnPreferenceChangeListener { _, newValue ->
-                        summary = "當前選擇：${newValue as String}"
+                        summary = "Current selection: ${newValue as String}"
                         true
                     }
                 },
@@ -330,9 +370,9 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             addPreference(
                 ListPreference(context).apply {
                     key = PREF_KEY_LANG
-                    title = "設置首選語言"
-                    summary = "該設置僅影響影片字幕"
-                    entries = arrayOf("繁體中文", "簡體中文")
+                    title = "Preferred language"
+                    summary = "This setting only affects video subtitles"
+                    entries = arrayOf("Traditional Chinese", "Simplified Chinese")
                     entryValues = arrayOf("zh-CHT", "zh-CHS")
                     setOnPreferenceChangeListener { _, newValue ->
                         val baseHttpUrl = baseUrl.toHttpUrl()
@@ -355,13 +395,15 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     companion object {
         const val PREF_KEY_VIDEO_QUALITY = "PREF_KEY_VIDEO_QUALITY"
         const val PREF_KEY_LANG = "PREF_KEY_LANG"
+        const val PREF_KEY_USE_ENGLISH = "PREF_KEY_USE_ENGLISH"
 
-        const val PREF_KEY_GENRE_LIST = "PREF_KEY_GENRE_LIST"
-        const val PREF_KEY_SORT_LIST = "PREF_KEY_SORT_LIST"
-        const val PREF_KEY_YEAR_LIST = "PREF_KEY_YEAR_LIST"
-        const val PREF_KEY_MONTH_LIST = "PREF_KEY_MONTH_LIST"
+        const val PREF_KEY_CHINESE_GENRE_LIST = "PREF_KEY_CHINESE_GENRE_LIST"
+        const val PREF_KEY_CHINESE_SORT_LIST = "PREF_KEY_CHINESE_SORT_LIST"
+        const val PREF_KEY_CHINESE_YEAR_LIST = "PREF_KEY_CHINESE_YEAR_LIST"
+        const val PREF_KEY_CHINESE_MONTH_LIST = "PREF_KEY_CHINESE_MONTH_LIST"
         const val PREF_KEY_CATEGORY_LIST = "PREF_KEY_CATEGORY_LIST"
 
         const val DEFAULT_QUALITY = "1080P"
+        const val SEPARATOR = "|||"
     }
 }
