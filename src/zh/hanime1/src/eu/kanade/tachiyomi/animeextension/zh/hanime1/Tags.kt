@@ -1,13 +1,6 @@
 package eu.kanade.tachiyomi.animeextension.zh.hanime1
 
-/**
- * This file contains all category and tag translations.
- * Chinese text as keys, English translations as values.
- */
 object Tags {
-    /**
-     * Category name translations
-     */
     val CATEGORY_TRANSLATIONS = mapOf(
         "人物關係" to "Character Relationships",
         "外貌身材" to "Appearance and figure",
@@ -17,9 +10,6 @@ object Tags {
         "故事劇情" to "story plot",
         "角色設定" to "Character setting",
     )
-    /**
-     * Tag name translations
-     */
     val TAG_TRANSLATIONS = mapOf(
         "1080p" to "1080p",
         "3P" to "3P",
