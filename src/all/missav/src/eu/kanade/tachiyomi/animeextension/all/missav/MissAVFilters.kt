@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.animeextension.all.missav
 import eu.kanade.tachiyomi.animesource.model.AnimeFilter
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 
+// ==================== Enum for Genres ====================
 enum class MissAVGenre(
     val display: String,
     val match: String,
@@ -308,11 +309,13 @@ enum class MissAVGenre(
     TIME_STOPS("Time Stops", "Time Stops", "time_stops")
 }
 
+// ==================== Single Genre Filter ====================
 class GenreList : AnimeFilter.Select<String>(
     "Genre (Single - Fast)",
     arrayOf("") + MissAVGenre.entries.map { it.display }
 )
 
+// ==================== Multi-Genre Filter ====================
 class TriGenre(val genre: MissAVGenre) : AnimeFilter.TriState(genre.display)
 
 class MultiGenreFilter : AnimeFilter.Group<AnimeFilter.TriState>(
@@ -320,11 +323,13 @@ class MultiGenreFilter : AnimeFilter.Group<AnimeFilter.TriState>(
     MissAVGenre.entries.map { TriGenre(it) }
 )
 
+// ==================== Filter Params ====================
 data class FilterParams(
     val include: List<MissAVGenre>,
     val exclude: List<MissAVGenre>
 )
 
+// Extract included/excluded genres from multi-genre filter
 fun extractParams(filters: AnimeFilterList): FilterParams {
     val include = mutableListOf<MissAVGenre>()
     val exclude = mutableListOf<MissAVGenre>()
@@ -337,10 +342,11 @@ fun extractParams(filters: AnimeFilterList): FilterParams {
             else -> {}
         }
     }
-    
+
     return FilterParams(include, exclude)
 }
 
+// ==================== Filter List ====================
 fun getFilters(): AnimeFilterList {
     return AnimeFilterList(
         GenreList(),
@@ -350,6 +356,6 @@ fun getFilters(): AnimeFilterList {
         AnimeFilter.Header("Single Genre: Fast server-side filtering"),
         AnimeFilter.Header("Multi-Genre: Client-side filtering (slow)"),
         AnimeFilter.Header("✓ = Include | ✗ = Exclude | Empty = Ignore"),
-        AnimeFilter.Header("Multi-genre uses first tag as base search"),
+        AnimeFilter.Header("Multi-genre uses first tag as base search")
     )
 }
