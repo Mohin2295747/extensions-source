@@ -42,7 +42,6 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
     }
 
-    // =============== Popular Anime ===============
     override fun popularAnimeRequest(page: Int) =
         GET("$baseUrl/en/today-hot?page=$page", headers)
 
@@ -51,7 +50,6 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
         return parseAnimeListing(document)
     }
 
-    // =============== Latest Updates ===============
     override fun latestUpdatesRequest(page: Int) =
         GET("$baseUrl/en/new?page=$page", headers)
 
@@ -60,29 +58,23 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
         return parseAnimeListing(document)
     }
 
-    // =============== Search ===============
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
         val url = baseUrl.toHttpUrl().newBuilder().apply {
             val genreFilter = filters.get(0) as? GenreList
             val params = extractParams(filters)
             
-            // Determine the base path
             val path = when {
                 query.isNotBlank() -> {
-                    // Text search
                     "en/search/${query.trim()}"
                 }
                 genreFilter?.state ?: 0 > 0 -> {
-                    // Single genre filter
                     val genre = MissAVGenre.entries[genreFilter!!.state - 1]
                     "en/genres/${genre.slug}"
                 }
                 params.include.isNotEmpty() -> {
-                    // Multi-genre filter - use first included genre as base
                     "en/genres/${params.include.first().slug}"
                 }
                 else -> {
-                    // Default to new releases
                     "en/new"
                 }
             }
@@ -105,7 +97,6 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
         val params = extractParams(filters)
         val genreFilter = filters.get(0) as? GenreList
         
-        // If we have only one included genre and no excludes, OR we have a single genre filter, use normal search
         val shouldUseMultiFilter = params.include.size > 1 || params.exclude.isNotEmpty()
         val isSingleGenreFilter = genreFilter?.state ?: 0 > 0
         
@@ -114,11 +105,9 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
         }
         
         if (isSingleGenreFilter) {
-            // Single genre filter - fast, no need for multi-filtering
             return super.getSearchAnime(page, query, filters)
         }
         
-        // Multi-genre filtering
         return applyMultiGenreFilter(page, query, filters, params)
     }
 
@@ -141,7 +130,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
             for (anime in pageResult.animes) {
                 if (results.size >= maxResults) break
                 
-                delay(80) // Small delay to avoid rate limiting
+                delay(80)
                 
                 try {
                     val genres = GenreCache.get(anime.url) ?: run {
@@ -160,7 +149,6 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                         genreList
                     }
                     
-                    // Check all included genres are present
                     val includesAll = params.include.all { included ->
                         genres.any { genre -> 
                             genre.contains(included.match, ignoreCase = true) || 
@@ -168,7 +156,6 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                         }
                     }
                     
-                    // Check no excluded genres are present
                     val excludesAll = params.exclude.none { excluded ->
                         genres.any { genre ->
                             genre.contains(excluded.match, ignoreCase = true) ||
@@ -180,7 +167,6 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                         results.add(anime)
                     }
                 } catch (e: Exception) {
-                    // Skip on error
                     continue
                 }
                 
@@ -195,7 +181,6 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
         return AnimesPage(results, hasNextPage && results.size >= 20)
     }
 
-    // =============== Parsing Methods ===============
     private fun parseAnimeListing(document: org.jsoup.nodes.Document): AnimesPage {
         val entries = document.select("div.thumbnail, div.grid-item").mapNotNull { element ->
             val link = element.selectFirst("a.text-secondary, a.grid-item__link") ?: return@mapNotNull null
@@ -210,7 +195,6 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                 this.title = title
                 thumbnail_url = img?.attr("abs:data-src") ?: img?.attr("abs:src")
                 
-                // Optional: Extract duration
                 element.selectFirst("div.duration, .video-duration")?.text()?.let { duration ->
                     if (description.isNullOrBlank()) {
                         description = "Duration: $duration"
@@ -229,33 +213,22 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun animeDetailsParse(response: Response): SAnime {
         val document = response.asJsoup()
         
-        // Try to get Japanese title for HD covers
         val jpTitle = document.select("div.text-secondary span:contains(title) + span").text()
         val siteCover = document.selectFirst("video.player")?.attr("abs:data-poster")
             ?: document.selectFirst("meta[property=og:image]")?.attr("abs:content")
         
         return SAnime.create().apply {
             title = document.selectFirst("h1.text-base, h1.title")?.text() ?: ""
-            
-            // Extract genres
             genre = document.select("a[href*=/genres/]").eachText().joinToString(", ")
-            
-            // Extract actress/actor
             artist = document.select("a[href*=/actresses/]").eachText().joinToString(", ")
-            
-            // Extract director/maker
             author = document.select("a[href*=/directors/], a[href*=/makers/]").eachText().joinToString(", ")
-            
             status = SAnime.COMPLETED
             
-            // Build description
             description = buildString {
-                // Synopsis
                 document.selectFirst("div.mb-1, .description, .synopsis")?.text()?.takeIf { it.isNotBlank() }?.let {
                     append(it.trim())
                 }
                 
-                // Additional metadata
                 val metadata = listOf(
                     "Label" to document.select("a[href*=/labels/]").eachText().joinToString(),
                     "Series" to document.select("a[href*=/series/]").eachText().joinToString(),
@@ -272,7 +245,6 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                 }
             }
             
-            // Set thumbnail (HD cover or site cover)
             thumbnail_url = if (preferences.getBoolean("fetch_hd_covers", false) && jpTitle.isNotBlank()) {
                 JavCoverFetcher.getCoverByTitle(jpTitle) ?: siteCover
             } else {
@@ -289,7 +261,6 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
             ?.takeIf { it.isNotBlank() }
     }
 
-    // =============== Episodes ===============
     override suspend fun getEpisodeList(anime: SAnime): List<SEpisode> {
         return listOf(
             SEpisode.create().apply {
@@ -304,13 +275,10 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
         throw UnsupportedOperationException("Not used")
     }
 
-    // =============== Videos ===============
     override fun videoListParse(response: Response): List<Video> {
         val document = response.asJsoup()
         
-        // Method 1: Try to extract from packed JavaScript
-        val scripts = document.select("script")
-        for (script in scripts) {
+        for (script in document.select("script")) {
             val scriptData = script.data()
             if (scriptData.contains("function(p,a,c,k,e,d)")) {
                 try {
@@ -320,12 +288,10 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                         return playlistExtractor.extractFromHls(masterPlaylist, referer = "$baseUrl/")
                     }
                 } catch (e: Exception) {
-                    // Continue to next method
                 }
             }
         }
         
-        // Method 2: Try to find video source directly
         document.select("video.player source[src]").forEach { source ->
             val url = source.attr("abs:src")
             if (url.isNotBlank() && url.contains("m3u8", ignoreCase = true)) {
@@ -333,7 +299,6 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
             }
         }
         
-        // Method 3: Try iframe
         document.select("iframe[src]").forEach { iframe ->
             val src = iframe.attr("abs:src")
             if (src.contains("m3u8", ignoreCase = true)) {
@@ -358,16 +323,13 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                     else -> 0
                 }
             }.thenByDescending { video ->
-                // Secondary sort by quality number
                 val qualityNum = video.quality.replace(Regex("[^0-9]"), "").toIntOrNull() ?: 0
                 qualityNum
             }
         )
     }
 
-    // =============== Preferences ===============
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
-        // Video quality preference
         ListPreference(screen.context).apply {
             key = "preferred_quality"
             title = "Preferred quality"
@@ -377,7 +339,6 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
             summary = "%s"
         }.also(screen::addPreference)
 
-        // Multi-genre limit preference
         ListPreference(screen.context).apply {
             key = "multi_genre_limit"
             title = "Multi-genre search limit"
@@ -387,7 +348,6 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
             summary = "%s"
         }.also(screen::addPreference)
 
-        // Cache control
         androidx.preference.Preference(screen.context).apply {
             title = "Clear genre cache"
             summary = "Clear cached genre data"
@@ -397,7 +357,6 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
             }
         }.also(screen::addPreference)
 
-        // Add HD cover fetcher preferences
         JavCoverFetcher.addPreferenceToScreen(screen)
     }
 }
