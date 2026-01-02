@@ -129,7 +129,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
         page: Int,
         query: String,
         filters: AnimeFilterList,
-        params: FilterSearchParams
+        params: FilterSearchParams,
     ): AnimesPage {
         val results = mutableListOf<SAnime>()
         var currentPage = page
@@ -244,7 +244,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                     "Series" to document.select("a[href*=/series/]").eachText().joinToString(),
                     "Duration" to document.getInfo("Duration:"),
                     "Release Date" to document.getInfo("Date:"),
-                    "Studio" to document.select("a[href*=/studios/]").eachText().joinToString()
+                    "Studio" to document.select("a[href*=/studios/]").eachText().joinToString(),
                 )
                 
                 metadata.forEach { (label, value) ->
@@ -277,7 +277,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                 url = anime.url
                 name = "Episode"
                 episode_number = 1F
-            }
+            },
         )
     }
 
@@ -330,7 +330,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
             }.thenByDescending { video ->
                 val qualityNum = video.quality.replace(Regex("[^0-9]"), "").toIntOrNull() ?: 0
                 qualityNum
-            }
+            },
         )
     }
 

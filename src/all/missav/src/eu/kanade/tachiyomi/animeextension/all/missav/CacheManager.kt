@@ -11,7 +11,7 @@ class CacheManager<T>(
     private val ttlMillis: Long,
     private val maxEntries: Int,
     private val serializer: (T) -> String,
-    private val deserializer: (String) -> T
+    private val deserializer: (String) -> T,
 ) {
 
     private val prefs: SharedPreferences =
@@ -70,6 +70,7 @@ class CacheManager<T>(
         }
         val removeCount = entries.size - maxEntries
         if (removeCount <= 0) return
+
         val editor = prefs.edit()
         entries.take(removeCount).forEach { editor.remove(it.key) }
         editor.apply()

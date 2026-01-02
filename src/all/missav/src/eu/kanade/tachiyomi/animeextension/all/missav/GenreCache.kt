@@ -1,15 +1,18 @@
 package eu.kanade.tachiyomi.animeextension.all.missav
 
 object GenreCache {
-    private const val TTL = 7L * 24 * 60 * 60 * 1000
-    private const val SEP = "|||"
+
+    private const val TTL_MILLIS = 7L * 24 * 60 * 60 * 1000
+    private const val SEPARATOR = "|||"
 
     private val cache = CacheManager<List<String>>(
         cacheName = "missav_genre_cache",
-        ttlMillis = TTL,
+        ttlMillis = TTL_MILLIS,
         maxEntries = 2000,
-        serializer = { it.joinToString(SEP) },
-        deserializer = { if (it.isBlank()) emptyList() else it.split(SEP) }
+        serializer = { it.joinToString(SEPARATOR) },
+        deserializer = {
+            if (it.isBlank()) emptyList() else it.split(SEPARATOR)
+        },
     )
 
     fun get(url: String): List<String>? =
@@ -21,8 +24,10 @@ object GenreCache {
         }
     }
 
-    fun clear() = cache.clear()
+    fun clear() {
+        cache.clear()
+    }
 
-    private fun normalize(url: String) =
+    private fun normalize(url: String): String =
         url.substringBefore("?").removeSuffix("/")
 }
