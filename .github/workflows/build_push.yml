@@ -27,15 +27,17 @@ jobs:
         run: |
           projects=(src/*/*)
           echo "NUM_INDIVIDUAL_MODULES=${#projects[@]}" >> $GITHUB_ENV
+
       - id: generate-matrices
         name: Create output matrices
         uses: actions/github-script@v7
         with:
           script: |
-            const numIndividualModules = process.env.NUM_INDIVIDUAL_MODULES;
-            const chunkSize = process.env.CI_CHUNK_SIZE;
+            const numIndividualModules = parseInt(process.env.NUM_INDIVIDUAL_MODULES);
+            const chunkSize = parseInt(process.env.CI_CHUNK_SIZE);
             const numIndividualChunks = Math.ceil(numIndividualModules / chunkSize);
-            core.setOutput('individualMatrix', { 'chunk': [...Array(numIndividualChunks).keys()] });
+            core.setOutput('individualMatrix', JSON.stringify({ chunk: [...Array(numIndividualChunks).keys()] }));
+
   build_individual:
     name: Build individual modules
     needs: prepare
@@ -43,7 +45,7 @@ jobs:
     strategy:
       matrix: ${{ fromJSON(needs.prepare.outputs.individualMatrix) }}
     steps:
-      - name: Checkout main branch
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Set up JDK
@@ -54,23 +56,22 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
-      
-- name: Build extensions (chunk ${{ matrix.chunk }})
-  env:
-    CI_CHUNK_NUM: ${{ matrix.chunk }}
-    # Added -DsystemProp.http.agent=Mozilla/5.0 to fix the 403 Forbidden error
-    GRADLE_OPTS: >-
-      -Dorg.gradle.parallel=false 
-      -Dkotlinx.serialization.opt-in=kotlinx.serialization.ExperimentalSerializationApi 
-      -DsystemProp.http.agent=Mozilla/5.0
-    run: |
-    chmod +x ./gradlew
-    # Force the User-Agent into the properties file directly
-    echo "systemProp.http.agent=Mozilla/5.0" >> gradle.properties
-    echo "systemProp.https.agent=Mozilla/5.0" >> gradle.properties
-    
-    ./gradlew -p src assembleDebug --no-parallel
-    
+
+      - name: Build extensions (chunk ${{ matrix.chunk }})
+        env:
+          CI_CHUNK_NUM: ${{ matrix.chunk }}
+          GRADLE_OPTS: >-
+            -Dorg.gradle.parallel=false 
+            -Dkotlinx.serialization.opt-in=kotlinx.serialization.ExperimentalSerializationApi 
+            -DsystemProp.http.agent=Mozilla/5.0
+        run: |
+          chmod +x ./gradlew
+          # Force User-Agent into gradle.properties
+          echo "systemProp.http.agent=Mozilla/5.0" >> gradle.properties
+          echo "systemProp.https.agent=Mozilla/5.0" >> gradle.properties
+
+          ./gradlew -p src assembleDebug --no-parallel
+
       - name: Upload APKs (chunk ${{ matrix.chunk }})
         uses: actions/upload-artifact@v4
         with:
@@ -93,9 +94,9 @@ jobs:
 
       - name: Collect APKs
         run: |
-          # Find and copy all APKs
           find apk-artifacts -name '*.apk' -exec cp -v {} all_apks \;
           echo "Total APKs collected: $(ls -1 all_apks | wc -l)"
+
       - name: Create ZIP archive
         run: zip -r all_extensions.zip all_apks
 
