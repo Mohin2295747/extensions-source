@@ -305,7 +305,7 @@ enum class MissAVGenre(
     BUBBLE_SOCKS("Bubble Socks", "Bubble Socks", "bubble_socks"),
     FANTASY("Fantasy", "Fantasy", "fantasy"),
     IDOL("Idol", "Idol", "idol"),
-    TIME_STOPS("Time Stops", "Time Stops", "time_stops");
+    TIME_STOPS("Time Stops", "Time Stops", "time_stops")
 }
 
 class GenreList : AnimeFilter.Select<String>(
