@@ -20,7 +20,7 @@ open class TagFilter(val key: String, displayName: String, state: Boolean = fals
 
 class GenreFilter(values: Array<String>) :
     QueryFilter(
-        "Genre",  // Always show in English
+        "Genre",
         "genre",
         if (values.isNotEmpty()) {
             // Translate each genre
@@ -30,7 +30,7 @@ class GenreFilter(values: Array<String>) :
         } else {
             // Default fallback in English
             arrayOf("All", "H-Anime", "Short Anime", "Motion Anime")
-        }
+        },
     )
 
 class SortFilter(values: Array<String>) :
@@ -45,7 +45,7 @@ class SortFilter(values: Array<String>) :
         } else {
             // Default fallback in English
             arrayOf("Newest", "Latest Upload", "Today Ranking", "Weekly Ranking", "Monthly Ranking")
-        }
+        },
     )
 
 object HotFilter : TagFilter("sort", "Weekly Ranking", true)
@@ -61,7 +61,7 @@ class YearFilter(values: Array<String>) :
             }.toTypedArray()
         } else {
             arrayOf("All Years")
-        }
+        },
     )
 
 class MonthFilter(values: Array<String>) :
@@ -75,7 +75,7 @@ class MonthFilter(values: Array<String>) :
             }.toTypedArray()
         } else {
             arrayOf("All Months")
-        }
+        },
     )
 
 class DateFilter(yearFilter: YearFilter, monthFilter: MonthFilter) :

@@ -15,9 +15,8 @@ object Tags {
         "性交體位" to "Sex positions",
         "情境場所" to "situational place",
         "故事劇情" to "story plot",
-        "角色設定" to "Character setting"
+        "角色設定" to "Character setting",
     )
-    
     /**
      * Tag name translations
      */
@@ -254,9 +253,8 @@ object Tags {
         "魔女" to "Witch",
         "魔法少女" to "Magical Girl",
         "魔物娘" to "Monster Girl",
-        "黑皮膚" to "dark skin"
+        "黑皮膚" to "dark skin",
     )
-    
     /**
      * Genre translations
      */
@@ -270,9 +268,8 @@ object Tags {
         "2D動畫" to "2D animation",
         "AI生成" to "AI generated",
         "MMD" to "MMD",
-        "Cosplay" to "Cosplay"
+        "Cosplay" to "Cosplay",
     )
-    
     /**
      * Sort option translations
      */
@@ -285,78 +282,62 @@ object Tags {
         "觀看次數" to "Most Views",
         "讚好比例" to "Highest Rating",
         "時長最長" to "Longest Duration",
-        "他們在看" to "Popular Now"
+        "他們在看" to "Popular Now",
     )
-    
     /**
      * Year translations (usually don't need translation, but included for completeness)
      */
     val YEAR_TRANSLATIONS = mapOf(
-        "全部年份" to "All Years"
+        "全部年份" to "All Years",
         // Add year translations if needed: "2024" to "2024", etc.
     )
-    
     /**
      * Month translations
      */
     val MONTH_TRANSLATIONS = mapOf(
-        "全部月份" to "All Months"
+        "全部月份" to "All Months",
         // Add month translations if needed: "1月" to "January", etc.
     )
-    
     /**
      * Reverse lookups for getting Chinese from English
      */
-    
     fun getOriginalCategory(englishCategory: String): String? {
         return CATEGORY_TRANSLATIONS.entries.find { it.value.equals(englishCategory, ignoreCase = true) }?.key
     }
-    
     fun getOriginalTag(englishTag: String): String? {
         return TAG_TRANSLATIONS.entries.find { it.value.equals(englishTag, ignoreCase = true) }?.key
     }
-    
     fun getOriginalGenre(englishGenre: String): String? {
         return GENRE_TRANSLATIONS.entries.find { it.value.equals(englishGenre, ignoreCase = true) }?.key
     }
-    
     fun getOriginalSort(englishSort: String): String? {
         return SORT_TRANSLATIONS.entries.find { it.value.equals(englishSort, ignoreCase = true) }?.key
     }
-    
     fun getOriginalYear(englishYear: String): String? {
         return YEAR_TRANSLATIONS.entries.find { it.value.equals(englishYear, ignoreCase = true) }?.key ?: englishYear
     }
-    
     fun getOriginalMonth(englishMonth: String): String? {
         return MONTH_TRANSLATIONS.entries.find { it.value.equals(englishMonth, ignoreCase = true) }?.key ?: englishMonth
     }
-    
     // Helper functions for safe translation
     fun getTranslatedCategory(chineseCategory: String): String {
         return CATEGORY_TRANSLATIONS[chineseCategory] ?: chineseCategory
     }
-    
     fun getTranslatedTag(chineseTag: String): String {
         return TAG_TRANSLATIONS[chineseTag] ?: chineseTag
     }
-    
     fun getTranslatedGenre(chineseGenre: String): String {
         return GENRE_TRANSLATIONS[chineseGenre] ?: chineseGenre
     }
-    
     fun getTranslatedSort(chineseSort: String): String {
         return SORT_TRANSLATIONS[chineseSort] ?: chineseSort
     }
-    
     fun getTranslatedYear(chineseYear: String): String {
         return YEAR_TRANSLATIONS[chineseYear] ?: chineseYear
     }
-    
     fun getTranslatedMonth(chineseMonth: String): String {
         return MONTH_TRANSLATIONS[chineseMonth] ?: chineseMonth
     }
-    
     /**
      * Get all translated tags for a category (if you maintain category structure)
      */

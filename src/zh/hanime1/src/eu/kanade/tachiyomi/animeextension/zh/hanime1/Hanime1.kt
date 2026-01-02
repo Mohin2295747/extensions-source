@@ -256,7 +256,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             CoroutineExceptionHandler { _, _ -> filterUpdateState = FilterUpdateState.FAILED }
         GlobalScope.launch(Dispatchers.IO + exceptionHandler) {
             val jsoup = client.newCall(GET("$baseUrl/search")).awaitSuccess().asJsoup()
-            
             // Extract Chinese lists
             val chineseGenreList = jsoup.select("div.genre-option div.hentai-sort-options").eachText()
             val chineseSortList =
@@ -265,7 +264,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 .map { it.ifEmpty { "全部年份" } }
             val chineseMonthList = jsoup.select("select#month option").eachAttr("value")
                 .map { it.ifEmpty { "全部月份" } }
-            
             val categoryDict = mutableMapOf<String, MutableList<String>>()
             var currentKey = ""
             jsoup.select("div#tags div.modal-body").first()?.children()?.forEach {
@@ -283,7 +281,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     }
                 }
             }
-            
             // Save Chinese versions (server needs these)
             preferences.edit()
                 .putString(PREF_KEY_CHINESE_GENRE_LIST, chineseGenreList.joinToString(SEPARATOR))
@@ -312,17 +309,14 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         if (savedCategories.isNullOrEmpty()) {
             return result
         }
-        
         json.decodeFromString<Map<String, List<String>>>(savedCategories).forEach { (chineseCategory, chineseTags) ->
             // Get translated category name
             val categoryName = Tags.getTranslatedCategory(chineseCategory) ?: chineseCategory
-            
             // Create translated tag filters
             val tagFilters = chineseTags.map { chineseTag ->
                 val tagName = Tags.getTranslatedTag(chineseTag) ?: chineseTag
                 TagFilter("tags[]", tagName)
             }
-            
             result.add(CategoryFilter(categoryName, tagFilters))
         }
         return result
@@ -349,9 +343,8 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     title = "Use English filters"
                     summary = "Show filter names in English"
                     setDefaultValue(true)
-                }
+                },
             )
-            
             addPreference(
                 ListPreference(context).apply {
                     key = PREF_KEY_VIDEO_QUALITY

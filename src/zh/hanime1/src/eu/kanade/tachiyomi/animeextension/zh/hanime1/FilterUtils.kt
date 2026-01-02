@@ -6,12 +6,13 @@ import eu.kanade.tachiyomi.animesource.model.AnimeFilter
  * Utility class for creating translated filters
  */
 object FilterUtils {
+
     /**
      * Create a translated CategoryFilter
      */
     fun createTranslatedCategoryFilter(
         chineseCategory: String,
-        chineseTags: List<String>
+        chineseTags: List<String>,
     ): AnimeFilter.Group<AnimeFilter.CheckBox> {
         val translatedCategory = Tags.getTranslatedCategory(chineseCategory)
         val translatedTags = chineseTags.map { tag ->
@@ -19,14 +20,14 @@ object FilterUtils {
         }
         return AnimeFilter.Group(translatedCategory, translatedTags)
     }
-    
+
     /**
      * Create translated QueryFilter with options
      */
     fun createTranslatedQueryFilter(
         nameKey: String,
         filterKey: String,
-        chineseOptions: Array<String>
+        chineseOptions: Array<String>,
     ): AnimeFilter.Select<String> {
         val translatedName = when (nameKey) {
             "影片類型" -> "Genre"
@@ -35,9 +36,8 @@ object FilterUtils {
             "發佈月份" -> "Release Month"
             else -> nameKey
         }
-        
+
         val translatedOptions = chineseOptions.map { option ->
-            // Try to translate using available maps
             when (nameKey) {
                 "影片類型" -> Tags.GENRE_TRANSLATIONS[option] ?: option
                 "排序方式" -> Tags.SORT_TRANSLATIONS[option] ?: option
@@ -46,26 +46,26 @@ object FilterUtils {
                 else -> option
             }
         }.toTypedArray()
-        
-        return object : AnimeFilter.Select<String>(translatedName, translatedOptions) {
-            val selected: String
+
+        return object : QueryFilter(translatedName, translatedOptions) {
+            override val key: String = filterKey
+
+            override val selected: String
                 get() = if (state == 0) {
                     ""
                 } else {
                     translatedOptions[state]
                 }
-        }.apply {
-            // Set the key for this filter
-            @Suppress("UNCHECKED_CAST")
-            this as QueryFilter
         }
     }
-    
+
     /**
      * Helper class to mimic the original QueryFilter behavior
      */
-    abstract class QueryFilter(name: String, values: Array<String>) :
-        AnimeFilter.Select<String>(name, values) {
+    abstract class QueryFilter(
+        name: String,
+        values: Array<String>,
+    ) : AnimeFilter.Select<String>(name, values) {
         abstract val key: String
         abstract val selected: String
     }
