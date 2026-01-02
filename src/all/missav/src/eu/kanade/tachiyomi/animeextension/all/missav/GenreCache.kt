@@ -4,7 +4,7 @@ object GenreCache {
     private const val TTL = 7L * 24 * 60 * 60 * 1000
     private const val SEP = "|||"
 
-    private val cache = CacheManager(
+    private val cache = CacheManager<List<String>>(
         cacheName = "missav_genre_cache",
         ttlMillis = TTL,
         maxEntries = 2000,

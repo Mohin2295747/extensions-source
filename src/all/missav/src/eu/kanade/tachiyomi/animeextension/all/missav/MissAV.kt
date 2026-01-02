@@ -60,19 +60,30 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
         val url = baseUrl.toHttpUrl().newBuilder().apply {
-            val genreFilter = filters.get(0) as? GenreList
-            val params = extractParams(filters)
+            val params = getSearchParameters(filters)
+            
+            // Get single genre filter
+            val singleGenre = filters.getOrNull(0) as? SingleGenreFilter
+            val selectedSingleGenre = if (singleGenre?.state ?: 0 > 0) {
+                SingleGenreFilter.GENRES[singleGenre!!.state]
+            } else {
+                null
+            }
+            
+            // Get first included genre from multi-filter for base search
+            val firstIncludedGenre = params.include.firstOrNull()
             
             val path = when {
                 query.isNotBlank() -> {
                     "en/search/${query.trim()}"
                 }
-                genreFilter?.state ?: 0 > 0 -> {
-                    val genre = MissAVGenre.entries[genreFilter!!.state - 1]
-                    "en/genres/${genre.slug}"
+                selectedSingleGenre != null && selectedSingleGenre.second.isNotEmpty() -> {
+                    // Use single genre filter
+                    selectedSingleGenre.second
                 }
-                params.include.isNotEmpty() -> {
-                    "en/genres/${params.include.first().slug}"
+                firstIncludedGenre != null -> {
+                    // Use first included genre from multi-filter
+                    firstIncludedGenre.second
                 }
                 else -> {
                     "en/new"
@@ -81,6 +92,14 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
             
             addEncodedPathSegments(path)
             addQueryParameter("page", page.toString())
+            
+            // Add sort if available
+            val sortFilter = filters.getOrNull(1) as? SortFilter
+            sortFilter?.state?.let {
+                if (it > 0) {
+                    addQueryParameter("sort", SortFilter.SORT_QUERIES[it])
+                }
+            }
         }.build().toString()
 
         return GET(url, headers)
@@ -94,17 +113,12 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     override suspend fun getSearchAnime(page: Int, query: String, filters: AnimeFilterList): AnimesPage {
-        val params = extractParams(filters)
-        val genreFilter = filters.get(0) as? GenreList
+        val params = getSearchParameters(filters)
         
-        val shouldUseMultiFilter = params.include.size > 1 || params.exclude.isNotEmpty()
-        val isSingleGenreFilter = genreFilter?.state ?: 0 > 0
+        // Check if we need multi-genre filtering
+        val needsMultiFilter = params.include.size > 1 || params.exclude.isNotEmpty()
         
-        if (!shouldUseMultiFilter && !isSingleGenreFilter) {
-            return super.getSearchAnime(page, query, filters)
-        }
-        
-        if (isSingleGenreFilter) {
+        if (!needsMultiFilter) {
             return super.getSearchAnime(page, query, filters)
         }
         
@@ -115,7 +129,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
         page: Int,
         query: String,
         filters: AnimeFilterList,
-        params: FilterParams
+        params: FilterSearchParams
     ): AnimesPage {
         val results = mutableListOf<SAnime>()
         var currentPage = page
@@ -149,17 +163,17 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                         genreList
                     }
                     
-                    val includesAll = params.include.all { included ->
+                    // Check all included genres are present
+                    val includesAll = params.include.all { (display, _) ->
                         genres.any { genre -> 
-                            genre.contains(included.match, ignoreCase = true) || 
-                            genre.contains(included.display, ignoreCase = true)
+                            genre.contains(display, ignoreCase = true)
                         }
                     }
                     
-                    val excludesAll = params.exclude.none { excluded ->
+                    // Check no excluded genres are present
+                    val excludesAll = params.exclude.none { (display, _) ->
                         genres.any { genre ->
-                            genre.contains(excluded.match, ignoreCase = true) ||
-                            genre.contains(excluded.display, ignoreCase = true)
+                            genre.contains(display, ignoreCase = true)
                         }
                     }
                     
@@ -196,11 +210,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                 thumbnail_url = img?.attr("abs:data-src") ?: img?.attr("abs:src")
                 
                 element.selectFirst("div.duration, .video-duration")?.text()?.let { duration ->
-                    if (description.isNullOrBlank()) {
-                        description = "Duration: $duration"
-                    } else {
-                        description += "\nDuration: $duration"
-                    }
+                    description = "Duration: $duration"
                 }
             }
         }
@@ -278,6 +288,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun videoListParse(response: Response): List<Video> {
         val document = response.asJsoup()
         
+        // Try to extract from packed JavaScript
         for (script in document.select("script")) {
             val scriptData = script.data()
             if (scriptData.contains("function(p,a,c,k,e,d)")) {
@@ -292,17 +303,11 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
             }
         }
         
+        // Try direct video sources
         document.select("video.player source[src]").forEach { source ->
             val url = source.attr("abs:src")
             if (url.isNotBlank() && url.contains("m3u8", ignoreCase = true)) {
                 return playlistExtractor.extractFromHls(url, referer = "$baseUrl/")
-            }
-        }
-        
-        document.select("iframe[src]").forEach { iframe ->
-            val src = iframe.attr("abs:src")
-            if (src.contains("m3u8", ignoreCase = true)) {
-                return playlistExtractor.extractFromHls(src, referer = "$baseUrl/")
             }
         }
         
