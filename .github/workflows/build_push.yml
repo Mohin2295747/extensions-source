@@ -54,16 +54,23 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
-
-      - name: Build extensions (chunk ${{ matrix.chunk }})
-        env:
-          CI_CHUNK_NUM: ${{ matrix.chunk }}
-          # Fix for Kotlin serialization warnings
-          GRADLE_OPTS: -Dorg.gradle.parallel=false -Dkotlinx.serialization.opt-in=kotlinx.serialization.ExperimentalSerializationApi
-        run: |
-          chmod +x ./gradlew
-          # Build debug APKs instead of release (no signing required)
-          ./gradlew -p src assembleDebug --no-parallel
+      
+- name: Build extensions (chunk ${{ matrix.chunk }})
+  env:
+    CI_CHUNK_NUM: ${{ matrix.chunk }}
+    # Added -DsystemProp.http.agent=Mozilla/5.0 to fix the 403 Forbidden error
+    GRADLE_OPTS: >-
+      -Dorg.gradle.parallel=false 
+      -Dkotlinx.serialization.opt-in=kotlinx.serialization.ExperimentalSerializationApi 
+      -DsystemProp.http.agent=Mozilla/5.0
+    run: |
+    chmod +x ./gradlew
+    # Force the User-Agent into the properties file directly
+    echo "systemProp.http.agent=Mozilla/5.0" >> gradle.properties
+    echo "systemProp.https.agent=Mozilla/5.0" >> gradle.properties
+    
+    ./gradlew -p src assembleDebug --no-parallel
+    
       - name: Upload APKs (chunk ${{ matrix.chunk }})
         uses: actions/upload-artifact@v4
         with:
