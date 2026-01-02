@@ -255,9 +255,6 @@ object Tags {
         "魔物娘" to "Monster Girl",
         "黑皮膚" to "dark skin",
     )
-    /**
-     * Genre translations
-     */
     val GENRE_TRANSLATIONS = mapOf(
         "全部" to "all",
         "裏番" to "Rifan",
@@ -270,9 +267,6 @@ object Tags {
         "MMD" to "MMD",
         "Cosplay" to "Cosplay",
     )
-    /**
-     * Sort option translations
-     */
     val SORT_TRANSLATIONS = mapOf(
         "最新上市" to "Newest",
         "最新上傳" to "Latest Upload",
@@ -284,23 +278,12 @@ object Tags {
         "時長最長" to "Longest Duration",
         "他們在看" to "Popular Now",
     )
-    /**
-     * Year translations (usually don't need translation, but included for completeness)
-     */
     val YEAR_TRANSLATIONS = mapOf(
         "全部年份" to "All Years",
-        // Add year translations if needed: "2024" to "2024", etc.
     )
-    /**
-     * Month translations
-     */
     val MONTH_TRANSLATIONS = mapOf(
         "全部月份" to "All Months",
-        // Add month translations if needed: "1月" to "January", etc.
     )
-    /**
-     * Reverse lookups for getting Chinese from English
-     */
     fun getOriginalCategory(englishCategory: String): String? {
         return CATEGORY_TRANSLATIONS.entries.find { it.value.equals(englishCategory, ignoreCase = true) }?.key
     }
@@ -319,7 +302,6 @@ object Tags {
     fun getOriginalMonth(englishMonth: String): String? {
         return MONTH_TRANSLATIONS.entries.find { it.value.equals(englishMonth, ignoreCase = true) }?.key ?: englishMonth
     }
-    // Helper functions for safe translation
     fun getTranslatedCategory(chineseCategory: String): String {
         return CATEGORY_TRANSLATIONS[chineseCategory] ?: chineseCategory
     }
@@ -338,12 +320,7 @@ object Tags {
     fun getTranslatedMonth(chineseMonth: String): String {
         return MONTH_TRANSLATIONS[chineseMonth] ?: chineseMonth
     }
-    /**
-     * Get all translated tags for a category (if you maintain category structure)
-     */
     fun getTranslatedTagsForCategory(chineseCategory: String): List<String> {
-        // This requires the original category structure
-        // You might need to maintain the original Chinese structure separately
         return emptyList()
     }
 }
