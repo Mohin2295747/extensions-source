@@ -73,6 +73,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
         val url = baseUrl.toHttpUrl().newBuilder().apply {
             val params = getSearchParameters(filters)
+            
             // If we have multi-genre filters, don't use a specific genre URL
             if (query.isNotEmpty()) {
                 addEncodedPathSegments("en/search")
@@ -81,6 +82,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                 // Only use single genre filter if no multi-genre filters are active
                 val genreFilter = filters.get(1) as? GenreList
                 val genre = if (genreFilter?.state == 0) null else GenreList.GENRES[genreFilter?.state ?: 0].second
+                
                 if (genre != null && genre.isNotEmpty()) {
                     addEncodedPathSegments(genre)
                 } else {
@@ -116,13 +118,16 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
             val filteredEntries = mutableListOf<SAnime>()
             var processedCount = 0
             val maxToProcess = 20 // Limit to avoid timeout
+            
             for (anime in pageResult.animes.take(maxToProcess)) {
                 try {
                     // Add a small delay between requests to avoid being blocked
                     if (processedCount > 0) {
                         delay(100)
                     }
+                    
                     val detailsResponse = client.newCall(GET(anime.url, headers)).execute()
+                    
                     if (detailsResponse.isSuccessful) {
                         val details = animeDetailsParse(detailsResponse)
                         detailsResponse.close()
@@ -148,11 +153,13 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                     // If we can't fetch details, skip this anime
                     continue
                 }
+                
                 // If we're taking too long, break early
                 if (processedCount >= 10) {
                     break
                 }
             }
+            
             // If we didn't find any matches but processed some anime, return original results
             // to avoid showing "no results" when filtering just didn't match
             if (filteredEntries.isEmpty() && processedCount > 0) {
