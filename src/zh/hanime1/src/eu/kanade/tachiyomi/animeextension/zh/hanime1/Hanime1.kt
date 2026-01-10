@@ -71,31 +71,21 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     private fun animeFromCard(cardWrapper: Element): SAnime {
-        // 1️⃣ Title
         val title = cardWrapper.selectFirst(".card-mobile-title")?.text()?.trim() ?: "Unknown"
-
-        // 2️⃣ Duration (first overlay div)
         val duration = cardWrapper
             .selectFirst(".card-mobile-panel.inner > div[style*=\"position: relative;\"] > .card-mobile-duration")
             ?.text()?.trim()
-
-        // 3️⃣ Views (last div in float-left container)
         val views = cardWrapper
             .select("div[style*='float: left'] > .card-mobile-duration")
             .lastOrNull()
             ?.text()?.trim()
-
-        // 4️⃣ Combine into final title string
         val finalTitle = buildString {
             append(title)
             if (!duration.isNullOrBlank()) append(" [$duration]")
             if (!views.isNullOrBlank()) append(" | $views")
         }
-
-        // 5️⃣ Thumbnail & URL
         val thumbnail = cardWrapper.selectFirst("img")?.attr("src") ?: ""
         val url = cardWrapper.selectFirst("a.overlay")?.attr("href") ?: ""
-
         return SAnime.create().apply {
             this.title = finalTitle
             setUrlWithoutDomain(url)
@@ -199,28 +189,22 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun searchAnimeParse(response: Response): AnimesPage {
         val jsoup = response.asJsoup()
-        // Try to find cards in different possible layouts
         val cards = when {
-            // Layout 1: Search results with doujin videos
             jsoup.select("div.search-doujin-videos.hidden-xs").isNotEmpty() -> {
                 jsoup.select("div.search-doujin-videos.hidden-xs")
                     .filter { it.select("a[target=_blank]").isEmpty() }
             }
-            // Layout 2: Regular search results
             jsoup.select("div.card-mobile-panel.inner").isNotEmpty() -> {
                 jsoup.select("div.card-mobile-panel.inner").map { it.parent() ?: it }
             }
-            // Layout 3: Home page layout
             jsoup.select(".home-rows-videos > a").isNotEmpty() -> {
                 jsoup.select(".home-rows-videos > a").map { it.parent() ?: it }
             }
-            // Fallback: Any element with card-mobile-title
-            else -> jsoup.select(":has(.card-mobile-title)")
+            else -> jsoup.select("div:has(.card-mobile-title)")
         }
         val list = cards.mapNotNull { card ->
             try {
                 val anime = animeFromCard(card)
-                // Add invisible character to titles in search results to avoid duplicates
                 if (jsoup.select("div.search-doujin-videos").isNotEmpty()) {
                     anime.title = anime.title.appendInvisibleChar()
                 }
@@ -382,7 +366,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     title = "Use English filters"
                     summary = "Show filter names in English (also affects tags in anime details)"
                     setDefaultValue(true)
-                },
+                }
             )
             addPreference(
                 ListPreference(context).apply {
@@ -396,7 +380,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         summary = "Current selection: ${newValue as String}"
                         true
                     }
-                },
+                }
             )
             addPreference(
                 ListPreference(context).apply {
@@ -412,13 +396,13 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                             listOf(
                                 Cookie.parse(
                                     baseHttpUrl,
-                                    "user_lang=${newValue as String}",
-                                )!!,
-                            ),
+                                    "user_lang=${newValue as String}"
+                                )!!
+                            )
                         )
                         true
                     }
-                },
+                }
             )
         }
     }
