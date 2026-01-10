@@ -366,7 +366,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     title = "Use English filters"
                     summary = "Show filter names in English (also affects tags in anime details)"
                     setDefaultValue(true)
-                }
+                },
             )
             addPreference(
                 ListPreference(context).apply {
@@ -380,7 +380,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         summary = "Current selection: ${newValue as String}"
                         true
                     }
-                }
+                },
             )
             addPreference(
                 ListPreference(context).apply {
@@ -396,13 +396,13 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                             listOf(
                                 Cookie.parse(
                                     baseHttpUrl,
-                                    "user_lang=${newValue as String}"
-                                )!!
-                            )
+                                    "user_lang=${newValue as String}",
+                                )!!,
+                            ),
                         )
                         true
                     }
-                }
+                },
             )
         }
     }
