@@ -187,14 +187,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun searchAnimeParse(response: Response): AnimesPage {
         val jsoup = response.asJsoup()
         val cards = mutableListOf<Element>()
-        
         val searchDoujinCards = jsoup.select("div.search-doujin-videos")
         searchDoujinCards.forEach { card ->
             if (card.select("a[target=_blank]").isEmpty()) {
                 cards.add(card)
             }
         }
-        
         val panelCards = jsoup.select("div.card-mobile-panel.inner")
         panelCards.forEach { panel ->
             val parent = panel.parent()
@@ -204,7 +202,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 cards.add(panel)
             }
         }
-        
         val homeCards = jsoup.select(".home-rows-videos > a")
         homeCards.forEach { a ->
             val parent = a.parent()
@@ -212,7 +209,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 cards.add(parent)
             }
         }
-        
         if (cards.isEmpty()) {
             val allDivs = jsoup.select("div")
             allDivs.forEach { div ->
@@ -221,7 +217,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 }
             }
         }
-        
         val list = cards.mapNotNull { card ->
             try {
                 val anime = animeFromCard(card)
@@ -233,7 +228,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 null
             }
         }.distinctBy { it.url }
-        
         val nextPage = jsoup.select("li.page-item a.page-link[rel=next]")
         return AnimesPage(list, nextPage.isNotEmpty())
     }
