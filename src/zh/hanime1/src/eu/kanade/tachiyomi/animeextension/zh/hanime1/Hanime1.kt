@@ -72,13 +72,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     private fun animeFromCard(cardWrapper: Element): SAnime {
         val title = cardWrapper.selectFirst(".card-mobile-title")?.text()?.trim() ?: "Unknown"
-        val duration = cardWrapper
-            .selectFirst(".card-mobile-panel.inner > div[style*=\"position: relative;\"] > .card-mobile-duration")
-            ?.text()?.trim()
-        val views = cardWrapper
-            .select("div[style*='float: left'] > .card-mobile-duration")
-            .lastOrNull()
-            ?.text()?.trim()
+        val duration = cardWrapper.select(".card-mobile-duration")
+            .mapNotNull { it.text().trim() }
+            .firstOrNull { it.contains(":") }
+        val views = cardWrapper.select(".card-mobile-duration")
+            .mapNotNull { it.text().trim() }
+            .firstOrNull { it.contains("次") || it.contains("%") }
         val finalTitle = buildString {
             append(title)
             if (!duration.isNullOrBlank()) append(" [$duration]")
@@ -183,33 +182,24 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun popularAnimeRequest(page: Int) =
         searchAnimeRequest(page, "", AnimeFilterList(HotFilter()))
 
-    private fun String.appendInvisibleChar(): String {
-        return "${this}\u200B"
-    }
+    private fun String.appendInvisibleChar(): String = "$this\u200B"
 
     override fun searchAnimeParse(response: Response): AnimesPage {
         val jsoup = response.asJsoup()
         val cards = mutableListOf<Element>()
-        val searchDoujinCards = jsoup.select("div.search-doujin-videos.hidden-xs")
+        val searchDoujinCards = jsoup.select("div.search-doujin-videos")
             .filter { it.select("a[target=_blank]").isEmpty() }
         cards.addAll(searchDoujinCards)
         val panelCards = jsoup.select("div.card-mobile-panel.inner").mapNotNull {
             val parent = it.parent()
-            if (parent != null && parent.select(".card-mobile-title").isNotEmpty()) {
-                parent
-            } else {
-                it
-            }
+            if (parent != null && parent.select(".card-mobile-title").isNotEmpty()) parent else it
         }
         cards.addAll(panelCards)
         val homeCards = jsoup.select(".home-rows-videos > a").mapNotNull { it.parent() }
         cards.addAll(homeCards)
         if (cards.isEmpty()) {
-            val allDivs = jsoup.select("div")
-            allDivs.forEach { div ->
-                if (div.select(".card-mobile-title").isNotEmpty()) {
-                    cards.add(div)
-                }
+            jsoup.select("div").forEach { div ->
+                if (div.select(".card-mobile-title").isNotEmpty()) cards.add(div)
             }
         }
         val list = cards.mapNotNull { card ->
