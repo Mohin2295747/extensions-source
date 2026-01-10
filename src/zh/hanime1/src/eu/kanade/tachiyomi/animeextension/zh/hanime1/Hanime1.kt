@@ -69,39 +69,26 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.getDefault())
     }
 
-    // Duration regex to match time formats like 16:17 or 1:02:33
     private val durationRegex = Regex("^\\d{1,2}:\\d{2}(?::\\d{2})?$")
 
-    // Helper function to extract duration from a card element
     private fun extractDurationFromCard(card: org.jsoup.nodes.Element): String? {
-        // Look through descendant elements for time-looking text
         return card.select("div, span")
-            .firstOrNull { el -> 
+            .firstOrNull { el ->
                 durationRegex.matches(el.text().trim())
             }?.text()?.trim()
     }
 
-    // Helper function to create SAnime from a card with duration
     private fun animeFromCard(card: org.jsoup.nodes.Element): SAnime {
-        // Try different selectors for title extraction
         val titleText = when {
-            // Search results page
-            card.select(".home-rows-videos-title").isNotEmpty() -> 
+            card.select(".home-rows-videos-title").isNotEmpty() ->
                 card.select(".home-rows-videos-title").text().trim()
-            
-            // Mobile title
-            card.select(".card-mobile-title").isNotEmpty() -> 
+            card.select(".card-mobile-title").isNotEmpty() ->
                 card.select(".card-mobile-title").text().trim()
-            
-            // Fallback: longest div text
             else -> card.select("div").eachText()
                 .maxByOrNull { it.length }?.trim() ?: ""
         }
 
-        // Extract duration from the same card
         val durationText = extractDurationFromCard(card)
-
-        // Append duration to title if found
         val finalTitle = if (!durationText.isNullOrBlank()) {
             "$titleText [$durationText]"
         } else {
@@ -111,17 +98,13 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         return SAnime.create().apply {
             title = finalTitle
             setUrlWithoutDomain(card.attr("href"))
-            
-            // Try different selectors for thumbnail
             when {
-                card.select("img + img").isNotEmpty() -> 
+                card.select("img + img").isNotEmpty() ->
                     thumbnail_url = card.select("img + img").attr("src")
-                card.select("img").isNotEmpty() -> 
+                card.select("img").isNotEmpty() ->
                     thumbnail_url = card.select("img").attr("src")
                 else -> thumbnail_url = ""
             }
-            
-            // Extract author if available
             if (card.select(".card-mobile-user").isNotEmpty()) {
                 author = card.select(".card-mobile-user").text()
             }
@@ -131,19 +114,15 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun animeDetailsParse(response: Response): SAnime {
         val doc = response.asJsoup()
         val useEnglish = preferences.getBoolean(PREF_KEY_USE_ENGLISH, true)
-        
         return SAnime.create().apply {
-            // Get tags and translate them if English is enabled
             val tags = doc.select(".single-video-tag").not("[data-toggle]").eachText()
             genre = if (useEnglish) {
-                // Translate tags to English
                 tags.map { chineseTag ->
                     Tags.getTranslatedTag(chineseTag) ?: chineseTag
                 }.joinToString()
             } else {
                 tags.joinToString()
             }
-            
             author = doc.select("#video-artist-name").text()
             doc.select("script[type=application/ld+json]").first()?.data()?.let {
                 val info = json.decodeFromString<JsonElement>(it).jsonObject
@@ -153,7 +132,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             }
             val type = doc.select("a#video-artist-name + a").text().trim()
             if (type == "裏番" || type == "泡麵番") {
-                // Use the series cover image for bangumi entries instead of the episode image.
                 runBlocking {
                     try {
                         val animesPage =
@@ -175,19 +153,15 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         val jsoup = response.asJsoup()
         val nodes = jsoup.select("#playlist-scroll").first()!!.select(">div")
         val currentUrl = response.request.url.toString()
-        
         return nodes.mapIndexed { index, element ->
             SEpisode.create().apply {
                 val href = element.select("a.overlay").attr("href")
                 setUrlWithoutDomain(href)
                 episode_number = (nodes.size - index).toFloat()
                 name = element.select("div.card-mobile-title").text()
-                
                 if (href == currentUrl) {
-                    // This is the currently opened video - set date to very old so it appears as episode 1
-                    date_upload = 1L // Set to Jan 1, 1970 (very old)
+                    date_upload = 1L
                 } else if (href == response.request.url.toString()) {
-                    // Current video from the request URL (fallback)
                     jsoup.select("script[type=application/ld+json]").first()?.data()?.let {
                         val info = json.decodeFromString<JsonElement>(it).jsonObject
                         info["uploadDate"]?.jsonPrimitive?.content?.let { date ->
@@ -210,7 +184,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         }.filterNot { it.videoUrl?.startsWith("blob") == true }
             .sortedByDescending { preferQuality == it.quality }
             .ifEmpty {
-                // Try to find the source from the script content.
                 val videoUrl = doc.select("script[type=application/ld+json]").first()!!.data().let {
                     val info = json.decodeFromString<JsonElement>(it).jsonObject
                     info["contentUrl"]!!.jsonPrimitive.content
@@ -229,38 +202,27 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         searchAnimeRequest(page, "", AnimeFilterList(HotFilter()))
 
     private fun String.appendInvisibleChar(): String {
-        // The search result title will be same as one episode name of anime.
-        // Adding extra char makes them has different title
         return "${this}\u200B"
     }
 
     override fun searchAnimeParse(response: Response): AnimesPage {
         val jsoup = response.asJsoup()
-        
-        // Handle different page layouts
         val cards = when {
-            // Search results with doujin videos
-            jsoup.select("div.search-doujin-videos.hidden-xs:not(:has(a[target=_blank]))").isNotEmpty() -> 
+            jsoup.select("div.search-doujin-videos.hidden-xs:not(:has(a[target=_blank]))").isNotEmpty() ->
                 jsoup.select("div.search-doujin-videos.hidden-xs:not(:has(a[target=_blank]))")
-            
-            // Regular search results
-            jsoup.select("a:not([target]) > .search-videos").isNotEmpty() -> 
+            jsoup.select("a:not([target]) > .search-videos").isNotEmpty() ->
                 jsoup.select("a:not([target]) > .search-videos").map { it.parent()!! }
-            
-            // Latest updates and popular anime pages
             else -> jsoup.select("a[href^=/watch]:has(.home-rows-videos-title)")
         }
-        
         val list = cards.map { card ->
             val anime = animeFromCard(card)
-            // Add invisible character to titles in search results to avoid duplicates
-            if (jsoup.select("div.search-doujin-videos").isNotEmpty() || 
-                jsoup.select("a:not([target]) > .search-videos").isNotEmpty()) {
+            if (jsoup.select("div.search-doujin-videos").isNotEmpty() ||
+                jsoup.select("a:not([target]) > .search-videos").isNotEmpty()
+            ) {
                 anime.title = anime.title.appendInvisibleChar()
             }
             anime
         }
-        
         val nextPage = jsoup.select("li.page-item a.page-link[rel=next]")
         return AnimesPage(list, nextPage.isNotEmpty())
     }
@@ -289,7 +251,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             when (it) {
                 is QueryFilter -> {
                     if (it.selected.isNotEmpty()) {
-                        // For QueryFilters, we need to send the Chinese value
                         val chineseValue = when (it.key) {
                             "genre" -> Tags.getOriginalGenre(it.selected) ?: it.selected
                             "sort" -> Tags.getOriginalSort(it.selected) ?: it.selected
@@ -309,7 +270,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
                 is TagFilter -> {
                     if (it.state) {
-                        // Send the original Chinese tag value to the server
                         val chineseTag = Tags.getOriginalTag(it.name) ?: it.name
                         searchUrl.addQueryParameter(it.key, chineseTag)
                     }
@@ -338,7 +298,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             CoroutineExceptionHandler { _, _ -> filterUpdateState = FilterUpdateState.FAILED }
         GlobalScope.launch(Dispatchers.IO + exceptionHandler) {
             val jsoup = client.newCall(GET("$baseUrl/search")).awaitSuccess().asJsoup()
-            // Extract Chinese lists
             val chineseGenreList = jsoup.select("div.genre-option div.hentai-sort-options").eachText()
             val chineseSortList =
                 jsoup.select("div.hentai-sort-options-wrapper div.hentai-sort-options").eachText()
@@ -363,7 +322,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     }
                 }
             }
-            // Save Chinese versions (server needs these)
             preferences.edit()
                 .putString(PREF_KEY_CHINESE_GENRE_LIST, chineseGenreList.joinToString(SEPARATOR))
                 .putString(PREF_KEY_CHINESE_SORT_LIST, chineseSortList.joinToString(SEPARATOR))
@@ -392,9 +350,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             return result
         }
         json.decodeFromString<Map<String, List<String>>>(savedCategories).forEach { (chineseCategory, chineseTags) ->
-            // Get translated category name
             val categoryName = Tags.getTranslatedCategory(chineseCategory)
-            // Create translated tag filters
             val tagFilters = chineseTags.map { chineseTag ->
                 val tagName = Tags.getTranslatedTag(chineseTag)
                 TagFilter("tags[]", tagName)
@@ -418,7 +374,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         screen.apply {
-            // Language toggle (optional)
             addPreference(
                 SwitchPreferenceCompat(context).apply {
                     key = PREF_KEY_USE_ENGLISH
@@ -471,13 +426,11 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         const val PREF_KEY_VIDEO_QUALITY = "PREF_KEY_VIDEO_QUALITY"
         const val PREF_KEY_LANG = "PREF_KEY_LANG"
         const val PREF_KEY_USE_ENGLISH = "PREF_KEY_USE_ENGLISH"
-
         const val PREF_KEY_CHINESE_GENRE_LIST = "PREF_KEY_CHINESE_GENRE_LIST"
         const val PREF_KEY_CHINESE_SORT_LIST = "PREF_KEY_CHINESE_SORT_LIST"
         const val PREF_KEY_CHINESE_YEAR_LIST = "PREF_KEY_CHINESE_YEAR_LIST"
         const val PREF_KEY_CHINESE_MONTH_LIST = "PREF_KEY_CHINESE_MONTH_LIST"
         const val PREF_KEY_CATEGORY_LIST = "PREF_KEY_CATEGORY_LIST"
-
         const val DEFAULT_QUALITY = "1080P"
         const val SEPARATOR = "|||"
     }
