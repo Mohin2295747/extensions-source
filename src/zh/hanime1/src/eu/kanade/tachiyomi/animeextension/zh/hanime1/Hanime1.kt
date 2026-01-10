@@ -189,19 +189,40 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun searchAnimeParse(response: Response): AnimesPage {
         val jsoup = response.asJsoup()
-        val cards = when {
-            jsoup.select("div.search-doujin-videos.hidden-xs").isNotEmpty() -> {
-                jsoup.select("div.search-doujin-videos.hidden-xs")
-                    .filter { it.select("a[target=_blank]").isEmpty() }
+        
+        // Try multiple approaches to find cards
+        val cards = mutableListOf<Element>()
+        
+        // Approach 1: Search results with doujin videos
+        val searchDoujinCards = jsoup.select("div.search-doujin-videos.hidden-xs")
+            .filter { it.select("a[target=_blank]").isEmpty() }
+        cards.addAll(searchDoujinCards)
+        
+        // Approach 2: Regular search results - find parent containers
+        val panelCards = jsoup.select("div.card-mobile-panel.inner").mapNotNull { 
+            val parent = it.parent()
+            if (parent != null && parent.select(".card-mobile-title").isNotEmpty()) {
+                parent
+            } else {
+                it
             }
-            jsoup.select("div.card-mobile-panel.inner").isNotEmpty() -> {
-                jsoup.select("div.card-mobile-panel.inner").map { it.parent() ?: it }
-            }
-            jsoup.select(".home-rows-videos > a").isNotEmpty() -> {
-                jsoup.select(".home-rows-videos > a").map { it.parent() ?: it }
-            }
-            else -> jsoup.select("div:has(.card-mobile-title)")
         }
+        cards.addAll(panelCards)
+        
+        // Approach 3: Home page layout
+        val homeCards = jsoup.select(".home-rows-videos > a").mapNotNull { it.parent() }
+        cards.addAll(homeCards)
+        
+        // Approach 4: Fallback - find any div that contains card-mobile-title
+        if (cards.isEmpty()) {
+            val allDivs = jsoup.select("div")
+            allDivs.forEach { div ->
+                if (div.select(".card-mobile-title").isNotEmpty()) {
+                    cards.add(div)
+                }
+            }
+        }
+        
         val list = cards.mapNotNull { card ->
             try {
                 val anime = animeFromCard(card)
@@ -213,6 +234,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 null
             }
         }.distinctBy { it.url }
+        
         val nextPage = jsoup.select("li.page-item a.page-link[rel=next]")
         return AnimesPage(list, nextPage.isNotEmpty())
     }
@@ -366,7 +388,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     title = "Use English filters"
                     summary = "Show filter names in English (also affects tags in anime details)"
                     setDefaultValue(true)
-                },
+                }
             )
             addPreference(
                 ListPreference(context).apply {
@@ -380,7 +402,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         summary = "Current selection: ${newValue as String}"
                         true
                     }
-                },
+                }
             )
             addPreference(
                 ListPreference(context).apply {
@@ -396,13 +418,13 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                             listOf(
                                 Cookie.parse(
                                     baseHttpUrl,
-                                    "user_lang=${newValue as String}",
-                                )!!,
-                            ),
+                                    "user_lang=${newValue as String}"
+                                )!!
+                            )
                         )
                         true
                     }
-                },
+                }
             )
         }
     }
