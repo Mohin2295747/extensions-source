@@ -189,17 +189,11 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun searchAnimeParse(response: Response): AnimesPage {
         val jsoup = response.asJsoup()
-        
-        // Try multiple approaches to find cards
         val cards = mutableListOf<Element>()
-        
-        // Approach 1: Search results with doujin videos
         val searchDoujinCards = jsoup.select("div.search-doujin-videos.hidden-xs")
             .filter { it.select("a[target=_blank]").isEmpty() }
         cards.addAll(searchDoujinCards)
-        
-        // Approach 2: Regular search results - find parent containers
-        val panelCards = jsoup.select("div.card-mobile-panel.inner").mapNotNull { 
+        val panelCards = jsoup.select("div.card-mobile-panel.inner").mapNotNull {
             val parent = it.parent()
             if (parent != null && parent.select(".card-mobile-title").isNotEmpty()) {
                 parent
@@ -208,12 +202,8 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             }
         }
         cards.addAll(panelCards)
-        
-        // Approach 3: Home page layout
         val homeCards = jsoup.select(".home-rows-videos > a").mapNotNull { it.parent() }
         cards.addAll(homeCards)
-        
-        // Approach 4: Fallback - find any div that contains card-mobile-title
         if (cards.isEmpty()) {
             val allDivs = jsoup.select("div")
             allDivs.forEach { div ->
@@ -222,7 +212,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 }
             }
         }
-        
         val list = cards.mapNotNull { card ->
             try {
                 val anime = animeFromCard(card)
@@ -234,7 +223,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 null
             }
         }.distinctBy { it.url }
-        
         val nextPage = jsoup.select("li.page-item a.page-link[rel=next]")
         return AnimesPage(list, nextPage.isNotEmpty())
     }
@@ -388,7 +376,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     title = "Use English filters"
                     summary = "Show filter names in English (also affects tags in anime details)"
                     setDefaultValue(true)
-                }
+                },
             )
             addPreference(
                 ListPreference(context).apply {
@@ -402,7 +390,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         summary = "Current selection: ${newValue as String}"
                         true
                     }
-                }
+                },
             )
             addPreference(
                 ListPreference(context).apply {
@@ -418,13 +406,13 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                             listOf(
                                 Cookie.parse(
                                     baseHttpUrl,
-                                    "user_lang=${newValue as String}"
-                                )!!
-                            )
+                                    "user_lang=${newValue as String}",
+                                )!!,
+                            ),
                         )
                         true
                     }
-                }
+                },
             )
         }
     }
