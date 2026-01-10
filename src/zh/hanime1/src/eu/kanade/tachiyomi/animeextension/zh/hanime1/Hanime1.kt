@@ -187,21 +187,41 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun searchAnimeParse(response: Response): AnimesPage {
         val jsoup = response.asJsoup()
         val cards = mutableListOf<Element>()
+        
         val searchDoujinCards = jsoup.select("div.search-doujin-videos")
-            .filter { it.select("a[target=_blank]").isEmpty() }
-        cards.addAll(searchDoujinCards)
-        val panelCards = jsoup.select("div.card-mobile-panel.inner").mapNotNull {
-            val parent = it.parent()
-            if (parent != null && parent.select(".card-mobile-title").isNotEmpty()) parent else it
-        }
-        cards.addAll(panelCards)
-        val homeCards = jsoup.select(".home-rows-videos > a").mapNotNull { it.parent() }
-        cards.addAll(homeCards)
-        if (cards.isEmpty()) {
-            jsoup.select("div").forEach { div ->
-                if (div.select(".card-mobile-title").isNotEmpty()) cards.add(div)
+        searchDoujinCards.forEach { card ->
+            if (card.select("a[target=_blank]").isEmpty()) {
+                cards.add(card)
             }
         }
+        
+        val panelCards = jsoup.select("div.card-mobile-panel.inner")
+        panelCards.forEach { panel ->
+            val parent = panel.parent()
+            if (parent != null && parent.select(".card-mobile-title").isNotEmpty()) {
+                cards.add(parent)
+            } else {
+                cards.add(panel)
+            }
+        }
+        
+        val homeCards = jsoup.select(".home-rows-videos > a")
+        homeCards.forEach { a ->
+            val parent = a.parent()
+            if (parent != null) {
+                cards.add(parent)
+            }
+        }
+        
+        if (cards.isEmpty()) {
+            val allDivs = jsoup.select("div")
+            allDivs.forEach { div ->
+                if (div.select(".card-mobile-title").isNotEmpty()) {
+                    cards.add(div)
+                }
+            }
+        }
+        
         val list = cards.mapNotNull { card ->
             try {
                 val anime = animeFromCard(card)
@@ -213,6 +233,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 null
             }
         }.distinctBy { it.url }
+        
         val nextPage = jsoup.select("li.page-item a.page-link[rel=next]")
         return AnimesPage(list, nextPage.isNotEmpty())
     }
