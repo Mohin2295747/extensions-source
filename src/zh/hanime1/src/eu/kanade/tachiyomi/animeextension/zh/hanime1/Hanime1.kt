@@ -34,6 +34,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
 import okhttp3.Request
 import okhttp3.Response
+import org.jsoup.nodes.Element
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
@@ -69,45 +70,36 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.getDefault())
     }
 
-    private val durationRegex = Regex("^\\d{1,2}:\\d{2}(?::\\d{2})?$")
+    private fun animeFromCard(cardWrapper: Element): SAnime {
+        // 1️⃣ Title
+        val title = cardWrapper.selectFirst(".card-mobile-title")?.text()?.trim() ?: "Unknown"
 
-    private fun extractDurationFromCard(card: org.jsoup.nodes.Element): String? {
-        return card.select("div, span")
-            .firstOrNull { el ->
-                durationRegex.matches(el.text().trim())
-            }?.text()?.trim()
-    }
+        // 2️⃣ Duration (first overlay div)
+        val duration = cardWrapper
+            .selectFirst(".card-mobile-panel.inner > div[style*=\"position: relative;\"] > .card-mobile-duration")
+            ?.text()?.trim()
 
-    private fun animeFromCard(card: org.jsoup.nodes.Element): SAnime {
-        val titleText = when {
-            card.select(".home-rows-videos-title").isNotEmpty() ->
-                card.select(".home-rows-videos-title").text().trim()
-            card.select(".card-mobile-title").isNotEmpty() ->
-                card.select(".card-mobile-title").text().trim()
-            else -> card.select("div").eachText()
-                .maxByOrNull { it.length }?.trim() ?: ""
+        // 3️⃣ Views (last div in float-left container)
+        val views = cardWrapper
+            .select("div[style*='float: left'] > .card-mobile-duration")
+            .lastOrNull()
+            ?.text()?.trim()
+
+        // 4️⃣ Combine into final title string
+        val finalTitle = buildString {
+            append(title)
+            if (!duration.isNullOrBlank()) append(" [$duration]")
+            if (!views.isNullOrBlank()) append(" | $views")
         }
 
-        val durationText = extractDurationFromCard(card)
-        val finalTitle = if (!durationText.isNullOrBlank()) {
-            "$titleText [$durationText]"
-        } else {
-            titleText
-        }
+        // 5️⃣ Thumbnail & URL
+        val thumbnail = cardWrapper.selectFirst("img")?.attr("src") ?: ""
+        val url = cardWrapper.selectFirst("a.overlay")?.attr("href") ?: ""
 
         return SAnime.create().apply {
-            title = finalTitle
-            setUrlWithoutDomain(card.attr("href"))
-            when {
-                card.select("img + img").isNotEmpty() ->
-                    thumbnail_url = card.select("img + img").attr("src")
-                card.select("img").isNotEmpty() ->
-                    thumbnail_url = card.select("img").attr("src")
-                else -> thumbnail_url = ""
-            }
-            if (card.select(".card-mobile-user").isNotEmpty()) {
-                author = card.select(".card-mobile-user").text()
-            }
+            this.title = finalTitle
+            setUrlWithoutDomain(url)
+            this.thumbnail_url = thumbnail
         }
     }
 
@@ -151,7 +143,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun episodeListParse(response: Response): List<SEpisode> {
         val jsoup = response.asJsoup()
-        val nodes = jsoup.select("#playlist-scroll").first()!!.select(">div")
+        val nodes = jsoup.select("#playlist-scroll").first()?.select(">div") ?: emptyList()
         val currentUrl = response.request.url.toString()
         return nodes.mapIndexed { index, element ->
             SEpisode.create().apply {
@@ -207,22 +199,39 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun searchAnimeParse(response: Response): AnimesPage {
         val jsoup = response.asJsoup()
+        
+        // Try to find cards in different possible layouts
         val cards = when {
-            jsoup.select("div.search-doujin-videos.hidden-xs:not(:has(a[target=_blank]))").isNotEmpty() ->
-                jsoup.select("div.search-doujin-videos.hidden-xs:not(:has(a[target=_blank]))")
-            jsoup.select("a:not([target]) > .search-videos").isNotEmpty() ->
-                jsoup.select("a:not([target]) > .search-videos").map { it.parent()!! }
-            else -> jsoup.select("a[href^=/watch]:has(.home-rows-videos-title)")
-        }
-        val list = cards.map { card ->
-            val anime = animeFromCard(card)
-            if (jsoup.select("div.search-doujin-videos").isNotEmpty() ||
-                jsoup.select("a:not([target]) > .search-videos").isNotEmpty()
-            ) {
-                anime.title = anime.title.appendInvisibleChar()
+            // Layout 1: Search results with doujin videos
+            jsoup.select("div.search-doujin-videos.hidden-xs").isNotEmpty() -> {
+                jsoup.select("div.search-doujin-videos.hidden-xs")
+                    .filter { it.select("a[target=_blank]").isEmpty() }
             }
-            anime
+            // Layout 2: Regular search results
+            jsoup.select("div.card-mobile-panel.inner").isNotEmpty() -> {
+                jsoup.select("div.card-mobile-panel.inner").map { it.parent() ?: it }
+            }
+            // Layout 3: Home page layout
+            jsoup.select(".home-rows-videos > a").isNotEmpty() -> {
+                jsoup.select(".home-rows-videos > a").map { it.parent() ?: it }
+            }
+            // Fallback: Any element with card-mobile-title
+            else -> jsoup.select(":has(.card-mobile-title)")
         }
+        
+        val list = cards.mapNotNull { card ->
+            try {
+                val anime = animeFromCard(card)
+                // Add invisible character to titles in search results to avoid duplicates
+                if (jsoup.select("div.search-doujin-videos").isNotEmpty()) {
+                    anime.title = anime.title.appendInvisibleChar()
+                }
+                anime
+            } catch (e: Exception) {
+                null
+            }
+        }.distinctBy { it.url }
+        
         val nextPage = jsoup.select("li.page-item a.page-link[rel=next]")
         return AnimesPage(list, nextPage.isNotEmpty())
     }
@@ -243,7 +252,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         }
                     }
                 }
-
                 is AnimeFilter.Group<*> -> it.state
                 else -> listOf(it)
             }
@@ -261,20 +269,17 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         searchUrl.addQueryParameter(it.key, chineseValue)
                     }
                 }
-
                 is BroadMatchFilter -> {
                     if (it.state) {
                         searchUrl.addQueryParameter(it.key, "on")
                     }
                 }
-
                 is TagFilter -> {
                     if (it.state) {
                         val chineseTag = Tags.getOriginalTag(it.name) ?: it.name
                         searchUrl.addQueryParameter(it.key, chineseTag)
                     }
                 }
-
                 else -> {}
             }
         }
@@ -380,7 +385,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     title = "Use English filters"
                     summary = "Show filter names in English (also affects tags in anime details)"
                     setDefaultValue(true)
-                },
+                }
             )
             addPreference(
                 ListPreference(context).apply {
@@ -389,13 +394,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     entries = arrayOf("1080P", "720P", "480P")
                     entryValues = entries
                     setDefaultValue(DEFAULT_QUALITY)
-                    summary =
-                        "Current selection: ${preferences.getString(PREF_KEY_VIDEO_QUALITY, DEFAULT_QUALITY)}"
+                    summary = "Current selection: ${preferences.getString(PREF_KEY_VIDEO_QUALITY, DEFAULT_QUALITY)}"
                     setOnPreferenceChangeListener { _, newValue ->
                         summary = "Current selection: ${newValue as String}"
                         true
                     }
-                },
+                }
             )
             addPreference(
                 ListPreference(context).apply {
@@ -411,13 +415,13 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                             listOf(
                                 Cookie.parse(
                                     baseHttpUrl,
-                                    "user_lang=${newValue as String}",
-                                )!!,
-                            ),
+                                    "user_lang=${newValue as String}"
+                                )!!
+                            )
                         )
                         true
                     }
-                },
+                }
             )
         }
     }
