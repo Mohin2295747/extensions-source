@@ -199,8 +199,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun searchAnimeParse(response: Response): AnimesPage {
         val jsoup = response.asJsoup()
-        
-        // Try to find cards in different possible layouts
+         // Try to find cards in different possible layouts
         val cards = when {
             // Layout 1: Search results with doujin videos
             jsoup.select("div.search-doujin-videos.hidden-xs").isNotEmpty() -> {
@@ -218,7 +217,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             // Fallback: Any element with card-mobile-title
             else -> jsoup.select(":has(.card-mobile-title)")
         }
-        
         val list = cards.mapNotNull { card ->
             try {
                 val anime = animeFromCard(card)
@@ -231,7 +229,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 null
             }
         }.distinctBy { it.url }
-        
         val nextPage = jsoup.select("li.page-item a.page-link[rel=next]")
         return AnimesPage(list, nextPage.isNotEmpty())
     }
@@ -385,7 +382,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     title = "Use English filters"
                     summary = "Show filter names in English (also affects tags in anime details)"
                     setDefaultValue(true)
-                }
+                },
             )
             addPreference(
                 ListPreference(context).apply {
@@ -399,7 +396,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         summary = "Current selection: ${newValue as String}"
                         true
                     }
-                }
+                },
             )
             addPreference(
                 ListPreference(context).apply {
@@ -415,13 +412,13 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                             listOf(
                                 Cookie.parse(
                                     baseHttpUrl,
-                                    "user_lang=${newValue as String}"
-                                )!!
-                            )
+                                    "user_lang=${newValue as String}",
+                                )!!,
+                            ),
                         )
                         true
                     }
-                }
+                },
             )
         }
     }
