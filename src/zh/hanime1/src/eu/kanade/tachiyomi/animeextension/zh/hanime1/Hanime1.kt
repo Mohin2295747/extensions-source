@@ -69,10 +69,81 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.getDefault())
     }
 
+    // Duration regex to match time formats like 16:17 or 1:02:33
+    private val durationRegex = Regex("^\\d{1,2}:\\d{2}(?::\\d{2})?$")
+
+    // Helper function to extract duration from a card element
+    private fun extractDurationFromCard(card: org.jsoup.nodes.Element): String? {
+        // Look through descendant elements for time-looking text
+        return card.select("div, span")
+            .firstOrNull { el -> 
+                durationRegex.matches(el.text().trim())
+            }?.text()?.trim()
+    }
+
+    // Helper function to create SAnime from a card with duration
+    private fun animeFromCard(card: org.jsoup.nodes.Element): SAnime {
+        // Try different selectors for title extraction
+        val titleText = when {
+            // Search results page
+            card.select(".home-rows-videos-title").isNotEmpty() -> 
+                card.select(".home-rows-videos-title").text().trim()
+            
+            // Mobile title
+            card.select(".card-mobile-title").isNotEmpty() -> 
+                card.select(".card-mobile-title").text().trim()
+            
+            // Fallback: longest div text
+            else -> card.select("div").eachText()
+                .maxByOrNull { it.length }?.trim() ?: ""
+        }
+
+        // Extract duration from the same card
+        val durationText = extractDurationFromCard(card)
+
+        // Append duration to title if found
+        val finalTitle = if (!durationText.isNullOrBlank()) {
+            "$titleText [$durationText]"
+        } else {
+            titleText
+        }
+
+        return SAnime.create().apply {
+            title = finalTitle
+            setUrlWithoutDomain(card.attr("href"))
+            
+            // Try different selectors for thumbnail
+            when {
+                card.select("img + img").isNotEmpty() -> 
+                    thumbnail_url = card.select("img + img").attr("src")
+                card.select("img").isNotEmpty() -> 
+                    thumbnail_url = card.select("img").attr("src")
+                else -> thumbnail_url = ""
+            }
+            
+            // Extract author if available
+            if (card.select(".card-mobile-user").isNotEmpty()) {
+                author = card.select(".card-mobile-user").text()
+            }
+        }
+    }
+
     override fun animeDetailsParse(response: Response): SAnime {
         val doc = response.asJsoup()
+        val useEnglish = preferences.getBoolean(PREF_KEY_USE_ENGLISH, true)
+        
         return SAnime.create().apply {
-            genre = doc.select(".single-video-tag").not("[data-toggle]").eachText().joinToString()
+            // Get tags and translate them if English is enabled
+            val tags = doc.select(".single-video-tag").not("[data-toggle]").eachText()
+            genre = if (useEnglish) {
+                // Translate tags to English
+                tags.map { chineseTag ->
+                    Tags.getTranslatedTag(chineseTag) ?: chineseTag
+                }.joinToString()
+            } else {
+                tags.joinToString()
+            }
+            
             author = doc.select("#video-artist-name").text()
             doc.select("script[type=application/ld+json]").first()?.data()?.let {
                 val info = json.decodeFromString<JsonElement>(it).jsonObject
@@ -103,19 +174,24 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun episodeListParse(response: Response): List<SEpisode> {
         val jsoup = response.asJsoup()
         val nodes = jsoup.select("#playlist-scroll").first()!!.select(">div")
+        val currentUrl = response.request.url.toString()
+        
         return nodes.mapIndexed { index, element ->
             SEpisode.create().apply {
                 val href = element.select("a.overlay").attr("href")
                 setUrlWithoutDomain(href)
                 episode_number = (nodes.size - index).toFloat()
                 name = element.select("div.card-mobile-title").text()
-                if (href == response.request.url.toString()) {
-                    // current video
+                
+                if (href == currentUrl) {
+                    // This is the currently opened video - set date to very old so it appears as episode 1
+                    date_upload = 1L // Set to Jan 1, 1970 (very old)
+                } else if (href == response.request.url.toString()) {
+                    // Current video from the request URL (fallback)
                     jsoup.select("script[type=application/ld+json]").first()?.data()?.let {
                         val info = json.decodeFromString<JsonElement>(it).jsonObject
                         info["uploadDate"]?.jsonPrimitive?.content?.let { date ->
-                            date_upload =
-                                runCatching { uploadDateFormat.parse(date)?.time }.getOrNull() ?: 0L
+                            date_upload = runCatching { uploadDateFormat.parse(date)?.time }.getOrNull() ?: 0L
                         }
                     }
                 }
@@ -160,25 +236,31 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun searchAnimeParse(response: Response): AnimesPage {
         val jsoup = response.asJsoup()
-        val nodes = jsoup.select("div.search-doujin-videos.hidden-xs:not(:has(a[target=_blank]))")
-        val list = if (nodes.isNotEmpty()) {
-            nodes.map {
-                SAnime.create().apply {
-                    setUrlWithoutDomain(it.select("a[class=overlay]").attr("href"))
-                    thumbnail_url = it.select("img + img").attr("src")
-                    title = it.select("div.card-mobile-title").text().appendInvisibleChar()
-                    author = it.select(".card-mobile-user").text()
-                }
-            }
-        } else {
-            jsoup.select("a:not([target]) > .search-videos").map {
-                SAnime.create().apply {
-                    setUrlWithoutDomain(it.parent()!!.attr("href"))
-                    thumbnail_url = it.select("img").attr("src")
-                    title = it.select(".home-rows-videos-title").text().appendInvisibleChar()
-                }
-            }
+        
+        // Handle different page layouts
+        val cards = when {
+            // Search results with doujin videos
+            jsoup.select("div.search-doujin-videos.hidden-xs:not(:has(a[target=_blank]))").isNotEmpty() -> 
+                jsoup.select("div.search-doujin-videos.hidden-xs:not(:has(a[target=_blank]))")
+            
+            // Regular search results
+            jsoup.select("a:not([target]) > .search-videos").isNotEmpty() -> 
+                jsoup.select("a:not([target]) > .search-videos").map { it.parent()!! }
+            
+            // Latest updates and popular anime pages
+            else -> jsoup.select("a[href^=/watch]:has(.home-rows-videos-title)")
         }
+        
+        val list = cards.map { card ->
+            val anime = animeFromCard(card)
+            // Add invisible character to titles in search results to avoid duplicates
+            if (jsoup.select("div.search-doujin-videos").isNotEmpty() || 
+                jsoup.select("a:not([target]) > .search-videos").isNotEmpty()) {
+                anime.title = anime.title.appendInvisibleChar()
+            }
+            anime
+        }
+        
         val nextPage = jsoup.select("li.page-item a.page-link[rel=next]")
         return AnimesPage(list, nextPage.isNotEmpty())
     }
@@ -341,7 +423,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 SwitchPreferenceCompat(context).apply {
                     key = PREF_KEY_USE_ENGLISH
                     title = "Use English filters"
-                    summary = "Show filter names in English"
+                    summary = "Show filter names in English (also affects tags in anime details)"
                     setDefaultValue(true)
                 },
             )

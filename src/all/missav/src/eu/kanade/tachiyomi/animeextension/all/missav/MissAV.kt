@@ -61,7 +61,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
         val url = baseUrl.toHttpUrl().newBuilder().apply {
             val params = getSearchParameters(filters)
-            
+
             // Get single genre filter
             val singleGenre = filters.getOrNull(0) as? SingleGenreFilter
             val selectedSingleGenre = if (singleGenre?.state ?: 0 > 0) {
@@ -69,10 +69,10 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
             } else {
                 null
             }
-            
+
             // Get first included genre from multi-filter for base search
             val firstIncludedGenre = params.include.firstOrNull()
-            
+
             val path = when {
                 query.isNotBlank() -> {
                     "en/search/${query.trim()}"
@@ -89,10 +89,10 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                     "en/new"
                 }
             }
-            
+
             addEncodedPathSegments(path)
             addQueryParameter("page", page.toString())
-            
+
             // Add sort if available
             val sortFilter = filters.getOrNull(1) as? SortFilter
             sortFilter?.state?.let {
@@ -114,14 +114,14 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override suspend fun getSearchAnime(page: Int, query: String, filters: AnimeFilterList): AnimesPage {
         val params = getSearchParameters(filters)
-        
+
         // Check if we need multi-genre filtering
         val needsMultiFilter = params.include.size > 1 || params.exclude.isNotEmpty()
-        
+
         if (!needsMultiFilter) {
             return super.getSearchAnime(page, query, filters)
         }
-        
+
         return applyMultiGenreFilter(page, query, filters, params)
     }
 
@@ -136,16 +136,16 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
         var hasNextPage = true
         val maxResults = preferences.getInt("multi_genre_limit", 20)
         var processed = 0
-        
+
         while (results.size < maxResults && hasNextPage && processed < 60) {
             val pageResult = super.getSearchAnime(currentPage, query, filters)
             hasNextPage = pageResult.hasNextPage
-            
+
             for (anime in pageResult.animes) {
                 if (results.size >= maxResults) break
-                
+
                 delay(80)
-                
+
                 try {
                     val genres = GenreCache.get(anime.url) ?: run {
                         val detailsResponse = client.newCall(GET(anime.url, headers)).execute()
@@ -155,43 +155,43 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                             SAnime.create()
                         }
                         detailsResponse.close()
-                        
+
                         val genreList = details.genre?.split(", ")?.map { it.trim() } ?: emptyList()
                         if (genreList.isNotEmpty()) {
                             GenreCache.put(anime.url, genreList)
                         }
                         genreList
                     }
-                    
+
                     // Check all included genres are present
                     val includesAll = params.include.all { (display, _) ->
-                        genres.any { genre -> 
+                        genres.any { genre ->
                             genre.contains(display, ignoreCase = true)
                         }
                     }
-                    
+
                     // Check no excluded genres are present
                     val excludesAll = params.exclude.none { (display, _) ->
                         genres.any { genre ->
                             genre.contains(display, ignoreCase = true)
                         }
                     }
-                    
+
                     if (includesAll && excludesAll) {
                         results.add(anime)
                     }
                 } catch (e: Exception) {
                     continue
                 }
-                
+
                 processed++
                 if (processed >= 60) break
             }
-            
+
             currentPage++
             if (processed >= 60) break
         }
-        
+
         return AnimesPage(results, hasNextPage && results.size >= 20)
     }
 
@@ -201,44 +201,44 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
             val title = link.text().trim()
             val url = link.attr("href")
             val img = element.selectFirst("img")
-            
+
             if (title.isBlank() || url.isBlank()) return@mapNotNull null
-            
+
             SAnime.create().apply {
                 setUrlWithoutDomain(url)
                 this.title = title
                 thumbnail_url = img?.attr("abs:data-src") ?: img?.attr("abs:src")
-                
+
                 element.selectFirst("div.duration, .video-duration")?.text()?.let { duration ->
                     description = "Duration: $duration"
                 }
             }
         }
-        
+
         val hasNextPage = document.selectFirst("a[rel=next], .pagination .next, .page-next") != null
-        
+
         return AnimesPage(entries, hasNextPage)
     }
 
     override fun animeDetailsParse(response: Response): SAnime {
         val document = response.asJsoup()
-        
+
         val jpTitle = document.select("div.text-secondary span:contains(title) + span").text()
         val siteCover = document.selectFirst("video.player")?.attr("abs:data-poster")
             ?: document.selectFirst("meta[property=og:image]")?.attr("abs:content")
-        
+
         return SAnime.create().apply {
             title = document.selectFirst("h1.text-base, h1.title")?.text() ?: ""
             genre = document.select("a[href*=/genres/]").eachText().joinToString(", ")
             artist = document.select("a[href*=/actresses/]").eachText().joinToString(", ")
             author = document.select("a[href*=/directors/], a[href*=/makers/]").eachText().joinToString(", ")
             status = SAnime.COMPLETED
-            
+
             description = buildString {
                 document.selectFirst("div.mb-1, .description, .synopsis")?.text()?.takeIf { it.isNotBlank() }?.let {
                     append(it.trim())
                 }
-                
+
                 val metadata = listOf(
                     "Label" to document.select("a[href*=/labels/]").eachText().joinToString(),
                     "Series" to document.select("a[href*=/series/]").eachText().joinToString(),
@@ -246,7 +246,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                     "Release Date" to document.getInfo("Date:"),
                     "Studio" to document.select("a[href*=/studios/]").eachText().joinToString(),
                 )
-                
+
                 metadata.forEach { (label, value) ->
                     value?.takeIf { it.isNotBlank() }?.let {
                         if (isNotEmpty()) append("\n")
@@ -254,7 +254,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                     }
                 }
             }
-            
+
             thumbnail_url = if (preferences.getBoolean("fetch_hd_covers", false) && jpTitle.isNotBlank()) {
                 JavCoverFetcher.getCoverByTitle(jpTitle) ?: siteCover
             } else {
@@ -287,7 +287,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun videoListParse(response: Response): List<Video> {
         val document = response.asJsoup()
-        
+
         // Try to extract from packed JavaScript
         for (script in document.select("script")) {
             val scriptData = script.data()
@@ -302,7 +302,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                 }
             }
         }
-        
+
         // Try direct video sources
         document.select("video.player source[src]").forEach { source ->
             val url = source.attr("abs:src")
@@ -310,13 +310,13 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                 return playlistExtractor.extractFromHls(url, referer = "$baseUrl/")
             }
         }
-        
+
         return emptyList()
     }
 
     override fun List<Video>.sort(): List<Video> {
         val quality = preferences.getString("preferred_quality", "720") ?: "720"
-        
+
         return sortedWith(
             compareByDescending { video ->
                 when {
