@@ -199,7 +199,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun searchAnimeParse(response: Response): AnimesPage {
         val jsoup = response.asJsoup()
-         // Try to find cards in different possible layouts
+        // Try to find cards in different possible layouts
         val cards = when {
             // Layout 1: Search results with doujin videos
             jsoup.select("div.search-doujin-videos.hidden-xs").isNotEmpty() -> {
