@@ -70,6 +70,14 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.getDefault())
     }
 
+    private fun extractVideoId(url: String): String? {
+        return try {
+            url.toHttpUrl().queryParameter("v")
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     private fun animeFromCard(cardWrapper: Element): SAnime {
         val title = cardWrapper.selectFirst(".card-mobile-title")?.text()?.trim() ?: "Unknown"
         val duration = cardWrapper.select(".card-mobile-duration")
@@ -77,7 +85,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             .firstOrNull { it.contains(":") }
         val views = cardWrapper.select(".card-mobile-duration")
             .mapNotNull { it.text().trim() }
-            .firstOrNull { it.contains("次") || it.contains("%") }
+            .firstOrNull { it.contains("次") }
         val finalTitle = buildString {
             append(title)
             if (!duration.isNullOrBlank()) append(" [$duration]")
@@ -117,20 +125,13 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 }
             }
             if (thumbnail_url.isNullOrEmpty()) {
-                thumbnail_url = doc.selectFirst(".single-video-thumbnail img")?.attr("src") ?: ""
+                thumbnail_url = doc.selectFirst("meta[property=og:image]")?.attr("content") ?: 
+                    doc.selectFirst(".single-video-thumbnail img")?.attr("src") ?: ""
             }
-            val duration = doc.select(".video-duration, .card-mobile-duration")
+            val duration = doc.select(".video-duration")
                 .firstOrNull()?.text()?.trim()
-            val views = doc.select(".video-views, .card-mobile-duration")
-                .firstOrNull { it.text().contains("次") || it.text().contains("%") }
-                ?.text()?.trim()
-            if (!duration.isNullOrBlank() || !views.isNullOrBlank()) {
-                val finalTitle = buildString {
-                    append(title)
-                    if (!duration.isNullOrBlank()) append(" [$duration]")
-                    if (!views.isNullOrBlank()) append(" | $views")
-                }
-                title = finalTitle
+            if (!duration.isNullOrBlank()) {
+                title = "$title [$duration]"
             }
             val type = doc.select("a#video-artist-name + a").text().trim()
             if (type == "裏番" || type == "泡麵番") {
@@ -154,7 +155,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun episodeListParse(response: Response): List<SEpisode> {
         val jsoup = response.asJsoup()
         val nodes = jsoup.select("#playlist-scroll").first()?.select(">div") ?: emptyList()
-        val currentUrl = response.request.url.toString()
+        val currentVideoId = extractVideoId(response.request.url.toString())
         val uploadDate = jsoup
             .select("script[type=application/ld+json]")
             .firstOrNull()
@@ -170,8 +171,18 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 val href = element.select("a.overlay").attr("href")
                 setUrlWithoutDomain(href)
                 episode_number = (nodes.size - index).toFloat()
-                name = element.select("div.card-mobile-title").text()
-                if (href == currentUrl) {
+                val episodeTitle = element.select("div.card-mobile-title").text()
+                val episodeDuration = element.select(".card-mobile-duration")
+                    .firstOrNull { it.text().contains(":") }?.text()?.trim()
+                val episodeViews = element.select(".card-mobile-duration")
+                    .firstOrNull { it.text().contains("次") }?.text()?.trim()
+                name = buildString {
+                    append(episodeTitle)
+                    if (!episodeDuration.isNullOrBlank()) append(" [$episodeDuration]")
+                    if (!episodeViews.isNullOrBlank()) append(" | $episodeViews")
+                }
+                val episodeVideoId = extractVideoId(href)
+                if (episodeVideoId == currentVideoId) {
                     date_upload = uploadDate
                 }
             }
