@@ -86,25 +86,41 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             ?.queryParameter("v")
     }
 
+    // Helper method from your manga extension
+    private fun String.extraSrc(): String {
+        return split(",").first()
+    }
+
     private fun animeFromCard(cardWrapper: Element): SAnime {
         val title = cardWrapper.selectFirst(".card-mobile-title")?.text()?.trim() ?: "Unknown"
-        val duration = cardWrapper.select(".card-mobile-duration, .video-duration, .video-length")
+        
+        // Try to find the card-mobile-panel inner div for duration/views
+        val innerPanel = cardWrapper.selectFirst(".card-mobile-panel.inner")
+        val targetElement = innerPanel ?: cardWrapper
+        
+        val duration = targetElement.select(".card-mobile-duration, .video-duration, .video-length")
             .mapNotNull { it.text().trim() }
             .firstOrNull { it.contains(":") }
-        val views = cardWrapper.select(".card-mobile-duration, .video-views")
+        
+        val views = targetElement.select(".card-mobile-duration, .video-views")
             .mapNotNull { it.text().trim() }
             .firstOrNull { it.contains("次") }
+        
         val finalTitle = buildString {
             append(title)
             if (!duration.isNullOrBlank()) append(" [$duration]")
             if (!views.isNullOrBlank()) append(" | $views")
         }
+        
+        // Use the exact same thumbnail logic as your manga extension
         val img = cardWrapper.selectFirst("img")
-        val thumbnail = img?.attr("data-src")
-            ?.takeIf { it.isNotBlank() }
+        val thumbnail = img?.attr("data-srcset")?.extraSrc()
+            ?: img?.attr("data-src")?.takeIf { it.isNotBlank() }
             ?: img?.attr("src")
             ?: ""
+        
         val url = cardWrapper.selectFirst("a.overlay")?.attr("href") ?: ""
+        
         return SAnime.create().apply {
             this.title = finalTitle
             setUrlWithoutDomain(url)
@@ -169,43 +185,41 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         val jsoup = response.asJsoup()
         val nodes = jsoup.select("#playlist-scroll").first()?.select(">div") ?: emptyList()
         val currentVideoId = extractCurrentVideoId(jsoup)
-        val uploadDate = jsoup
-            .select("script[type=application/ld+json]")
-            .firstOrNull()
-            ?.data()
-            ?.let {
-                val info = json.decodeFromString<JsonElement>(it).jsonObject
-                info["uploadDate"]?.jsonPrimitive?.content
-            }
-            ?.let { runCatching { uploadDateFormat.parse(it)?.time }.getOrNull() }
-            ?: 0L
-        val targetTitle = jsoup.selectFirst(".single-video-title")?.text()?.trim() ?: ""
-        val fakeDate = try {
-            SimpleDateFormat("dd/MM/yyyy", Locale.US).parse("01/01/1980")?.time ?: 0L
-        } catch (e: Exception) {
-            0L
-        }
+        
         return nodes.mapIndexed { index, element ->
             SEpisode.create().apply {
                 val href = element.select("a.overlay").attr("href")
                 setUrlWithoutDomain(href)
                 episode_number = (nodes.size - index).toFloat()
+                
                 val episodeTitle = element.select("div.card-mobile-title").text()
                 val episodeDuration = element.select(".card-mobile-duration")
                     .firstOrNull { it.text().contains(":") }?.text()?.trim()
                 val episodeViews = element.select(".card-mobile-duration")
                     .firstOrNull { it.text().contains("次") }?.text()?.trim()
+                
                 name = buildString {
                     append(episodeTitle)
                     if (!episodeDuration.isNullOrBlank()) append(" [$episodeDuration]")
                     if (!episodeViews.isNullOrBlank()) append(" | $episodeViews")
                 }
+                
                 val episodeVideoId = extractVideoId(href)
                 if (episodeVideoId == currentVideoId) {
+                    // Set date only for current episode
+                    val uploadDate = jsoup
+                        .select("script[type=application/ld+json]")
+                        .firstOrNull()
+                        ?.data()
+                        ?.let {
+                            val info = json.decodeFromString<JsonElement>(it).jsonObject
+                            info["uploadDate"]?.jsonPrimitive?.content
+                        }
+                        ?.let { runCatching { uploadDateFormat.parse(it)?.time }.getOrNull() }
+                        ?: 0L
                     date_upload = uploadDate
-                } else if (targetTitle.isNotBlank() && episodeTitle.contains(targetTitle, ignoreCase = true)) {
-                    date_upload = fakeDate
                 }
+                // Other episodes remain 0L (will show as "No date" or similar)
             }
         }
     }
@@ -243,36 +257,53 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun searchAnimeParse(response: Response): AnimesPage {
         val jsoup = response.asJsoup()
         val cards = mutableListOf<Element>()
-        val searchDoujinCards = jsoup.select("div.search-doujin-videos")
-        searchDoujinCards.forEach { card ->
+        
+        // 1. Search results with doujin videos
+        jsoup.select("div.search-doujin-videos").forEach { card ->
             if (card.select("a[target=_blank]").isEmpty()) {
                 cards.add(card)
             }
         }
-        val panelCards = jsoup.select("div.card-mobile-panel.inner, div.card-mobile-panel.outer")
-        panelCards.forEach { panel ->
-            val parent = panel.parent()
-            if (parent != null && parent.select(".card-mobile-title").isNotEmpty()) {
-                cards.add(parent)
-            } else {
-                cards.add(panel)
+        
+        // 2. Mobile panel cards (inner and outer)
+        jsoup.select("div.card-mobile-panel.inner, div.card-mobile-panel.outer").forEach { panel ->
+            // Find the parent container that has the card-mobile-title
+            var container = panel
+            var parent = panel.parent()
+            while (parent != null) {
+                if (parent.select(".card-mobile-title").isNotEmpty()) {
+                    container = parent
+                    break
+                }
+                parent = parent.parent()
             }
+            cards.add(container)
         }
-        val homeCards = jsoup.select(".home-rows-videos > a")
-        homeCards.forEach { a ->
-            val parent = a.parent()
-            if (parent != null) {
-                cards.add(parent)
+        
+        // 3. Home page cards - look for direct parent with card-mobile-title
+        jsoup.select(".home-rows-videos > a").forEach { a ->
+            var container = a
+            var parent = a.parent()
+            while (parent != null) {
+                if (parent.select(".card-mobile-title").isNotEmpty()) {
+                    container = parent
+                    break
+                }
+                parent = parent.parent()
             }
+            cards.add(container)
         }
+        
+        // 4. Fallback: find any container with card-mobile-title
         if (cards.isEmpty()) {
-            val allDivs = jsoup.select("div")
-            allDivs.forEach { div ->
-                if (div.select(".card-mobile-title").isNotEmpty()) {
+            jsoup.select("div").forEach { div ->
+                if (div.select(".card-mobile-title").isNotEmpty() && 
+                    div.select("img").isNotEmpty()) {
                     cards.add(div)
                 }
             }
         }
+        
         val list = cards.mapNotNull { card ->
             try {
                 val anime = animeFromCard(card)
@@ -284,6 +315,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 null
             }
         }.distinctBy { it.url }
+        
         val nextPage = jsoup.select("li.page-item a.page-link[rel=next]")
         return AnimesPage(list, nextPage.isNotEmpty())
     }
