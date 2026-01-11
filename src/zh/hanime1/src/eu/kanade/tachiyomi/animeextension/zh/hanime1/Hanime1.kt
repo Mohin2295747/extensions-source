@@ -125,8 +125,8 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 }
             }
             if (thumbnail_url.isNullOrEmpty()) {
-                thumbnail_url = doc.selectFirst("meta[property=og:image]")?.attr("content") ?: 
-                    doc.selectFirst(".single-video-thumbnail img")?.attr("src") ?: ""
+                thumbnail_url = doc.selectFirst("meta[property=og:image]")?.attr("content")
+                    ?: doc.selectFirst(".single-video-thumbnail img")?.attr("src") ?: ""
             }
             val duration = doc.select(".video-duration")
                 .firstOrNull()?.text()?.trim()
