@@ -11,11 +11,11 @@ import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.lib.javcoverfetcher.JavCoverFetcher
-import eu.kanade.tachiyomi.lib.javcoverfetcher.JavCoverFetcher.fetchHDCovers
 import eu.kanade.tachiyomi.lib.playlistutils.PlaylistUtils
 import eu.kanade.tachiyomi.lib.unpacker.Unpacker
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.util.asJsoup
+import kotlinx.coroutines.delay
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
@@ -72,18 +72,31 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
         val url = baseUrl.toHttpUrl().newBuilder().apply {
-            val genre = filters.firstInstanceOrNull<GenreList>()?.selected
+            val params = getSearchParameters(filters)
+            // If we have multi-genre filters, don't use a specific genre URL
             if (query.isNotEmpty()) {
                 addEncodedPathSegments("en/search")
                 addPathSegment(query.trim())
-            } else if (genre != null) {
-                addEncodedPathSegments(genre)
+            } else if (params.genres.isEmpty() && params.blacklisted.isEmpty()) {
+                // Only use single genre filter if no multi-genre filters are active
+                val genreFilter = filters.get(1) as? GenreList
+                val genre = if (genreFilter?.state == 0) null else GenreList.GENRES[genreFilter?.state ?: 0].second
+                if (genre != null && genre.isNotEmpty()) {
+                    addEncodedPathSegments(genre)
+                } else {
+                    addEncodedPathSegments("en/new")
+                }
             } else {
+                // For multi-genre filtering, use the general new page
                 addEncodedPathSegments("en/new")
             }
-            filters.firstInstanceOrNull<SortFilter>()?.selected?.let {
+
+            val sortFilter = filters.get(0) as? SortFilter
+            val sort = if (sortFilter?.state == 0) null else SortFilter.SORT[sortFilter?.state ?: 0].second
+            sort?.let {
                 addQueryParameter("sort", it)
             }
+
             addQueryParameter("page", page.toString())
         }.build().toString()
 
@@ -93,6 +106,66 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun getFilterList() = getFilters()
 
     override fun searchAnimeParse(response: Response) = popularAnimeParse(response)
+
+    override suspend fun getSearchAnime(page: Int, query: String, filters: AnimeFilterList): AnimesPage {
+        val pageResult = super.getSearchAnime(page, query, filters)
+        val params = getSearchParameters(filters)
+
+        // Only apply client-side filtering if we have multi-genre filters and no text query
+        if ((params.genres.isNotEmpty() || params.blacklisted.isNotEmpty()) && query.isEmpty()) {
+            val filteredEntries = mutableListOf<SAnime>()
+            var processedCount = 0
+            val maxToProcess = 20 // Limit to avoid timeout
+            for (anime in pageResult.animes.take(maxToProcess)) {
+                try {
+                    // Add a small delay between requests to avoid being blocked
+                    if (processedCount > 0) {
+                        delay(100)
+                    }
+                    val detailsResponse = client.newCall(GET(anime.url, headers)).execute()
+                    if (detailsResponse.isSuccessful) {
+                        val details = animeDetailsParse(detailsResponse)
+                        detailsResponse.close()
+
+                        val animeGenres = details.genre?.split(", ") ?: emptyList()
+
+                        val includesGenres = params.genres.all { includedGenre ->
+                            animeGenres.any { it.equals(includedGenre, ignoreCase = true) }
+                        }
+
+                        val excludesGenres = params.blacklisted.none { excludedGenre ->
+                            animeGenres.any { it.equals(excludedGenre, ignoreCase = true) }
+                        }
+
+                        if (includesGenres && excludesGenres) {
+                            filteredEntries.add(anime)
+                        }
+                        processedCount++
+                    } else {
+                        detailsResponse.close()
+                    }
+                } catch (e: Exception) {
+                    // If we can't fetch details, skip this anime
+                    continue
+                }
+                // If we're taking too long, break early
+                if (processedCount >= 10) {
+                    break
+                }
+            }
+            // If we didn't find any matches but processed some anime, return original results
+            // to avoid showing "no results" when filtering just didn't match
+            if (filteredEntries.isEmpty() && processedCount > 0) {
+                // Return empty page with no results (filter didn't match anything)
+                return AnimesPage(emptyList(), false)
+            } else if (filteredEntries.isNotEmpty()) {
+                return AnimesPage(filteredEntries, pageResult.hasNextPage && filteredEntries.size >= 20)
+            }
+            // If we didn't process anything (all failed), return original results
+        }
+
+        return pageResult
+    }
 
     override fun animeDetailsParse(response: Response): SAnime {
         val document = response.asJsoup()
@@ -119,7 +192,7 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
                     .eachText()
                     .forEach { append("\n$it") }
             }
-            thumbnail_url = if (preferences.fetchHDCovers) {
+            thumbnail_url = if (preferences.getBoolean("fetch_hd_covers", false)) {
                 JavCoverFetcher.getCoverByTitle(jpTitle) ?: siteCover
             } else {
                 siteCover
@@ -179,9 +252,6 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun episodeListParse(response: Response): List<SEpisode> {
         throw UnsupportedOperationException()
     }
-
-    private inline fun <reified T> List<*>.firstInstanceOrNull(): T? =
-        filterIsInstance<T>().firstOrNull()
 
     companion object {
         private const val PREF_QUALITY = "preferred_quality"
