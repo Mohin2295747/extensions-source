@@ -31,6 +31,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Cookie
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Interceptor
 import okhttp3.Request
 import okhttp3.Response
@@ -78,12 +79,19 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         }
     }
 
+    private fun extractCurrentVideoId(doc: org.jsoup.nodes.Document): String? {
+        return doc.select("meta[property=og:url]")
+            .attr("content")
+            .toHttpUrlOrNull()
+            ?.queryParameter("v")
+    }
+
     private fun animeFromCard(cardWrapper: Element): SAnime {
         val title = cardWrapper.selectFirst(".card-mobile-title")?.text()?.trim() ?: "Unknown"
-        val duration = cardWrapper.select(".card-mobile-duration")
+        val duration = cardWrapper.select(".card-mobile-duration, .video-duration, .video-length")
             .mapNotNull { it.text().trim() }
             .firstOrNull { it.contains(":") }
-        val views = cardWrapper.select(".card-mobile-duration")
+        val views = cardWrapper.select(".card-mobile-duration, .video-views")
             .mapNotNull { it.text().trim() }
             .firstOrNull { it.contains("次") }
         val finalTitle = buildString {
@@ -91,7 +99,11 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             if (!duration.isNullOrBlank()) append(" [$duration]")
             if (!views.isNullOrBlank()) append(" | $views")
         }
-        val thumbnail = cardWrapper.selectFirst("img")?.attr("src") ?: ""
+        val img = cardWrapper.selectFirst("img")
+        val thumbnail = img?.attr("data-src")
+            ?.takeIf { it.isNotBlank() }
+            ?: img?.attr("src")
+            ?: ""
         val url = cardWrapper.selectFirst("a.overlay")?.attr("href") ?: ""
         return SAnime.create().apply {
             this.title = finalTitle
@@ -103,6 +115,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun animeDetailsParse(response: Response): SAnime {
         val doc = response.asJsoup()
         val useEnglish = preferences.getBoolean(PREF_KEY_USE_ENGLISH, true)
+        val animeTitle = doc.selectFirst(".single-video-title")?.text()?.trim() ?: ""
         return SAnime.create().apply {
             val tags = doc.select(".single-video-tag").not("[data-toggle]").eachText()
             genre = if (useEnglish) {
@@ -140,7 +153,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         val animesPage =
                             getSearchAnime(
                                 1,
-                                title,
+                                animeTitle,
                                 AnimeFilterList(GenreFilter(arrayOf("", type)).apply { state = 1 }),
                             )
                         thumbnail_url = animesPage.animes.first().thumbnail_url
@@ -155,7 +168,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun episodeListParse(response: Response): List<SEpisode> {
         val jsoup = response.asJsoup()
         val nodes = jsoup.select("#playlist-scroll").first()?.select(">div") ?: emptyList()
-        val currentVideoId = extractVideoId(response.request.url.toString())
+        val currentVideoId = extractCurrentVideoId(jsoup)
         val uploadDate = jsoup
             .select("script[type=application/ld+json]")
             .firstOrNull()
@@ -166,6 +179,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             }
             ?.let { runCatching { uploadDateFormat.parse(it)?.time }.getOrNull() }
             ?: 0L
+        val targetTitle = jsoup.selectFirst(".single-video-title")?.text()?.trim() ?: ""
+        val fakeDate = try {
+            SimpleDateFormat("dd/MM/yyyy", Locale.US).parse("01/01/1980")?.time ?: 0L
+        } catch (e: Exception) {
+            0L
+        }
         return nodes.mapIndexed { index, element ->
             SEpisode.create().apply {
                 val href = element.select("a.overlay").attr("href")
@@ -184,6 +203,8 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 val episodeVideoId = extractVideoId(href)
                 if (episodeVideoId == currentVideoId) {
                     date_upload = uploadDate
+                } else if (targetTitle.isNotBlank() && episodeTitle.contains(targetTitle, ignoreCase = true)) {
+                    date_upload = fakeDate
                 }
             }
         }
@@ -228,7 +249,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 cards.add(card)
             }
         }
-        val panelCards = jsoup.select("div.card-mobile-panel.inner")
+        val panelCards = jsoup.select("div.card-mobile-panel.inner, div.card-mobile-panel.outer")
         panelCards.forEach { panel ->
             val parent = panel.parent()
             if (parent != null && parent.select(".card-mobile-title").isNotEmpty()) {
