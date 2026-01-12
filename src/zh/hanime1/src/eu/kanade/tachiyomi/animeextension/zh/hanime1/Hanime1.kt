@@ -69,11 +69,32 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.getDefault())
     }
 
+    // Helper function to clean list titles (removes duration and view counts)
+    private fun cleanListTitle(rawTitle: String): String {
+        return rawTitle
+            .replace("""\s*\[[0-9:]+\]\s*""".toRegex(), "") // Remove [19:45]
+            .replace("""\s*\|\s*[0-9.]+萬次\s*""".toRegex(), "") // Remove | 438.5萬次
+            .replace("""\s*\|\s*thumb_up\s*\d+%\s*\(\d+\)\s*""".toRegex(), "") // Remove | thumb_up 98% (229)
+            .replace("""\u200B""".toRegex(), "") // Remove invisible character
+            .trim()
+    }
+
+    // Helper function to extract clean episode name
+    private fun cleanEpisodeName(episodeName: String): String {
+        return episodeName
+            .replace("""\s*\[[0-9:]+\]\s*""".toRegex(), "")
+            .replace("""\s*\|\s*.*""".toRegex(), "")
+            .trim()
+    }
+
     override fun animeDetailsParse(response: Response): SAnime {
         val doc = response.asJsoup()
         val useEnglish = preferences.getBoolean(PREF_KEY_USE_ENGLISH, true)
 
         return SAnime.create().apply {
+            // FIX for Problem 3: Initialize title first to avoid lateinit crash
+            title = ""
+            
             genre = doc.select(".single-video-tag").not("[data-toggle]").eachText().let { tags ->
                 if (useEnglish) {
                     tags.map { chineseTag ->
@@ -86,10 +107,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
             author = doc.select("#video-artist-name").text()
 
+            // Parse JSON-LD metadata
+            var originalTitle = ""
             doc.select("script[type=application/ld+json]").first()?.data()?.let {
                 try {
                     val info = json.decodeFromString<JsonElement>(it).jsonObject
-                    val originalTitle = info["name"]!!.jsonPrimitive.content
+                    originalTitle = info["name"]!!.jsonPrimitive.content
                     description = info["description"]!!.jsonPrimitive.content
                     thumbnail_url = info["thumbnailUrl"]?.jsonArray?.get(0)?.jsonPrimitive?.content
 
@@ -103,6 +126,15 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 } catch (e: Exception) {
                     Log.e(name, "Failed to parse JSON-LD: ${e.message}")
                 }
+            }
+
+            // FIX for Problem 4: Get description from video-caption-text if JSON-LD is empty
+            if (description.isNullOrBlank()) {
+                description = doc.select("div.video-caption-text.caption-ellipsis")
+                    .firstOrNull()
+                    ?.text()
+                    ?.trim()
+                    ?: ""
             }
 
             if (title.isNullOrEmpty()) {
@@ -127,12 +159,19 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             if (type == "裏番" || type == "泡麵番") {
                 runBlocking {
                     try {
-                        val animesPage = getSearchAnime(
-                            1,
-                            title.replace(" \\[.*\\]".toRegex(), ""),
-                            AnimeFilterList(GenreFilter(arrayOf("", type)).apply { state = 1 }),
-                        )
-                        thumbnail_url = animesPage.animes.firstOrNull()?.thumbnail_url ?: thumbnail_url
+                        // FIX for Problem 2: Use clean title for thumbnail search
+                        val cleanSearchTitle = cleanListTitle(originalTitle).ifBlank {
+                            cleanListTitle(title ?: "")
+                        }
+                        
+                        if (cleanSearchTitle.isNotBlank()) {
+                            val animesPage = getSearchAnime(
+                                1,
+                                cleanSearchTitle,
+                                AnimeFilterList(GenreFilter(arrayOf("", type)).apply { state = 1 }),
+                            )
+                            thumbnail_url = animesPage.animes.firstOrNull()?.thumbnail_url ?: thumbnail_url
+                        }
                     } catch (e: Exception) {
                         Log.e(name, "Failed to get bangumi cover image: ${e.message}")
                     }
@@ -143,7 +182,33 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun episodeListParse(response: Response): List<SEpisode> {
         val jsoup = response.asJsoup()
-        val nodes = jsoup.select("#playlist-scroll").first()!!.select(">div")
+        val nodes = jsoup.select("#playlist-scroll").first()?.select(">div") ?: return emptyList()
+        
+        // Get current video title for date matching
+        val currentVideoTitle = jsoup.select("script[type=application/ld+json]").firstOrNull()?.data()?.let {
+            try {
+                val info = json.decodeFromString<JsonElement>(it).jsonObject
+                info["name"]?.jsonPrimitive?.content
+            } catch (e: Exception) {
+                null
+            }
+        }?.let { cleanEpisodeName(it) }
+        
+        // Get upload date from JSON-LD
+        var currentVideoDate: Long = 0L
+        jsoup.select("script[type=application/ld+json]").first()?.data()?.let {
+            try {
+                val info = json.decodeFromString<JsonElement>(it).jsonObject
+                info["uploadDate"]?.jsonPrimitive?.content?.let { date ->
+                    currentVideoDate = runCatching {
+                        uploadDateFormat.parse(date)?.time
+                    }.getOrNull() ?: 0L
+                }
+            } catch (e: Exception) {
+                Log.e(name, "Failed to parse upload date: ${e.message}")
+            }
+        }
+
         return nodes.mapIndexed { index, element ->
             SEpisode.create().apply {
                 val href = element.select("a.overlay").attr("href")
@@ -164,19 +229,10 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     if (!episodeViews.isNullOrBlank()) append(" | $episodeViews")
                 }
 
-                if (href == response.request.url.toString()) {
-                    jsoup.select("script[type=application/ld+json]").first()?.data()?.let {
-                        try {
-                            val info = json.decodeFromString<JsonElement>(it).jsonObject
-                            info["uploadDate"]?.jsonPrimitive?.content?.let { date ->
-                                date_upload = runCatching {
-                                    uploadDateFormat.parse(date)?.time
-                                }.getOrNull() ?: 0L
-                            }
-                        } catch (e: Exception) {
-                            Log.e(name, "Failed to parse upload date: ${e.message}")
-                        }
-                    }
+                // FIX for Problem 5: Match by cleaned episode title instead of URL
+                val cleanEpisodeTitle = cleanEpisodeName(episodeTitle)
+                if (currentVideoTitle != null && cleanEpisodeTitle == currentVideoTitle) {
+                    date_upload = currentVideoDate
                 }
             }
         }
@@ -245,9 +301,13 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             nodes.map { element ->
                 SAnime.create().apply {
                     setUrlWithoutDomain(element.select("a[class=overlay]").attr("href"))
-                    thumbnail_url = element.select("img").attr("src").takeIf { it.isNotBlank() }
+                    thumbnail_url = element.select("img + img").attr("src").takeIf { it.isNotBlank() }
                         ?: element.select("img").firstOrNull()?.attr("src") ?: ""
-                    title = element.select("div.card-mobile-title").text().appendInvisibleChar()
+                    
+                    // FIX for Problem 1: Clean the title before displaying
+                    val rawTitle = element.select("div.card-mobile-title").text()
+                    title = cleanListTitle(rawTitle).appendInvisibleChar()
+                    
                     author = element.select(".card-mobile-user").text()
                 }
             }
@@ -256,7 +316,10 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 SAnime.create().apply {
                     setUrlWithoutDomain(element.parent()!!.attr("href"))
                     thumbnail_url = element.select("img").attr("src")
-                    title = element.select(".home-rows-videos-title").text().appendInvisibleChar()
+                    
+                    // FIX for Problem 1: Clean the title before displaying
+                    val rawTitle = element.select(".home-rows-videos-title").text()
+                    title = cleanListTitle(rawTitle).appendInvisibleChar()
                 }
             }
         }
