@@ -90,7 +90,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         val useEnglish = preferences.getBoolean(PREF_KEY_USE_ENGLISH, true)
 
         return SAnime.create().apply {
-            title = ""            
+            title = ""
             val tags = doc.select(".single-video-tag").not("[data-toggle]").eachText()
             genre = if (useEnglish) {
                 tags.map { chineseTag ->
@@ -153,12 +153,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 runBlocking {
                     try {
                         val cleanOriginal = cleanListTitle(originalTitle)
-                        val cleanCurrent = cleanListTitle(title ?: "")                        
+                        val cleanCurrent = cleanListTitle(title ?: "")
                         val cleanSearchTitle = when {
                             cleanOriginal.isNotBlank() -> cleanOriginal
                             cleanCurrent.isNotBlank() -> cleanCurrent
                             else -> ""
-                        }                        
+                        }
                         if (cleanSearchTitle.isNotBlank()) {
                             val animesPage = getSearchAnime(
                                 1,
