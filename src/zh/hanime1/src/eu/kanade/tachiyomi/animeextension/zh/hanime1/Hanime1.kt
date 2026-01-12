@@ -153,10 +153,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             if (type == "裏番" || type == "泡麵番") {
                 runBlocking {
                     try {
-                        val cleanSearchTitle = if (cleanListTitle(originalTitle).isNotBlank()) {
-                            cleanListTitle(originalTitle)
-                        } else {
-                            cleanListTitle(title ?: "")
+                        val cleanOriginal = cleanListTitle(originalTitle)
+                        val cleanCurrent = cleanListTitle(title ?: "")
+                        val cleanSearchTitle = when {
+                            cleanOriginal.isNotBlank() -> cleanOriginal
+                            cleanCurrent.isNotBlank() -> cleanCurrent
+                            else -> ""
                         }
                         if (cleanSearchTitle.isNotBlank()) {
                             val animesPage = getSearchAnime(
