@@ -93,8 +93,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
         return SAnime.create().apply {
             // FIX for Problem 3: Initialize title first to avoid lateinit crash
-            title = ""
-            
+            title = ""           
             genre = doc.select(".single-video-tag").not("[data-toggle]").eachText().let { tags ->
                 if (useEnglish) {
                     tags.map { chineseTag ->
@@ -162,8 +161,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         // FIX for Problem 2: Use clean title for thumbnail search
                         val cleanSearchTitle = cleanListTitle(originalTitle).ifBlank {
                             cleanListTitle(title ?: "")
-                        }
-                        
+                        }                        
                         if (cleanSearchTitle.isNotBlank()) {
                             val animesPage = getSearchAnime(
                                 1,
@@ -182,8 +180,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun episodeListParse(response: Response): List<SEpisode> {
         val jsoup = response.asJsoup()
-        val nodes = jsoup.select("#playlist-scroll").first()?.select(">div") ?: return emptyList()
-        
+        val nodes = jsoup.select("#playlist-scroll").first()?.select(">div") ?: return emptyList()        
         // Get current video title for date matching
         val currentVideoTitle = jsoup.select("script[type=application/ld+json]").firstOrNull()?.data()?.let {
             try {
@@ -192,8 +189,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             } catch (e: Exception) {
                 null
             }
-        }?.let { cleanEpisodeName(it) }
-        
+        }?.let { cleanEpisodeName(it) }        
         // Get upload date from JSON-LD
         var currentVideoDate: Long = 0L
         jsoup.select("script[type=application/ld+json]").first()?.data()?.let {
@@ -302,12 +298,10 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 SAnime.create().apply {
                     setUrlWithoutDomain(element.select("a[class=overlay]").attr("href"))
                     thumbnail_url = element.select("img + img").attr("src").takeIf { it.isNotBlank() }
-                        ?: element.select("img").firstOrNull()?.attr("src") ?: ""
-                    
+                        ?: element.select("img").firstOrNull()?.attr("src") ?: ""                    
                     // FIX for Problem 1: Clean the title before displaying
                     val rawTitle = element.select("div.card-mobile-title").text()
-                    title = cleanListTitle(rawTitle).appendInvisibleChar()
-                    
+                    title = cleanListTitle(rawTitle).appendInvisibleChar()                    
                     author = element.select(".card-mobile-user").text()
                 }
             }
@@ -315,8 +309,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             jsoup.select("a:not([target]) > .search-videos").map { element ->
                 SAnime.create().apply {
                     setUrlWithoutDomain(element.parent()!!.attr("href"))
-                    thumbnail_url = element.select("img").attr("src")
-                    
+                    thumbnail_url = element.select("img").attr("src")                   
                     // FIX for Problem 1: Clean the title before displaying
                     val rawTitle = element.select(".home-rows-videos-title").text()
                     title = cleanListTitle(rawTitle).appendInvisibleChar()
