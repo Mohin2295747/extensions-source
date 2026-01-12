@@ -292,8 +292,14 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             nodes.map { element ->
                 SAnime.create().apply {
                     setUrlWithoutDomain(element.select("a[class=overlay]").attr("href"))
-                    thumbnail_url = element.select("img + img").attr("src").takeIf { it.isNotBlank() }
-                        ?: element.select("img").firstOrNull()?.attr("src") ?: ""
+                    thumbnail_url = element.select("img + img")
+                        .firstOrNull()
+                        ?.attr("src")
+                        ?.takeIf { it.isNotBlank() }
+                        ?: element.select("img")
+                            .firstOrNull()
+                            ?.attr("src")
+                            .orEmpty()
                     val rawTitle = element.select("div.card-mobile-title").text()
                     title = cleanListTitle(rawTitle).appendInvisibleChar()
                     author = element.select(".card-mobile-user").text()
