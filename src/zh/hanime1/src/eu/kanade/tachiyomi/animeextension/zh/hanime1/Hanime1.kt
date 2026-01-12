@@ -91,14 +91,14 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
         return SAnime.create().apply {
             title = ""
-            genre = doc.select(".single-video-tag").not("[data-toggle]").eachText().let { tags ->
-                if (useEnglish) {
-                    tags.map { chineseTag ->
-                        Tags.getTranslatedTag(chineseTag) ?: chineseTag
-                    }.joinToString()
-                } else {
-                    tags.joinToString()
-                }
+            
+            val tags = doc.select(".single-video-tag").not("[data-toggle]").eachText()
+            genre = if (useEnglish) {
+                tags.map { chineseTag ->
+                    Tags.getTranslatedTag(chineseTag) ?: chineseTag
+                }.joinToString()
+            } else {
+                tags.joinToString()
             }
 
             author = doc.select("#video-artist-name").text()
@@ -155,11 +155,13 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     try {
                         val cleanOriginal = cleanListTitle(originalTitle)
                         val cleanCurrent = cleanListTitle(title ?: "")
+                        
                         val cleanSearchTitle = when {
                             cleanOriginal.isNotBlank() -> cleanOriginal
                             cleanCurrent.isNotBlank() -> cleanCurrent
                             else -> ""
                         }
+                        
                         if (cleanSearchTitle.isNotBlank()) {
                             val animesPage = getSearchAnime(
                                 1,
