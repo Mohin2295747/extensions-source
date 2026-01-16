@@ -196,9 +196,9 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             document.select(expectedSelector).isEmpty() &&
             (
                 document.text().contains("Cloudflare", ignoreCase = true) ||
-                document.text().contains("Verify you are human", ignoreCase = true) ||
-                document.text().contains("Age Verification", ignoreCase = true)
-            )
+                    document.text().contains("Verify you are human", ignoreCase = true) ||
+                    document.text().contains("Age Verification", ignoreCase = true)
+                )
         ) {
             true
         } else {
