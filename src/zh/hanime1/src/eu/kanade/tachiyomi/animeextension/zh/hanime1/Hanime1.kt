@@ -677,8 +677,21 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     setDefaultValue(true)
                 },
             )
+            
             addPreference(
-                EditTextPreference(screen.context).apply {
+                Preference().apply {
+                    key = "cookie_status"
+                    title = "Cookie status"
+                    summary = if (preferences.getBoolean(PREF_KEY_COOKIE_INVALID, false)) {
+                        "⚠ Cookies expired or blocked. Re-import from WebView or browser."
+                    } else {
+                        "Cookies are valid"
+                    }
+                }
+            )
+            
+            addPreference(
+                EditTextPreference(context).apply {
                     key = PREF_KEY_IMPORTED_COOKIES
                     title = "Import cookies (JSON or raw)"
                     summary = "Paste cookies in JSON array format (from browser extensions) or raw cookies"
@@ -699,7 +712,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 },
             )
             addPreference(
-                EditTextPreference(screen.context).apply {
+                EditTextPreference(context).apply {
                     key = PREF_KEY_CUSTOM_UA
                     title = "Custom User-Agent"
                     summary = "Optional: paste browser User-Agent"
@@ -713,7 +726,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 },
             )
             addPreference(
-                ListPreference(screen.context).apply {
+                ListPreference(context).apply {
                     key = PREF_KEY_VIDEO_QUALITY
                     title = "設置首選畫質"
                     entries = arrayOf("1080P", "720P", "480P")
@@ -727,7 +740,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 },
             )
             addPreference(
-                ListPreference(screen.context).apply {
+                ListPreference(context).apply {
                     key = PREF_KEY_LANG
                     title = "設置首選語言"
                     summary = "該設置僅影響影片字幕"
