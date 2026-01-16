@@ -115,14 +115,19 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         document: Document,
         expectedSelector: String,
     ) {
-        val blocked =
+        val blocked = if (
             response.code in listOf(403, 503) ||
-                document.select(expectedSelector).isEmpty() &&
-                (
-                    document.text().contains("Cloudflare", ignoreCase = true) ||
-                        document.text().contains("Verify you are human", ignoreCase = true) ||
-                        document.text().contains("Age Verification", ignoreCase = true)
-                    )
+            document.select(expectedSelector).isEmpty() &&
+            (
+                document.text().contains("Cloudflare", ignoreCase = true) ||
+                document.text().contains("Verify you are human", ignoreCase = true) ||
+                document.text().contains("Age Verification", ignoreCase = true)
+            )
+        ) {
+            true
+        } else {
+            false
+        }
 
         preferences.edit()
             .putBoolean(PREF_KEY_COOKIE_INVALID, blocked)
@@ -591,19 +596,16 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     setDefaultValue(true)
                 },
             )
-            addPreference(
-                Preference(context).apply {
-                    title = "Cookie status"
-                    summary = if (
-                        preferences.getBoolean(PREF_KEY_COOKIE_INVALID, false)
-                    ) {
-                        "⚠ Cookies expired or blocked. Re-import from WebView or browser."
-                    } else {
-                        "Cookies are valid"
-                    }
-                    isSelectable = false
-                },
-            )
+            val cookieStatusPreference = Preference(context).apply {
+                title = "Cookie status"
+                if (preferences.getBoolean(PREF_KEY_COOKIE_INVALID, false)) {
+                    summary = "⚠ Cookies expired or blocked. Re-import from WebView or browser."
+                } else {
+                    summary = "Cookies are valid"
+                }
+            }
+            cookieStatusPreference.isSelectable = false
+            addPreference(cookieStatusPreference)
             addPreference(
                 EditTextPreference(context).apply {
                     key = PREF_KEY_IMPORTED_COOKIES
