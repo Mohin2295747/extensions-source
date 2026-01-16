@@ -677,18 +677,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     setDefaultValue(true)
                 },
             )
-            // Create Preference without context parameter
-            addPreference(
-                Preference(screen.context).apply {
-                    key = "cookie_status"
-                    title = "Cookie status"
-                    summary = if (preferences.getBoolean(PREF_KEY_COOKIE_INVALID, false)) {
-                        "⚠ Cookies expired or blocked. Re-import from WebView or browser."
-                    } else {
-                        "Cookies are valid"
-                    }
-                },
-            )
             addPreference(
                 EditTextPreference(screen.context).apply {
                     key = PREF_KEY_IMPORTED_COOKIES
