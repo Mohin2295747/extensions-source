@@ -596,16 +596,17 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     setDefaultValue(true)
                 },
             )
-            val cookieStatusPreference = Preference(context).apply {
-                title = "Cookie status"
-                if (preferences.getBoolean(PREF_KEY_COOKIE_INVALID, false)) {
-                    summary = "⚠ Cookies expired or blocked. Re-import from WebView or browser."
-                } else {
-                    summary = "Cookies are valid"
-                }
-            }
-            cookieStatusPreference.isSelectable = false
-            addPreference(cookieStatusPreference)
+            addPreference(
+                Preference(context).apply {
+                    key = "cookie_status"
+                    title = "Cookie status"
+                    summary = if (preferences.getBoolean(PREF_KEY_COOKIE_INVALID, false)) {
+                        "⚠ Cookies expired or blocked. Re-import from WebView or browser."
+                    } else {
+                        "Cookies are valid"
+                    }
+                },
+            )
             addPreference(
                 EditTextPreference(context).apply {
                     key = PREF_KEY_IMPORTED_COOKIES
