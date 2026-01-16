@@ -117,12 +117,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     ) {
         val blocked =
             response.code in listOf(403, 503) ||
-                    document.select(expectedSelector).isEmpty() &&
-                    (
-                            document.text().contains("Cloudflare", ignoreCase = true) ||
-                                    document.text().contains("Verify you are human", ignoreCase = true) ||
-                                    document.text().contains("Age Verification", ignoreCase = true)
-                            )
+                document.select(expectedSelector).isEmpty() &&
+                (
+                    document.text().contains("Cloudflare", ignoreCase = true) ||
+                        document.text().contains("Verify you are human", ignoreCase = true) ||
+                        document.text().contains("Age Verification", ignoreCase = true)
+                    )
 
         preferences.edit()
             .putBoolean(PREF_KEY_COOKIE_INVALID, blocked)
