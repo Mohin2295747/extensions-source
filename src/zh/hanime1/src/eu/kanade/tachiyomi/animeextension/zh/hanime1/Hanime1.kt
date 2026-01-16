@@ -676,8 +676,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     summary = "Show filter names in English (also affects tags in anime details)"
                     setDefaultValue(true)
                 },
-            )
-            
+            )            
             // Create Preference without context parameter
             addPreference(
                 Preference(screen.context).apply {
@@ -688,9 +687,8 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     } else {
                         "Cookies are valid"
                     }
-                }
-            )
-            
+                },
+            )            
             addPreference(
                 EditTextPreference(screen.context).apply {
                     key = PREF_KEY_IMPORTED_COOKIES
@@ -711,8 +709,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         true
                     }
                 },
-            )
-            
+            )            
             addPreference(
                 EditTextPreference(screen.context).apply {
                     key = PREF_KEY_CUSTOM_UA
@@ -726,8 +723,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         true
                     }
                 },
-            )
-            
+            )            
             addPreference(
                 ListPreference(screen.context).apply {
                     key = PREF_KEY_VIDEO_QUALITY
@@ -741,8 +737,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         true
                     }
                 },
-            )
-            
+            )            
             addPreference(
                 ListPreference(screen.context).apply {
                     key = PREF_KEY_LANG
