@@ -220,6 +220,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         Log.e(name, "Failed to get bangumi cover image: ${e.message}")
                     }
                 }
+            } else {
             }
         }
     }
@@ -597,7 +598,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 },
             )
             addPreference(
-                Preference(context).apply {
+                Preference().apply {
                     key = "cookie_status"
                     title = "Cookie status"
                     summary = if (preferences.getBoolean(PREF_KEY_COOKIE_INVALID, false)) {
@@ -605,6 +606,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     } else {
                         "Cookies are valid"
                     }
+                    isSelectable = false
                 },
             )
             addPreference(
