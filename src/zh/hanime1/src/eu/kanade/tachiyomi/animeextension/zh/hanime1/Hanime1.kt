@@ -599,7 +599,15 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 },
             )
             addPreference(
-                Preference().apply {
+                SwitchPreferenceCompat(context).apply {
+                    key = PREF_KEY_USE_ENGLISH
+                    title = "Use English filters"
+                    summary = "Show filter names in English (also affects tags in anime details)"
+                    setDefaultValue(true)
+                },
+            )
+            addPreference(
+                Preference(context).apply {
                     key = "cookie_status"
                     title = "Cookie status"
                     summary = if (preferences.getBoolean(PREF_KEY_COOKIE_INVALID, false)) {
@@ -607,7 +615,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     } else {
                         "Cookies are valid"
                     }
-                    setSelectable(false)
                 },
             )
             addPreference(
