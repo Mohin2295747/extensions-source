@@ -90,7 +90,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 val cookieList = json.decodeFromString<List<JsonElement>>(cookieStr)
                 val cookies = mutableListOf<Cookie>()
                 val httpUrl = baseUrl.toHttpUrl()
-                
+
                 for (cookieJson in cookieList) {
                     try {
                         val obj = cookieJson.jsonObject
@@ -100,7 +100,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         val path = obj["path"]?.jsonPrimitive?.content ?: "/"
                         val secure = obj["secure"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
                         val httpOnly = obj["httpOnly"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
-                        
+
                         // Create cookie using parse method
                         val cookie = Cookie.Builder()
                             .name(name)
@@ -114,7 +114,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                                 sameSite("Lax")
                             }
                             .build()
-                        
+
                         cookies.add(cookie)
                     } catch (e: Exception) {
                         Log.w(name, "Failed to parse cookie: ${e.message}")
@@ -135,10 +135,10 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     private fun parseRawCookies(cookieStr: String): List<Cookie> {
         val cookies = mutableListOf<Cookie>()
         val httpUrl = baseUrl.toHttpUrl()
-        
+
         // Split by semicolon and parse each cookie
         cookieStr.split(";").forEach { cookiePair ->
-            val trimmed = cookiePair.trim()
+            val trimmed = cookiePair.trim().replace("\n", "").replace("\r", "")
             if (trimmed.isNotEmpty()) {
                 try {
                     val cookie = Cookie.parse(httpUrl, trimmed)
@@ -198,9 +198,9 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             document.select(expectedSelector).isEmpty() &&
             (
                 document.text().contains("Cloudflare", ignoreCase = true) ||
-                    document.text().contains("Verify you are human", ignoreCase = true) ||
-                    document.text().contains("Age Verification", ignoreCase = true)
-                )
+                document.text().contains("Verify you are human", ignoreCase = true) ||
+                document.text().contains("Age Verification", ignoreCase = true)
+            )
         ) {
             true
         } else {
@@ -281,25 +281,24 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     try {
                         val cleanOriginal = cleanListTitle(originalTitle)
                         val cleanCurrent = cleanListTitle(title ?: "")
-                        val cleanSearchTitle = when {
-                            cleanOriginal.isNotBlank() -> cleanOriginal
-                            cleanCurrent.isNotBlank() -> cleanCurrent
-                            else -> ""
-                        }
-                        if (cleanSearchTitle.isNotBlank()) {
+                        val cleanSearchTitle = cleanOriginal.takeIf { it.isNotBlank() }
+                            ?: cleanCurrent.takeIf { it.isNotBlank() }
+                            ?: ""
+
+                        thumbnail_url = if (cleanSearchTitle.isNotBlank()) {
                             val animesPage = getSearchAnime(
                                 1,
                                 cleanSearchTitle,
                                 AnimeFilterList(GenreFilter(arrayOf("", type)).apply { state = 1 }),
                             )
-                            thumbnail_url = animesPage.animes.firstOrNull()?.thumbnail_url ?: thumbnail_url
+                            animesPage.animes.firstOrNull()?.thumbnail_url ?: thumbnail_url
                         } else {
+                            thumbnail_url
                         }
                     } catch (e: Exception) {
                         Log.e(name, "Failed to get bangumi cover image: ${e.message}")
                     }
                 }
-            } else {
             }
         }
     }
@@ -323,7 +322,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     currentVideoDate = runCatching {
                         uploadDateFormat.parse(date)?.time
                     }.getOrNull() ?: 0L
-            }
+                }
             } catch (e: Exception) {
                 Log.e(name, "Failed to parse upload date: ${e.message}")
             }
@@ -393,16 +392,20 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     override fun latestUpdatesParse(response: Response): AnimesPage {
-        val page = searchAnimeParse(response)
-        checkCookieHealth(response, response.asJsoup(), "div.search-doujin-videos")
+        val bodyString = response.body!!.string()
+        val doc = bodyString.asJsoup()
+        val page = searchAnimeParseFromDocument(doc)
+        checkCookieHealth(response, doc, "div.search-doujin-videos")
         return page
     }
 
     override fun latestUpdatesRequest(page: Int) = searchAnimeRequest(page, "", AnimeFilterList())
 
     override fun popularAnimeParse(response: Response): AnimesPage {
-        val page = searchAnimeParse(response)
-        checkCookieHealth(response, response.asJsoup(), "div.search-doujin-videos")
+        val bodyString = response.body!!.string()
+        val doc = bodyString.asJsoup()
+        val page = searchAnimeParseFromDocument(doc)
+        checkCookieHealth(response, doc, "div.search-doujin-videos")
         return page
     }
 
@@ -422,6 +425,10 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun searchAnimeParse(response: Response): AnimesPage {
         val jsoup = response.asJsoup()
+        return searchAnimeParseFromDocument(jsoup)
+    }
+
+    private fun searchAnimeParseFromDocument(jsoup: Document): AnimesPage {
         val nodes = jsoup.select("div.search-doujin-videos")
 
         val list = if (nodes.isNotEmpty()) {
@@ -452,7 +459,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             }
         }
 
-        checkCookieHealth(response, jsoup, "div.search-doujin-videos")
+        checkCookieHealth(Response.Builder().build(), jsoup, "div.search-doujin-videos")
 
         val nextPage = jsoup.select("li.page-item a.page-link[rel=next]")
         return AnimesPage(list, nextPage.isNotEmpty())
@@ -677,7 +684,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 },
             )
             addPreference(
-                Preference().apply {
+                Preference(context).apply {
                     key = "cookie_status"
                     title = "Cookie status"
                     summary = if (preferences.getBoolean(PREF_KEY_COOKIE_INVALID, false)) {
