@@ -101,7 +101,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         val secure = obj["secure"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
                         val httpOnly = obj["httpOnly"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
 
-                        // Create cookie using parse method
+                        // Create cookie using parse method - removed sameSite as it's not available in this version
                         val cookie = Cookie.Builder()
                             .name(name)
                             .value(value)
@@ -110,8 +110,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                             .apply {
                                 if (secure) secure()
                                 if (httpOnly) httpOnly()
-                                // Default to lax same-site
-                                sameSite("Lax")
                             }
                             .build()
 
@@ -198,9 +196,9 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             document.select(expectedSelector).isEmpty() &&
             (
                 document.text().contains("Cloudflare", ignoreCase = true) ||
-                    document.text().contains("Verify you are human", ignoreCase = true) ||
-                    document.text().contains("Age Verification", ignoreCase = true)
-                )
+                document.text().contains("Verify you are human", ignoreCase = true) ||
+                document.text().contains("Age Verification", ignoreCase = true)
+            )
         ) {
             true
         } else {
@@ -392,8 +390,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     override fun latestUpdatesParse(response: Response): AnimesPage {
-        val bodyString = response.body!!.string()
-        val doc = bodyString.asJsoup()
+        val doc = response.asJsoup()
         val page = searchAnimeParseFromDocument(doc)
         checkCookieHealth(response, doc, "div.search-doujin-videos")
         return page
@@ -402,8 +399,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun latestUpdatesRequest(page: Int) = searchAnimeRequest(page, "", AnimeFilterList())
 
     override fun popularAnimeParse(response: Response): AnimesPage {
-        val bodyString = response.body!!.string()
-        val doc = bodyString.asJsoup()
+        val doc = response.asJsoup()
         val page = searchAnimeParseFromDocument(doc)
         checkCookieHealth(response, doc, "div.search-doujin-videos")
         return page
@@ -458,8 +454,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 }
             }
         }
-
-        checkCookieHealth(Response.Builder().build(), jsoup, "div.search-doujin-videos")
 
         val nextPage = jsoup.select("li.page-item a.page-link[rel=next]")
         return AnimesPage(list, nextPage.isNotEmpty())
@@ -683,17 +677,16 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     setDefaultValue(true)
                 },
             )
-            addPreference(
-                Preference(context).apply {
-                    key = "cookie_status"
-                    title = "Cookie status"
-                    summary = if (preferences.getBoolean(PREF_KEY_COOKIE_INVALID, false)) {
-                        "⚠ Cookies expired or blocked. Re-import from WebView or browser."
-                    } else {
-                        "Cookies are valid"
-                    }
-                },
-            )
+            val cookieStatusPref = Preference(context).apply {
+                key = "cookie_status"
+                title = "Cookie status"
+                summary = if (preferences.getBoolean(PREF_KEY_COOKIE_INVALID, false)) {
+                    "⚠ Cookies expired or blocked. Re-import from WebView or browser."
+                } else {
+                    "Cookies are valid"
+                }
+            }
+            addPreference(cookieStatusPref)
             addPreference(
                 EditTextPreference(context).apply {
                     key = PREF_KEY_IMPORTED_COOKIES
@@ -775,7 +768,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     companion object {
         const val PREF_KEY_VIDEO_QUALITY = "PREF_KEY_VIDEO_QUALITY"
         const val PREF_KEY_LANG = "PREF_KEY_LANG"
-        const val PREF_KEY_USE_ENGLISH = "PREF_KEY_USE_ENGLISH"
+        const val PREF_KEY_USE_ENGLISH = "PREF_KEY_USE_ENGLISH
         const val PREF_KEY_GENRE_LIST = "PREF_KEY_GENRE_LIST"
         const val PREF_KEY_SORT_LIST = "PREF_KEY_SORT_LIST"
         const val PREF_KEY_YEAR_LIST = "PREF_KEY_YEAR_LIST"
