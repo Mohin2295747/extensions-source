@@ -68,7 +68,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         builder.header(
             "User-Agent",
             customUa?.takeIf { it.isNotBlank() }
-                ?: "Mozilla/5.0 (Android 13; Mobile; rv:120.0) Gecko/120.0 Firefox/120.0"
+                ?: "Mozilla/5.0 (Android 13; Mobile; rv:120.0) Gecko/120.0 Firefox/120.0",
         )
 
         val cookieStr = preferences.getString(PREF_KEY_IMPORTED_COOKIES, null)
@@ -113,7 +113,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     private fun checkCookieHealth(
         response: Response,
         document: Document,
-        expectedSelector: String
+        expectedSelector: String,
     ) {
         val blocked =
             response.code in listOf(403, 503) ||
@@ -602,7 +602,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         "Cookies are valid"
                     }
                     isSelectable = false
-                }
+                },
             )
             addPreference(
                 EditTextPreference(context).apply {
@@ -622,7 +622,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         }
                         true
                     }
-                }
+                },
             )
             addPreference(
                 EditTextPreference(context).apply {
