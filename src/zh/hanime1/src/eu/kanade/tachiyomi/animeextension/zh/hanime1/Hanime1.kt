@@ -71,12 +71,90 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 ?: "Mozilla/5.0 (Android 13; Mobile; rv:120.0) Gecko/120.0 Firefox/120.0",
         )
 
+        // Try to parse as JSON cookie array first
         val cookieStr = preferences.getString(PREF_KEY_IMPORTED_COOKIES, null)
         if (!cookieStr.isNullOrBlank()) {
-            builder.header("Cookie", cookieStr)
+            val cookies = parseCookies(cookieStr)
+            if (cookies.isNotEmpty()) {
+                builder.header("Cookie", formatCookies(cookies))
+            }
         }
 
         return chain.proceed(builder.build())
+    }
+
+    private fun parseCookies(cookieStr: String): List<Cookie> {
+        return try {
+            // Try to parse as JSON array first
+            if (cookieStr.trim().startsWith("[")) {
+                val cookieList = json.decodeFromString<List<JsonElement>>(cookieStr)
+                val cookies = mutableListOf<Cookie>()
+                val httpUrl = baseUrl.toHttpUrl()
+                
+                for (cookieJson in cookieList) {
+                    try {
+                        val obj = cookieJson.jsonObject
+                        val name = obj["name"]?.jsonPrimitive?.content ?: continue
+                        val value = obj["value"]?.jsonPrimitive?.content ?: continue
+                        val domain = obj["domain"]?.jsonPrimitive?.content ?: ".hanime1.me"
+                        val path = obj["path"]?.jsonPrimitive?.content ?: "/"
+                        val secure = obj["secure"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
+                        val httpOnly = obj["httpOnly"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
+                        
+                        // Create cookie using parse method
+                        val cookie = Cookie.Builder()
+                            .name(name)
+                            .value(value)
+                            .domain(domain)
+                            .path(path)
+                            .apply {
+                                if (secure) secure()
+                                if (httpOnly) httpOnly()
+                                // Default to lax same-site
+                                sameSite("Lax")
+                            }
+                            .build()
+                        
+                        cookies.add(cookie)
+                    } catch (e: Exception) {
+                        Log.w(name, "Failed to parse cookie: ${e.message}")
+                    }
+                }
+                cookies
+            } else {
+                // Fall back to old format (raw cookie string)
+                parseRawCookies(cookieStr)
+            }
+        } catch (e: Exception) {
+            Log.e(name, "Failed to parse cookies: ${e.message}")
+            // Fall back to raw cookie parsing
+            parseRawCookies(cookieStr)
+        }
+    }
+
+    private fun parseRawCookies(cookieStr: String): List<Cookie> {
+        val cookies = mutableListOf<Cookie>()
+        val httpUrl = baseUrl.toHttpUrl()
+        
+        // Split by semicolon and parse each cookie
+        cookieStr.split(";").forEach { cookiePair ->
+            val trimmed = cookiePair.trim()
+            if (trimmed.isNotEmpty()) {
+                try {
+                    val cookie = Cookie.parse(httpUrl, trimmed)
+                    if (cookie != null) {
+                        cookies.add(cookie)
+                    }
+                } catch (e: Exception) {
+                    Log.w(name, "Failed to parse raw cookie '$trimmed': ${e.message}")
+                }
+            }
+        }
+        return cookies
+    }
+
+    private fun formatCookies(cookies: List<Cookie>): String {
+        return cookies.joinToString("; ") { "${it.name}=${it.value}" }
     }
 
     override val client =
@@ -245,7 +323,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     currentVideoDate = runCatching {
                         uploadDateFormat.parse(date)?.time
                     }.getOrNull() ?: 0L
-                }
+            }
             } catch (e: Exception) {
                 Log.e(name, "Failed to parse upload date: ${e.message}")
             }
@@ -612,8 +690,8 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             addPreference(
                 EditTextPreference(context).apply {
                     key = PREF_KEY_IMPORTED_COOKIES
-                    title = "Import cookies (TXT)"
-                    summary = "Paste cookies exported from browser (cf_clearance, user_lang, etc.)"
+                    title = "Import cookies (JSON or raw)"
+                    summary = "Paste cookies in JSON array format (from browser extensions) or raw cookies"
                     dialogTitle = "Paste cookies here"
                     setOnPreferenceChangeListener { _, newValue ->
                         val value = (newValue as String).trim()
@@ -621,7 +699,8 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                             .putBoolean(PREF_KEY_COOKIE_INVALID, false)
                             .apply()
                         summary = if (value.isNotEmpty()) {
-                            "Cookies imported"
+                            val cookies = parseCookies(value)
+                            "${cookies.size} cookie(s) imported"
                         } else {
                             "No cookies imported"
                         }
