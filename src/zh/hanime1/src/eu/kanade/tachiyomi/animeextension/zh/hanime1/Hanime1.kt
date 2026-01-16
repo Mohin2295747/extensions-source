@@ -677,7 +677,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     setDefaultValue(true)
                 },
             )
-            
             addPreference(
                 Preference().apply {
                     key = "cookie_status"
@@ -687,9 +686,8 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     } else {
                         "Cookies are valid"
                     }
-                }
+                },
             )
-            
             addPreference(
                 EditTextPreference(context).apply {
                     key = PREF_KEY_IMPORTED_COOKIES
