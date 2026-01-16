@@ -215,6 +215,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                                 AnimeFilterList(GenreFilter(arrayOf("", type)).apply { state = 1 }),
                             )
                             thumbnail_url = animesPage.animes.firstOrNull()?.thumbnail_url ?: thumbnail_url
+                        } else {
                         }
                     } catch (e: Exception) {
                         Log.e(name, "Failed to get bangumi cover image: ${e.message}")
@@ -606,7 +607,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     } else {
                         "Cookies are valid"
                     }
-                    isSelectable = false
+                    setSelectable(false)
                 },
             )
             addPreference(
