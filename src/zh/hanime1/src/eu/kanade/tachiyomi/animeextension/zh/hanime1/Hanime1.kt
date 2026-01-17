@@ -568,13 +568,13 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         statusHeader.key = "status_header"
         statusHeader.title = "🔍 Connection Status"
         screen.addPreference(statusHeader)
-    
+
         val cookieStatus = Preference(context)
         cookieStatus.key = "cookie_status_detailed"
         cookieStatus.title = "Current Status"
         cookieStatus.summary = CloudflareHelper.getCookieStatus(preferences)
         screen.addPreference(cookieStatus)
-    
+
         val blockHistory = Preference(context)
         blockHistory.key = "block_history"
         blockHistory.title = "Recent Blocks"
@@ -585,19 +585,19 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             true
         }
         screen.addPreference(blockHistory)
-    
+
         val englishFilter = SwitchPreferenceCompat(context)
         englishFilter.key = PREF_KEY_USE_ENGLISH
         englishFilter.title = "🌐 Use English filters"
         englishFilter.summary = "Show filter names in English (also affects tags in anime details)"
         englishFilter.setDefaultValue(true)
         screen.addPreference(englishFilter)
-    
+
         val cookieHeader = Preference(context)
         cookieHeader.key = "cookie_header"
         cookieHeader.title = "🔑 Cookie Management"
         screen.addPreference(cookieHeader)
-    
+
         val clearCookies = Preference(context)
         clearCookies.key = "clear_cookies"
         clearCookies.title = "🗑️ Clear All Cookies"
@@ -608,7 +608,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             true
         }
         screen.addPreference(clearCookies)
-    
+
         val importCookies = EditTextPreference(context)
         importCookies.key = PREF_KEY_IMPORTED_COOKIES
         importCookies.title = "📥 Import Cookies"
@@ -620,7 +620,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             preferences.edit()
                 .putBoolean(PREF_KEY_COOKIE_INVALID, false)
                 .apply()
-    
+
             importCookies.summary = if (value.isNotEmpty()) {
                 val cookies = CloudflareHelper.parseCookies(value)
                 "✅ ${cookies.size} cookie(s) imported"
@@ -630,7 +630,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             true
         }
         screen.addPreference(importCookies)
-    
+
         val customUa = EditTextPreference(context)
         customUa.key = PREF_KEY_CUSTOM_UA
         customUa.title = "🖥️ Custom User-Agent"
@@ -644,12 +644,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             true
         }
         screen.addPreference(customUa)
-    
+
         val videoHeader = Preference(context)
         videoHeader.key = "video_header"
         videoHeader.title = "🎥 Video Settings"
         screen.addPreference(videoHeader)
-    
+
         val videoQuality = ListPreference(context)
         videoQuality.key = PREF_KEY_VIDEO_QUALITY
         videoQuality.title = "Preferred Quality"
@@ -662,7 +662,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             true
         }
         screen.addPreference(videoQuality)
-    
+
         val languagePref = ListPreference(context)
         languagePref.key = PREF_KEY_LANG
         languagePref.title = "Preferred Language"
@@ -674,12 +674,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             true
         }
         screen.addPreference(languagePref)
-    
+
         val helpHeader = Preference(context)
         helpHeader.key = "help_header"
         helpHeader.title = "❓ Help & Troubleshooting"
         screen.addPreference(helpHeader)
-    
+
         val showHelp = Preference(context)
         showHelp.key = "show_help"
         showHelp.title = "📖 View Help Guide"
@@ -689,7 +689,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             true
         }
         screen.addPreference(showHelp)
-    
+
         val testConnection = Preference(context)
         testConnection.key = "test_connection"
         testConnection.title = "🔧 Test Connection"
