@@ -198,7 +198,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     currentVideoDate = runCatching {
                         uploadDateFormat.parse(date)?.time
                     }.getOrNull() ?: 0L
-            }
+                }
             } catch (e: Exception) {
                 Log.e(name, "Failed to parse upload date: ${e.message}")
             }
