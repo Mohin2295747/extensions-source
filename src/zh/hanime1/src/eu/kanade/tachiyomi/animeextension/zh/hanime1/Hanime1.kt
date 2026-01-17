@@ -583,8 +583,11 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             title = "Recent Blocks"
             val history = CloudflareHelper.getBlockHistory()
             summary =
-                if (history.isEmpty()) "No recent blocks"
-                else "${history.size} block(s) - Tap to view"
+                if (history.isEmpty()) {
+                    "No recent blocks"
+                } else {
+                    "${history.size} block(s) - Tap to view"
+                }
 
             setOnPreferenceClickListener {
                 showBlockHistoryDialog(context)
