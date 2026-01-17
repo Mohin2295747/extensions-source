@@ -259,8 +259,8 @@ object CloudflareHelper {
                             document.text().contains("Age Verification", ignoreCase = true) ||
                             document.select("title").text().contains("Cloudflare", ignoreCase = true) ||
                             document.select("div.cf-error-details").isNotEmpty()
-                    )
-            )
+                        )
+                )
 
         if (blocked) {
             val blockInfo = analyzeBlock(response, document, expectedSelector)
