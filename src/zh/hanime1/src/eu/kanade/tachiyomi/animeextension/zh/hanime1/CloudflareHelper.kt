@@ -51,7 +51,7 @@ object CloudflareHelper {
     private const val DESKTOP_USER_AGENT =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-    private val browserHeaders = mapOf(
+    private val BROWSER_HEADERS = mapOf(
         "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language" to "zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7",
         "Accept-Encoding" to "gzip, deflate, br",
@@ -139,7 +139,7 @@ object CloudflareHelper {
             customUa?.takeIf { it.isNotBlank() } ?: DESKTOP_USER_AGENT,
         )
 
-        browserHeaders.forEach { (key, value) ->
+        BROWSER_HEADERS.forEach { (key, value) ->
             builder.header(key, value)
         }
 
@@ -163,14 +163,14 @@ object CloudflareHelper {
 
     private fun retryInterceptor(chain: Interceptor.Chain): Response {
         var attempt = 0
-        val maxRetries = 2
+        val MAX_RETRIES = 2
         var response: Response
 
         do {
             val request = chain.request()
             response = chain.proceed(request)
 
-            if (response.isSuccessful || attempt >= maxRetries) {
+            if (response.isSuccessful || attempt >= MAX_RETRIES) {
                 return response
             }
 
@@ -179,7 +179,7 @@ object CloudflareHelper {
             Thread.sleep((1000L * attempt).coerceAtMost(3000L))
 
             response.close()
-        } while (attempt < maxRetries)
+        } while (attempt < MAX_RETRIES)
 
         return response
     }
