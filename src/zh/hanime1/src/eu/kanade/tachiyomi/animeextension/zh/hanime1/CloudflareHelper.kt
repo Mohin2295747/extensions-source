@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit
 
 object CloudflareHelper {
     const val BASE_URL = "https://hanime1.me"
-    const val TAG = "Hanime1-Cloudflare"  // Changed to public
+    const val TAG = "Hanime1-Cloudflare"
     private val json by injectLazy<Json>()
     private val network: NetworkHelper by injectLazy()
 
@@ -448,7 +448,7 @@ object CloudflareHelper {
         return "ℹ️ **Hanime1 Extension Help**\n\n**Common Issues & Solutions:**\n\n1. **Cloudflare Blocked (403/503)**\n   - Open Hanime1 in WebView\n   - Complete any CAPTCHA/verification\n   - Import cookies from WebView\n\n2. **Age Verification Required**\n   - Visit hanime1.me in browser first\n   - Complete age verification\n   - Import fresh cookies\n\n3. **Rate Limited (429)**\n   - Wait 5-10 minutes\n   - Avoid rapid searches\n   - Use Popular/Latest tabs\n\n4. **Cookies Expire Frequently**\n   - This is normal (1-7 days)\n   - Re-import when needed\n   - Consider browser bookmark\n\n**Tips:**\n• Keep cookies up-to-date\n• Use English filters if Chinese fails\n• Try 'Broad Match' in search filters\n• Clear cookies before fresh import\n\n**Need More Help?**\nContact extension maintainer or check Tachiyomi Discord."
     }
 
-    fun getPreferences(): SharedPreferences? {  // Changed to public
+    fun getPreferences(): SharedPreferences? {
         return try {
             val context = Injekt.get<Application>()
             context.getSharedPreferences("source_${getSourceId()}", 0x0000)
