@@ -564,9 +564,11 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         val context = screen.context
 
-        val statusHeader = PreferenceCategory(context)
-        statusHeader.key = "status_header"
-        statusHeader.title = "🔍 Connection Status"
+        val statusHeader = Preference().apply {
+            key = "status_header"
+            title = "🔍 Connection Status"
+            isSelectable = false
+        }
         screen.addPreference(statusHeader)
 
         val cookieStatus = Preference().apply {
@@ -580,7 +582,10 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             key = "block_history"
             title = "Recent Blocks"
             val history = CloudflareHelper.getBlockHistory()
-            summary = if (history.isEmpty()) "No recent blocks" else "${history.size} block(s) - Tap to view"
+            summary =
+                if (history.isEmpty()) "No recent blocks"
+                else "${history.size} block(s) - Tap to view"
+
             setOnPreferenceClickListener {
                 showBlockHistoryDialog(context)
                 true
@@ -596,15 +601,18 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         }
         screen.addPreference(englishFilter)
 
-        val cookieHeader = PreferenceCategory(context)
-        cookieHeader.key = "cookie_header"
-        cookieHeader.title = "🔑 Cookie Management"
+        val cookieHeader = Preference().apply {
+            key = "cookie_header"
+            title = "🔑 Cookie Management"
+            isSelectable = false
+        }
         screen.addPreference(cookieHeader)
 
         val clearCookies = Preference().apply {
             key = "clear_cookies"
             title = "🗑️ Clear All Cookies"
             summary = "Clear current cookies before importing fresh ones"
+
             setOnPreferenceClickListener {
                 CloudflareHelper.clearAllCookies(preferences)
                 summary = "Cookies cleared - Ready for fresh import"
@@ -631,12 +639,13 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     .putBoolean(PREF_KEY_COOKIE_INVALID, false)
                     .apply()
 
-                summary = if (value.isNotEmpty()) {
-                    val cookies = CloudflareHelper.parseCookies(value)
-                    "✅ ${cookies.size} cookie(s) imported"
-                } else {
-                    "⚠ No cookies - Import required"
-                }
+                summary =
+                    if (value.isNotEmpty()) {
+                        val cookies = CloudflareHelper.parseCookies(value)
+                        "✅ ${cookies.size} cookie(s) imported"
+                    } else {
+                        "⚠ No cookies - Import required"
+                    }
                 true
             }
         }
@@ -661,9 +670,11 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         }
         screen.addPreference(customUa)
 
-        val videoHeader = PreferenceCategory(context)
-        videoHeader.key = "video_header"
-        videoHeader.title = "🎥 Video Settings"
+        val videoHeader = Preference().apply {
+            key = "video_header"
+            title = "🎥 Video Settings"
+            isSelectable = false
+        }
         screen.addPreference(videoHeader)
 
         val videoQuality = ListPreference(context).apply {
@@ -672,7 +683,8 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             entries = arrayOf("1080P", "720P", "480P")
             entryValues = entries
             setDefaultValue(DEFAULT_QUALITY)
-            summary = "Current: ${preferences.getString(PREF_KEY_VIDEO_QUALITY, DEFAULT_QUALITY)}"
+            summary =
+                "Current: ${preferences.getString(PREF_KEY_VIDEO_QUALITY, DEFAULT_QUALITY)}"
 
             setOnPreferenceChangeListener { _, newValue ->
                 summary = "Current: ${newValue as String}"
@@ -695,15 +707,18 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         }
         screen.addPreference(languagePref)
 
-        val helpHeader = PreferenceCategory(context)
-        helpHeader.key = "help_header"
-        helpHeader.title = "❓ Help & Troubleshooting"
+        val helpHeader = Preference().apply {
+            key = "help_header"
+            title = "❓ Help & Troubleshooting"
+            isSelectable = false
+        }
         screen.addPreference(helpHeader)
 
         val showHelp = Preference().apply {
             key = "show_help"
             title = "📖 View Help Guide"
             summary = "Common issues and solutions"
+
             setOnPreferenceClickListener {
                 showHelpDialog(context)
                 true
@@ -715,6 +730,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             key = "test_connection"
             title = "🔧 Test Connection"
             summary = "Check if extension can access Hanime1"
+
             setOnPreferenceClickListener {
                 testConnection()
                 true
