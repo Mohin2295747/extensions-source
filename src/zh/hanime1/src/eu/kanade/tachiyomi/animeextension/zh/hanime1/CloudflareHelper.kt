@@ -49,13 +49,12 @@ object CloudflareHelper {
         val timestamp: Long = System.currentTimeMillis(),
     )
 
-    // FIXED LINE 31: Changed to const val with SCREAMING_SNAKE_CASE
-    private const val DESKTOP_USER_AGENT = 
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    // FIXED LINE 31: Changed to SCREAMING_SNAKE_CASE
+    private const val DESKTOP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-    // FIXED LINE 56: Changed to const val (if all values are known at compile time)
-    // Note: If browserHeaders needs to be a Map (not a compile-time constant), 
-    // then use val with camelCase instead
+    // FIXED LINE 59: Changed to SCREAMING_SNAKE_CASE
+    private const val MAX_RETRIES = 2
+
     private val browserHeaders = mapOf(
         "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language" to "zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7",
@@ -121,7 +120,7 @@ object CloudflareHelper {
 
             return response
         } catch (e: Exception) {
-            // FIXED LINES 257-263: Added proper newlines
+            // FIXED LINES 259-265: Added proper newlines
             logBlock(
                 BlockInfo(
                     BlockType.NETWORK_ERROR,
@@ -175,9 +174,6 @@ object CloudflareHelper {
 
     private fun retryInterceptor(chain: Interceptor.Chain): Response {
         var attempt = 0
-        // FIXED LINE 465: maxRetries should be const val with SCREAMING_SNAKE_CASE
-        private const val MAX_RETRIES = 2
-        
         var response: Response
 
         do {
@@ -460,11 +456,6 @@ object CloudflareHelper {
 
     private fun getSourceId(): Long {
         return 1234567890L
-    }
-
-    companion object {
-        // Move all constants here with const val
-        private const val MAX_RETRIES = 2
     }
 }
 
