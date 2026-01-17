@@ -49,12 +49,14 @@ object CloudflareHelper {
         val timestamp: Long = System.currentTimeMillis(),
     )
 
-    // FIXED LINE 31: Changed to SCREAMING_SNAKE_CASE
-    private const val DESKTOP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    // FIXED: Changed to const val with SCREAMING_SNAKE_CASE
+    private const val DESKTOP_USER_AGENT = 
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-    // FIXED LINE 59: Changed to SCREAMING_SNAKE_CASE
+    // FIXED: Changed to const val with SCREAMING_SNAKE_CASE
     private const val MAX_RETRIES = 2
 
+    // This is NOT a const val because it's a Map - it should be camelCase
     private val browserHeaders = mapOf(
         "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language" to "zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7",
@@ -66,7 +68,7 @@ object CloudflareHelper {
         "Sec-Fetch-Site" to "none",
         "Sec-Fetch-User" to "?1",
         "DNT" to "1",
-        "Cache-Control" to "max-age=0",
+        "Cache-Control" to "max-age=0"
     )
 
     private var lastReferer = BASE_URL
@@ -95,22 +97,22 @@ object CloudflareHelper {
                     403 -> BlockInfo(
                         BlockType.CLOUDFLARE_CHALLENGE,
                         "Access denied (403)",
-                        "Cookies may have expired. Please re-import fresh cookies.",
+                        "Cookies may have expired. Please re-import fresh cookies."
                     )
                     429 -> BlockInfo(
                         BlockType.RATE_LIMIT,
                         "Rate limited (429)",
-                        "Too many requests. Wait a few minutes and try again.",
+                        "Too many requests. Wait a few minutes and try again."
                     )
                     503 -> BlockInfo(
                         BlockType.CLOUDFLARE_CHALLENGE,
                         "Service unavailable (503)",
-                        "Cloudflare protection active. Try importing fresh cookies.",
+                        "Cloudflare protection active. Try importing fresh cookies."
                     )
                     else -> BlockInfo(
                         BlockType.UNKNOWN,
                         "HTTP ${response.code} error",
-                        "Please check your connection and try again.",
+                        "Please check your connection and try again."
                     )
                 }
 
@@ -120,14 +122,14 @@ object CloudflareHelper {
 
             return response
         } catch (e: Exception) {
-            // FIXED LINES 259-265: Added proper newlines
+            // FIXED: Added proper newlines after "(" and before ")"
             logBlock(
                 BlockInfo(
                     BlockType.NETWORK_ERROR,
                     "Network error: ${e.message}",
-                    "Check your internet connection and try again.",
+                    "Check your internet connection and try again."
                 ),
-                chain.request().url.toString(),
+                chain.request().url.toString()
             )
             throw e
         }
@@ -141,7 +143,7 @@ object CloudflareHelper {
         val customUa = preferences?.getString("PREF_KEY_CUSTOM_UA", null)
         builder.header(
             "User-Agent",
-            customUa?.takeIf { it.isNotBlank() } ?: DESKTOP_USER_AGENT,
+            customUa?.takeIf { it.isNotBlank() } ?: DESKTOP_USER_AGENT
         )
 
         if (original.url.pathSegments.contains("search") || original.url.pathSegments.contains("watch")) {
@@ -197,7 +199,7 @@ object CloudflareHelper {
     fun analyzeBlock(
         response: Response,
         document: Document,
-        expectedSelector: String,
+        expectedSelector: String
     ): BlockInfo {
         val text = document.text().lowercase(Locale.getDefault())
         val title = document.select("title").text().lowercase(Locale.getDefault())
@@ -207,35 +209,35 @@ object CloudflareHelper {
                 BlockInfo(
                     BlockType.CLOUDFLARE_CHALLENGE,
                     "Cloudflare protection active",
-                    "This site uses Cloudflare bot protection.\n\n1. Open Hanime1 in WebView\n2. Log in/complete any CAPTCHA\n3. Import cookies from WebView",
+                    "This site uses Cloudflare bot protection.\n\n1. Open Hanime1 in WebView\n2. Log in/complete any CAPTCHA\n3. Import cookies from WebView"
                 )
 
             text.contains("age verification") || text.contains("age check") ->
                 BlockInfo(
                     BlockType.AGE_VERIFICATION,
                     "Age verification required",
-                    "You need to verify your age on the website first.\n\n1. Open Hanime1 in browser\n2. Complete age verification\n3. Import fresh cookies",
+                    "You need to verify your age on the website first.\n\n1. Open Hanime1 in browser\n2. Complete age verification\n3. Import fresh cookies"
                 )
 
             response.code == 403 && document.select(expectedSelector).isEmpty() && document.select("video").isEmpty() ->
                 BlockInfo(
                     BlockType.COOKIE_EXPIRED,
                     "Cookies expired or invalid",
-                    "Your cookies have expired or are no longer valid.\n\nSolution:\n1. Clear current cookies\n2. Open WebView\n3. Log in again\n4. Import new cookies",
+                    "Your cookies have expired or are no longer valid.\n\nSolution:\n1. Clear current cookies\n2. Open WebView\n3. Log in again\n4. Import new cookies"
                 )
 
             response.code == 429 ->
                 BlockInfo(
                     BlockType.RATE_LIMIT,
                     "Rate limited - Too many requests",
-                    "You're making too many requests.\n\nPlease wait 5-10 minutes before trying again.\nConsider using the 'Popular' or 'Latest' tabs instead of frequent searches.",
+                    "You're making too many requests.\n\nPlease wait 5-10 minutes before trying again.\nConsider using the 'Popular' or 'Latest' tabs instead of frequent searches."
                 )
 
             else ->
                 BlockInfo(
                     BlockType.UNKNOWN,
                     "Access blocked (HTTP ${response.code})",
-                    "Unable to access content.\n\nPossible solutions:\n1. Check if site is accessible in browser\n2. Clear and re-import cookies\n3. Try again later\n4. Contact extension maintainer if issue persists",
+                    "Unable to access content.\n\nPossible solutions:\n1. Check if site is accessible in browser\n2. Clear and re-import cookies\n3. Try again later\n4. Contact extension maintainer if issue persists"
                 )
         }
     }
@@ -244,7 +246,7 @@ object CloudflareHelper {
         response: Response,
         document: Document,
         expectedSelector: String,
-        preferences: SharedPreferences,
+        preferences: SharedPreferences
     ): Boolean {
         val hasVideo = document.select("video").isNotEmpty()
         val hasJsonLd = document.select("script[type=application/ld+json]").isNotEmpty()
