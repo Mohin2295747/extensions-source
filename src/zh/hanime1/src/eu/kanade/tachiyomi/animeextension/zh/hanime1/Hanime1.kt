@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.animeextension.zh.hanime1
 
 import android.app.Application
+import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import androidx.preference.EditTextPreference
@@ -52,7 +53,7 @@ enum class FilterUpdateState {
 
 class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override val baseUrl: String
-        get() = "https://hanime1.me"
+        get() = CloudflareHelper.baseUrl
     override val lang: String
         get() = "zh"
     override val name: String
@@ -60,106 +61,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override val supportsLatest: Boolean
         get() = true
 
-    private fun authInterceptor(chain: Interceptor.Chain): Response {
-        val original = chain.request()
-        val builder = original.newBuilder()
-
-        val customUa = preferences.getString(PREF_KEY_CUSTOM_UA, null)
-        builder.header(
-            "User-Agent",
-            customUa?.takeIf { it.isNotBlank() }
-                ?: "Mozilla/5.0 (Android 13; Mobile; rv:120.0) Gecko/120.0 Firefox/120.0",
-        )
-
-        // Try to parse as JSON cookie array first
-        val cookieStr = preferences.getString(PREF_KEY_IMPORTED_COOKIES, null)
-        if (!cookieStr.isNullOrBlank()) {
-            val cookies = parseCookies(cookieStr)
-            if (cookies.isNotEmpty()) {
-                builder.header("Cookie", formatCookies(cookies))
-            }
-        }
-
-        return chain.proceed(builder.build())
-    }
-
-    private fun parseCookies(cookieStr: String): List<Cookie> {
-        return try {
-            // Try to parse as JSON array first
-            if (cookieStr.trim().startsWith("[")) {
-                val cookieList = json.decodeFromString<List<JsonElement>>(cookieStr)
-                val cookies = mutableListOf<Cookie>()
-                val httpUrl = baseUrl.toHttpUrl()
-
-                for (cookieJson in cookieList) {
-                    try {
-                        val obj = cookieJson.jsonObject
-                        val name = obj["name"]?.jsonPrimitive?.content ?: continue
-                        val value = obj["value"]?.jsonPrimitive?.content ?: continue
-                        val domain = obj["domain"]?.jsonPrimitive?.content ?: ".hanime1.me"
-                        val path = obj["path"]?.jsonPrimitive?.content ?: "/"
-                        val secure = obj["secure"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
-                        val httpOnly = obj["httpOnly"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
-
-                        // Create cookie using parse method - removed sameSite as it's not available in this version
-                        val cookie = Cookie.Builder()
-                            .name(name)
-                            .value(value)
-                            .domain(domain)
-                            .path(path)
-                            .apply {
-                                if (secure) secure()
-                                if (httpOnly) httpOnly()
-                            }
-                            .build()
-
-                        cookies.add(cookie)
-                    } catch (e: Exception) {
-                        Log.w(name, "Failed to parse cookie: ${e.message}")
-                    }
-                }
-                cookies
-            } else {
-                // Fall back to old format (raw cookie string)
-                parseRawCookies(cookieStr)
-            }
-        } catch (e: Exception) {
-            Log.e(name, "Failed to parse cookies: ${e.message}")
-            // Fall back to raw cookie parsing
-            parseRawCookies(cookieStr)
-        }
-    }
-
-    private fun parseRawCookies(cookieStr: String): List<Cookie> {
-        val cookies = mutableListOf<Cookie>()
-        val httpUrl = baseUrl.toHttpUrl()
-
-        // Split by semicolon and parse each cookie
-        cookieStr.split(";").forEach { cookiePair ->
-            val trimmed = cookiePair.trim().replace("\n", "").replace("\r", "")
-            if (trimmed.isNotEmpty()) {
-                try {
-                    val cookie = Cookie.parse(httpUrl, trimmed)
-                    if (cookie != null) {
-                        cookies.add(cookie)
-                    }
-                } catch (e: Exception) {
-                    Log.w(name, "Failed to parse raw cookie '$trimmed': ${e.message}")
-                }
-            }
-        }
-        return cookies
-    }
-
-    private fun formatCookies(cookies: List<Cookie>): String {
-        return cookies.joinToString("; ") { "${it.name}=${it.value}" }
-    }
-
-    override val client =
-        network.client.newBuilder()
-            .addInterceptor(::authInterceptor)
-            .addInterceptor(::checkFiltersInterceptor)
-            .build()
+    override val client = CloudflareHelper.createClient()
 
     private val preferences: SharedPreferences by lazy {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
@@ -184,30 +86,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             .replace("""\s*[0-9:]+\s*""".toRegex(), "")
             .replace("""\s*\|\s*.*""".toRegex(), "")
             .trim()
-    }
-
-    private fun checkCookieHealth(
-        response: Response,
-        document: Document,
-        expectedSelector: String,
-    ) {
-        val blocked = if (
-            response.code in listOf(403, 503) ||
-            document.select(expectedSelector).isEmpty() &&
-            (
-                document.text().contains("Cloudflare", ignoreCase = true) ||
-                    document.text().contains("Verify you are human", ignoreCase = true) ||
-                    document.text().contains("Age Verification", ignoreCase = true)
-                )
-        ) {
-            true
-        } else {
-            false
-        }
-
-        preferences.edit()
-            .putBoolean(PREF_KEY_COOKIE_INVALID, blocked)
-            .apply()
     }
 
     override fun animeDetailsParse(response: Response): SAnime {
@@ -391,18 +269,24 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun latestUpdatesParse(response: Response): AnimesPage {
         val doc = response.asJsoup()
-        val page = searchAnimeParseFromDocument(doc)
-        checkCookieHealth(response, doc, "div.search-doujin-videos")
-        return page
+        val blocked = CloudflareHelper.checkAndHandleBlock(response, doc, "div.search-doujin-videos", preferences)
+        return if (blocked) {
+            AnimesPage(emptyList(), false)
+        } else {
+            searchAnimeParseFromDocument(doc)
+        }
     }
 
     override fun latestUpdatesRequest(page: Int) = searchAnimeRequest(page, "", AnimeFilterList())
 
     override fun popularAnimeParse(response: Response): AnimesPage {
         val doc = response.asJsoup()
-        val page = searchAnimeParseFromDocument(doc)
-        checkCookieHealth(response, doc, "div.search-doujin-videos")
-        return page
+        val blocked = CloudflareHelper.checkAndHandleBlock(response, doc, "div.search-doujin-videos", preferences)
+        return if (blocked) {
+            AnimesPage(emptyList(), false)
+        } else {
+            searchAnimeParseFromDocument(doc)
+        }
     }
 
     override fun popularAnimeRequest(page: Int): Request {
@@ -421,6 +305,14 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun searchAnimeParse(response: Response): AnimesPage {
         val jsoup = response.asJsoup()
+        if (CloudflareHelper.checkAndHandleBlock(response, jsoup, "div.search-doujin-videos", preferences)) {
+            val blockInfo = CloudflareHelper.getLastBlockInfo(preferences)
+            throw Exception(
+                "🔒 Access Blocked\n\nIssue: ${blockInfo?.message ?: "Cloudflare protection"}\n\n" +
+                "Solution: ${blockInfo?.solution ?: "Please re-import fresh cookies"}\n\n" +
+                "⚠️ How to fix:\n1. Open Hanime1 in WebView\n2. Log in/complete verification\n3. Import cookies\n4. Retry"
+            )
+        }
         return searchAnimeParseFromDocument(jsoup)
     }
 
@@ -460,8 +352,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
-        if (preferences.getBoolean(PREF_KEY_COOKIE_INVALID, false)) {
-            throw Exception("Cookies expired. Please re-import cookies.")
+        if (CloudflareHelper.isBlocked(preferences)) {
+            val blockInfo = CloudflareHelper.getLastBlockInfo(preferences)
+            throw Exception(
+                "⚠️ Access Blocked\n\nReason: ${blockInfo?.message ?: "Cloudflare protection"}\n\n" +
+                "Steps to fix:\n1. Go to Extension Settings\n2. Clear Cookies\n3. Import fresh cookies\n4. Retry search"
+            )
         }
 
         val searchUrl = baseUrl.toHttpUrl().newBuilder().addPathSegment("search")
@@ -670,99 +566,209 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         screen.apply {
             addPreference(
+                Preference(context).apply {
+                    key = "status_header"
+                    title = "🔍 Connection Status"
+                    isSelectable = false
+                }
+            )
+            
+            addPreference(
+                Preference(context).apply {
+                    key = "cookie_status_detailed"
+                    title = "Current Status"
+                    summaryProvider = Preference.SummaryProvider<Preference> {
+                        CloudflareHelper.getCookieStatus(preferences)
+                    }
+                }
+            )
+            
+            addPreference(
+                Preference(context).apply {
+                    key = "block_history"
+                    title = "Recent Blocks"
+                    summaryProvider = Preference.SummaryProvider<Preference> {
+                        val history = CloudflareHelper.getBlockHistory()
+                        if (history.isEmpty()) "No recent blocks"
+                        else "${history.size} block(s) - Tap to view"
+                    }
+                    setOnPreferenceClickListener {
+                        showBlockHistoryDialog(context)
+                        true
+                    }
+                }
+            )
+            
+            addPreference(
                 SwitchPreferenceCompat(context).apply {
                     key = PREF_KEY_USE_ENGLISH
-                    title = "Use English filters"
+                    title = "🌐 Use English filters"
                     summary = "Show filter names in English (also affects tags in anime details)"
                     setDefaultValue(true)
-                },
+                }
             )
+            
             addPreference(
-                Preference().apply {
-                    key = "cookie_status"
-                    title = "Cookie status"
-                    summary = if (preferences.getBoolean(PREF_KEY_COOKIE_INVALID, false)) {
-                        "⚠ Cookies expired or blocked. Re-import from WebView or browser."
-                    } else {
-                        "Cookies are valid"
-                    }
-                },
+                Preference(context).apply {
+                    key = "cookie_header"
+                    title = "🔑 Cookie Management"
+                    isSelectable = false
+                }
             )
+            
+            addPreference(
+                Preference(context).apply {
+                    key = "clear_cookies"
+                    title = "🗑️ Clear All Cookies"
+                    summary = "Clear current cookies before importing fresh ones"
+                    setOnPreferenceClickListener {
+                        CloudflareHelper.clearAllCookies(preferences)
+                        it.summary = "Cookies cleared - Ready for fresh import"
+                        true
+                    }
+                }
+            )
+            
             addPreference(
                 EditTextPreference(context).apply {
                     key = PREF_KEY_IMPORTED_COOKIES
-                    title = "Import cookies (JSON or raw)"
-                    summary = "Paste cookies in JSON array format (from browser extensions) or raw cookies"
-                    dialogTitle = "Paste cookies here"
+                    title = "📥 Import Cookies"
+                    summary = "Paste cookies from browser/WebView"
+                    dialogTitle = "Import Cookies"
+                    dialogMessage = "1. Open Hanime1 in WebView/browser\n2. Log in/complete any CAPTCHA\n3. Export cookies (use browser extension)\n4. Paste here\n\nFormat: JSON array or raw cookies"
                     setOnPreferenceChangeListener { _, newValue ->
                         val value = (newValue as String).trim()
                         preferences.edit()
                             .putBoolean(PREF_KEY_COOKIE_INVALID, false)
                             .apply()
+                        
                         summary = if (value.isNotEmpty()) {
-                            val cookies = parseCookies(value)
-                            "${cookies.size} cookie(s) imported"
+                            val cookies = CloudflareHelper.parseCookies(value)
+                            "✅ ${cookies.size} cookie(s) imported"
                         } else {
-                            "No cookies imported"
+                            "⚠ No cookies - Import required"
                         }
                         true
                     }
-                },
+                }
             )
+            
             addPreference(
                 EditTextPreference(context).apply {
                     key = PREF_KEY_CUSTOM_UA
-                    title = "Custom User-Agent"
-                    summary = "Optional: paste browser User-Agent"
-                    dialogTitle = "Paste User-Agent"
+                    title = "🖥️ Custom User-Agent"
+                    summary = "Optional: Use desktop browser UA"
+                    dialogTitle = "Desktop User-Agent"
+                    dialogMessage = "Recommended for better compatibility:\n\nMozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                     setOnPreferenceChangeListener { _, newValue ->
                         summary = (newValue as String).ifBlank {
-                            "Using default User-Agent"
+                            "Using default desktop User-Agent"
                         }
                         true
                     }
-                },
+                }
             )
+            
+            addPreference(
+                Preference(context).apply {
+                    key = "video_header"
+                    title = "🎥 Video Settings"
+                    isSelectable = false
+                }
+            )
+            
             addPreference(
                 ListPreference(context).apply {
                     key = PREF_KEY_VIDEO_QUALITY
-                    title = "設置首選畫質"
+                    title = "Preferred Quality"
                     entries = arrayOf("1080P", "720P", "480P")
                     entryValues = entries
                     setDefaultValue(DEFAULT_QUALITY)
-                    summary = "當前選擇：${preferences.getString(PREF_KEY_VIDEO_QUALITY, DEFAULT_QUALITY)}"
-                    setOnPreferenceChangeListener { _, newValue ->
-                        summary = "當前選擇：${newValue as String}"
-                        true
-                    }
-                },
+                    summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
+                }
             )
+            
             addPreference(
                 ListPreference(context).apply {
                     key = PREF_KEY_LANG
-                    title = "設置首選語言"
-                    summary = "該設置僅影響影片字幕"
+                    title = "Preferred Language"
+                    summary = "Affects video subtitles"
                     entries = arrayOf("繁體中文", "簡體中文")
                     entryValues = arrayOf("zh-CHT", "zh-CHS")
                     setOnPreferenceChangeListener { _, newValue ->
-                        val baseHttpUrl = baseUrl.toHttpUrl()
-                        try {
-                            client.cookieJar.saveFromResponse(
-                                baseHttpUrl,
-                                listOf(
-                                    Cookie.parse(
-                                        baseHttpUrl,
-                                        "user_lang=${newValue as String}",
-                                    )!!,
-                                ),
-                            )
-                        } catch (e: Exception) {
-                            Log.e(name, "Failed to set language cookie: ${e.message}")
-                        }
+                        CloudflareHelper.setLanguageCookie(newValue as String)
                         true
                     }
-                },
+                }
             )
+            
+            addPreference(
+                Preference(context).apply {
+                    key = "help_header"
+                    title = "❓ Help & Troubleshooting"
+                    isSelectable = false
+                }
+            )
+            
+            addPreference(
+                Preference(context).apply {
+                    key = "show_help"
+                    title = "📖 View Help Guide"
+                    summary = "Common issues and solutions"
+                    setOnPreferenceClickListener {
+                        showHelpDialog(context)
+                        true
+                    }
+                }
+            )
+            
+            addPreference(
+                Preference(context).apply {
+                    key = "test_connection"
+                    title = "🔧 Test Connection"
+                    summary = "Check if extension can access Hanime1"
+                    setOnPreferenceClickListener {
+                        testConnection()
+                        true
+                    }
+                }
+            )
+        }
+    }
+
+    private fun showBlockHistoryDialog(context: Context) {
+        val history = CloudflareHelper.formatBlockHistory()
+        android.app.AlertDialog.Builder(context)
+            .setTitle("Recent Blocks")
+            .setMessage(history)
+            .setPositiveButton("Clear History") { _, _ ->
+                CloudflareHelper.clearBlockHistory()
+            }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun showHelpDialog(context: Context) {
+        val helpText = CloudflareHelper.getDetailedHelp(context)
+        android.app.AlertDialog.Builder(context)
+            .setTitle("Hanime1 Extension Help")
+            .setMessage(helpText)
+            .setPositiveButton("Got it", null)
+            .show()
+    }
+
+    private fun testConnection() {
+        GlobalScope.launch(Dispatchers.IO) {
+            try {
+                val testUrl = "$baseUrl/search"
+                val request = GET(testUrl)
+                val response = client.newCall(request).execute()
+                val doc = response.asJsoup()
+                
+                CloudflareHelper.checkAndHandleBlock(response, doc, "div.search-doujin-videos", preferences)
+            } catch (e: Exception) {
+                Log.e("Hanime1", "Connection test failed: ${e.message}")
+            }
         }
     }
 
