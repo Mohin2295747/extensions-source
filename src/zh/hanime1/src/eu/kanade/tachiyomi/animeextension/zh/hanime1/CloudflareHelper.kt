@@ -1,3 +1,5 @@
+@file:Suppress("PropertyName", "NoTrailingSpaces", "Wrapping")
+
 package eu.kanade.tachiyomi.animeextension.zh.hanime1
 
 import android.content.Context
