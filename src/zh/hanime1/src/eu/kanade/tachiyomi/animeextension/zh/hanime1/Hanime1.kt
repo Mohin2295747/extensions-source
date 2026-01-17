@@ -564,139 +564,161 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         val context = screen.context
 
-        val statusHeader = Preference(context)
+        val statusHeader = PreferenceCategory(context)
         statusHeader.key = "status_header"
         statusHeader.title = "🔍 Connection Status"
         screen.addPreference(statusHeader)
 
-        val cookieStatus = Preference(context)
-        cookieStatus.key = "cookie_status_detailed"
-        cookieStatus.title = "Current Status"
-        cookieStatus.summary = CloudflareHelper.getCookieStatus(preferences)
+        val cookieStatus = Preference().apply {
+            key = "cookie_status_detailed"
+            title = "Current Status"
+            summary = CloudflareHelper.getCookieStatus(preferences)
+        }
         screen.addPreference(cookieStatus)
 
-        val blockHistory = Preference(context)
-        blockHistory.key = "block_history"
-        blockHistory.title = "Recent Blocks"
-        val history = CloudflareHelper.getBlockHistory()
-        blockHistory.summary = if (history.isEmpty()) "No recent blocks" else "${history.size} block(s) - Tap to view"
-        blockHistory.setOnPreferenceClickListener {
-            showBlockHistoryDialog(context)
-            true
+        val blockHistory = Preference().apply {
+            key = "block_history"
+            title = "Recent Blocks"
+            val history = CloudflareHelper.getBlockHistory()
+            summary = if (history.isEmpty()) "No recent blocks" else "${history.size} block(s) - Tap to view"
+            setOnPreferenceClickListener {
+                showBlockHistoryDialog(context)
+                true
+            }
         }
         screen.addPreference(blockHistory)
 
-        val englishFilter = SwitchPreferenceCompat(context)
-        englishFilter.key = PREF_KEY_USE_ENGLISH
-        englishFilter.title = "🌐 Use English filters"
-        englishFilter.summary = "Show filter names in English (also affects tags in anime details)"
-        englishFilter.setDefaultValue(true)
+        val englishFilter = SwitchPreferenceCompat(context).apply {
+            key = PREF_KEY_USE_ENGLISH
+            title = "🌐 Use English filters"
+            summary = "Show filter names in English (also affects tags in anime details)"
+            setDefaultValue(true)
+        }
         screen.addPreference(englishFilter)
 
-        val cookieHeader = Preference(context)
+        val cookieHeader = PreferenceCategory(context)
         cookieHeader.key = "cookie_header"
         cookieHeader.title = "🔑 Cookie Management"
         screen.addPreference(cookieHeader)
 
-        val clearCookies = Preference(context)
-        clearCookies.key = "clear_cookies"
-        clearCookies.title = "🗑️ Clear All Cookies"
-        clearCookies.summary = "Clear current cookies before importing fresh ones"
-        clearCookies.setOnPreferenceClickListener {
-            CloudflareHelper.clearAllCookies(preferences)
-            clearCookies.summary = "Cookies cleared - Ready for fresh import"
-            true
+        val clearCookies = Preference().apply {
+            key = "clear_cookies"
+            title = "🗑️ Clear All Cookies"
+            summary = "Clear current cookies before importing fresh ones"
+            setOnPreferenceClickListener {
+                CloudflareHelper.clearAllCookies(preferences)
+                summary = "Cookies cleared - Ready for fresh import"
+                true
+            }
         }
         screen.addPreference(clearCookies)
 
-        val importCookies = EditTextPreference(context)
-        importCookies.key = PREF_KEY_IMPORTED_COOKIES
-        importCookies.title = "📥 Import Cookies"
-        importCookies.summary = "Paste cookies from browser/WebView"
-        importCookies.dialogTitle = "Import Cookies"
-        importCookies.dialogMessage = "1. Open Hanime1 in WebView/browser\n2. Log in/complete any CAPTCHA\n3. Export cookies (use browser extension)\n4. Paste here\n\nFormat: JSON array or raw cookies"
-        importCookies.setOnPreferenceChangeListener { _, newValue ->
-            val value = (newValue as String).trim()
-            preferences.edit()
-                .putBoolean(PREF_KEY_COOKIE_INVALID, false)
-                .apply()
+        val importCookies = EditTextPreference(context).apply {
+            key = PREF_KEY_IMPORTED_COOKIES
+            title = "📥 Import Cookies"
+            summary = "Paste cookies from browser/WebView"
+            dialogTitle = "Import Cookies"
+            dialogMessage =
+                "1. Open Hanime1 in WebView/browser\n" +
+                "2. Log in/complete any CAPTCHA\n" +
+                "3. Export cookies (use browser extension)\n" +
+                "4. Paste here\n\n" +
+                "Format: JSON array or raw cookies"
 
-            importCookies.summary = if (value.isNotEmpty()) {
-                val cookies = CloudflareHelper.parseCookies(value)
-                "✅ ${cookies.size} cookie(s) imported"
-            } else {
-                "⚠ No cookies - Import required"
+            setOnPreferenceChangeListener { _, newValue ->
+                val value = (newValue as String).trim()
+                preferences.edit()
+                    .putBoolean(PREF_KEY_COOKIE_INVALID, false)
+                    .apply()
+
+                summary = if (value.isNotEmpty()) {
+                    val cookies = CloudflareHelper.parseCookies(value)
+                    "✅ ${cookies.size} cookie(s) imported"
+                } else {
+                    "⚠ No cookies - Import required"
+                }
+                true
             }
-            true
         }
         screen.addPreference(importCookies)
 
-        val customUa = EditTextPreference(context)
-        customUa.key = PREF_KEY_CUSTOM_UA
-        customUa.title = "🖥️ Custom User-Agent"
-        customUa.summary = "Optional: Use desktop browser UA"
-        customUa.dialogTitle = "Desktop User-Agent"
-        customUa.dialogMessage = "Recommended for better compatibility:\n\nMozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        customUa.setOnPreferenceChangeListener { _, newValue ->
-            customUa.summary = (newValue as String).ifBlank {
-                "Using default desktop User-Agent"
+        val customUa = EditTextPreference(context).apply {
+            key = PREF_KEY_CUSTOM_UA
+            title = "🖥️ Custom User-Agent"
+            summary = "Optional: Use desktop browser UA"
+            dialogTitle = "Desktop User-Agent"
+            dialogMessage =
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+                "AppleWebKit/537.36 (KHTML, like Gecko) " +
+                "Chrome/120.0.0.0 Safari/537.36"
+
+            setOnPreferenceChangeListener { _, newValue ->
+                summary = (newValue as String).ifBlank {
+                    "Using default desktop User-Agent"
+                }
+                true
             }
-            true
         }
         screen.addPreference(customUa)
 
-        val videoHeader = Preference(context)
+        val videoHeader = PreferenceCategory(context)
         videoHeader.key = "video_header"
         videoHeader.title = "🎥 Video Settings"
         screen.addPreference(videoHeader)
 
-        val videoQuality = ListPreference(context)
-        videoQuality.key = PREF_KEY_VIDEO_QUALITY
-        videoQuality.title = "Preferred Quality"
-        videoQuality.entries = arrayOf("1080P", "720P", "480P")
-        videoQuality.entryValues = arrayOf("1080P", "720P", "480P")
-        videoQuality.setDefaultValue(DEFAULT_QUALITY)
-        videoQuality.summary = "Current: ${preferences.getString(PREF_KEY_VIDEO_QUALITY, DEFAULT_QUALITY)}"
-        videoQuality.setOnPreferenceChangeListener { _, newValue ->
-            videoQuality.summary = "Current: ${newValue as String}"
-            true
+        val videoQuality = ListPreference(context).apply {
+            key = PREF_KEY_VIDEO_QUALITY
+            title = "Preferred Quality"
+            entries = arrayOf("1080P", "720P", "480P")
+            entryValues = entries
+            setDefaultValue(DEFAULT_QUALITY)
+            summary = "Current: ${preferences.getString(PREF_KEY_VIDEO_QUALITY, DEFAULT_QUALITY)}"
+
+            setOnPreferenceChangeListener { _, newValue ->
+                summary = "Current: ${newValue as String}"
+                true
+            }
         }
         screen.addPreference(videoQuality)
 
-        val languagePref = ListPreference(context)
-        languagePref.key = PREF_KEY_LANG
-        languagePref.title = "Preferred Language"
-        languagePref.summary = "Affects video subtitles"
-        languagePref.entries = arrayOf("繁體中文", "簡體中文")
-        languagePref.entryValues = arrayOf("zh-CHT", "zh-CHS")
-        languagePref.setOnPreferenceChangeListener { _, newValue ->
-            CloudflareHelper.setLanguageCookie(newValue as String)
-            true
+        val languagePref = ListPreference(context).apply {
+            key = PREF_KEY_LANG
+            title = "Preferred Language"
+            summary = "Affects video subtitles"
+            entries = arrayOf("繁體中文", "簡體中文")
+            entryValues = arrayOf("zh-CHT", "zh-CHS")
+
+            setOnPreferenceChangeListener { _, newValue ->
+                CloudflareHelper.setLanguageCookie(newValue as String)
+                true
+            }
         }
         screen.addPreference(languagePref)
 
-        val helpHeader = Preference(context)
+        val helpHeader = PreferenceCategory(context)
         helpHeader.key = "help_header"
         helpHeader.title = "❓ Help & Troubleshooting"
         screen.addPreference(helpHeader)
 
-        val showHelp = Preference(context)
-        showHelp.key = "show_help"
-        showHelp.title = "📖 View Help Guide"
-        showHelp.summary = "Common issues and solutions"
-        showHelp.setOnPreferenceClickListener {
-            showHelpDialog(context)
-            true
+        val showHelp = Preference().apply {
+            key = "show_help"
+            title = "📖 View Help Guide"
+            summary = "Common issues and solutions"
+            setOnPreferenceClickListener {
+                showHelpDialog(context)
+                true
+            }
         }
         screen.addPreference(showHelp)
 
-        val testConnection = Preference(context)
-        testConnection.key = "test_connection"
-        testConnection.title = "🔧 Test Connection"
-        testConnection.summary = "Check if extension can access Hanime1"
-        testConnection.setOnPreferenceClickListener {
-            testConnection()
-            true
+        val testConnection = Preference().apply {
+            key = "test_connection"
+            title = "🔧 Test Connection"
+            summary = "Check if extension can access Hanime1"
+            setOnPreferenceClickListener {
+                testConnection()
+                true
+            }
         }
         screen.addPreference(testConnection)
     }
