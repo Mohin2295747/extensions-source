@@ -567,7 +567,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         val statusHeader = Preference().apply {
             key = "status_header"
             title = "🔍 Connection Status"
-            setSelectable(false)
+            isEnabled = false
         }
         screen.addPreference(statusHeader)
 
@@ -607,7 +607,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         val cookieHeader = Preference().apply {
             key = "cookie_header"
             title = "🔑 Cookie Management"
-            setSelectable(false)
+            isEnabled = false
         }
         screen.addPreference(cookieHeader)
 
@@ -676,7 +676,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         val videoHeader = Preference().apply {
             key = "video_header"
             title = "🎥 Video Settings"
-            setSelectable(false)
+            isEnabled = false
         }
         screen.addPreference(videoHeader)
 
@@ -713,7 +713,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         val helpHeader = Preference().apply {
             key = "help_header"
             title = "❓ Help & Troubleshooting"
-            setSelectable(false)
+            isEnabled = false
         }
         screen.addPreference(helpHeader)
 
