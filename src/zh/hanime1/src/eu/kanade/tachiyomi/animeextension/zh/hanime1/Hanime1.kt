@@ -21,9 +21,9 @@ import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.awaitSuccess
 import eu.kanade.tachiyomi.util.asJsoup
 import kotlinx.coroutines.CoroutineExceptionHandler
-import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
@@ -68,6 +68,9 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     private val uploadDateFormat: SimpleDateFormat by lazy {
         SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.getDefault())
     }
+
+    private val coroutineScope = CoroutineScope(Dispatchers.IO)
+    private var filterUpdateJob: Job? = null
 
     private fun cleanListTitle(rawTitle: String): String {
         return rawTitle
@@ -422,19 +425,13 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         return GET(searchUrl.build())
     }
 
-    private fun checkFiltersInterceptor(chain: Interceptor.Chain): Response {
-        if (filterUpdateState == FilterUpdateState.NONE) {
-            updateFilters()
-        }
-        return chain.proceed(chain.request())
-    }
-
-    @OptIn(DelicateCoroutinesApi::class)
     private fun updateFilters() {
+        if (filterUpdateState == FilterUpdateState.UPDATING || filterUpdateJob?.isActive == true) {
+            return
+        }
+
         filterUpdateState = FilterUpdateState.UPDATING
-        val exceptionHandler =
-            CoroutineExceptionHandler { _, _ -> filterUpdateState = FilterUpdateState.FAILED }
-        GlobalScope.launch(Dispatchers.IO + exceptionHandler) {
+        filterUpdateJob = coroutineScope.launch {
             try {
                 val jsoup = client.newCall(GET("$baseUrl/search")).awaitSuccess().asJsoup()
                 val genreList = jsoup.select("div.genre-option div.hentai-sort-options").eachText()
@@ -521,6 +518,10 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     override fun getFilterList(): AnimeFilterList {
+        if (filterUpdateState == FilterUpdateState.NONE) {
+            updateFilters()
+        }
+
         val useEnglish = preferences.getBoolean(PREF_KEY_USE_ENGLISH, true)
 
         val genreFilter = createFilter(PREF_KEY_GENRE_LIST) { GenreFilter(it) }
@@ -754,7 +755,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     private fun testConnection() {
-        GlobalScope.launch(Dispatchers.IO) {
+        coroutineScope.launch {
             try {
                 val testUrl = "$baseUrl/search"
                 val request = GET(testUrl)

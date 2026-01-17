@@ -11,6 +11,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Cookie
+import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
@@ -54,7 +55,7 @@ object CloudflareHelper {
     private val BROWSER_HEADERS = mapOf(
         "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language" to "zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7",
-        "Accept-Encoding" to "gzip, deflate, br",
+        "Accept-Encoding" to "gzip, deflate",
         "Connection" to "keep-alive",
         "Upgrade-Insecure-Requests" to "1",
         "Sec-Fetch-Dest" to "document",
@@ -73,8 +74,8 @@ object CloudflareHelper {
             .cookieJar(PersistentCookieJar)
             .addInterceptor(::authInterceptor)
             .addInterceptor(::refererInterceptor)
-            .addInterceptor(::retryInterceptor)
             .addInterceptor(::errorDetectionInterceptor)
+            .addInterceptor(::retryInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
@@ -139,6 +140,10 @@ object CloudflareHelper {
             customUa?.takeIf { it.isNotBlank() } ?: DESKTOP_USER_AGENT,
         )
 
+        if (original.url.pathSegments.contains("search") || original.url.pathSegments.contains("watch")) {
+            builder.header("Origin", BASE_URL)
+        }
+
         BROWSER_HEADERS.forEach { (key, value) ->
             builder.header(key, value)
         }
@@ -150,13 +155,15 @@ object CloudflareHelper {
         val original = chain.request()
         val builder = original.newBuilder()
 
-        if (lastReferer.isNotBlank()) {
+        if (original.url.pathSegments.contains("search") || original.url.pathSegments.contains("watch")) {
             builder.header("Referer", lastReferer)
         }
 
         val response = chain.proceed(builder.build())
 
-        lastReferer = original.url.toString()
+        if (original.url.pathSegments.contains("search") || original.url.pathSegments.contains("watch")) {
+            lastReferer = original.url.toString()
+        }
 
         return response
     }
@@ -170,7 +177,7 @@ object CloudflareHelper {
             val request = chain.request()
             response = chain.proceed(request)
 
-            if (response.isSuccessful || attempt >= MAX_RETRIES) {
+            if (response.isSuccessful || attempt >= MAX_RETRIES || response.code in listOf(403, 429, 503)) {
                 return response
             }
 
@@ -203,7 +210,7 @@ object CloudflareHelper {
                     "You need to verify your age on the website first.\n\n1. Open Hanime1 in browser\n2. Complete age verification\n3. Import fresh cookies",
                 )
 
-            response.code == 403 && document.select(expectedSelector).isEmpty() ->
+            response.code == 403 && document.select(expectedSelector).isEmpty() && document.select("video").isEmpty() ->
                 BlockInfo(
                     BlockType.COOKIE_EXPIRED,
                     "Cookies expired or invalid",
@@ -232,8 +239,13 @@ object CloudflareHelper {
         expectedSelector: String,
         preferences: SharedPreferences,
     ): Boolean {
+        val hasVideo = document.select("video").isNotEmpty()
+        val hasJsonLd = document.select("script[type=application/ld+json]").isNotEmpty()
+        val hasExpected = document.select(expectedSelector).isNotEmpty()
+        val hasValidContent = hasVideo || hasJsonLd || hasExpected
+
         val blocked = response.code in listOf(403, 429, 503) ||
-            (document.select(expectedSelector).isEmpty() && (
+            (!hasValidContent && (
                 document.text().contains("Cloudflare", ignoreCase = true) ||
                     document.text().contains("Verify you are human", ignoreCase = true) ||
                     document.text().contains("Age Verification", ignoreCase = true) ||
@@ -337,6 +349,7 @@ object CloudflareHelper {
                             .build()
 
                         cookies.add(cookie)
+                        PersistentCookieJar.saveCookie(httpUrl, cookie)
                     } catch (e: Exception) {
                         Log.w(TAG, "Failed to parse cookie: ${e.message}")
                     }
@@ -362,6 +375,7 @@ object CloudflareHelper {
                     val cookie = Cookie.parse(httpUrl, trimmed)
                     if (cookie != null) {
                         cookies.add(cookie)
+                        PersistentCookieJar.saveCookie(httpUrl, cookie)
                     }
                 } catch (e: Exception) {
                     Log.w(TAG, "Failed to parse raw cookie '$trimmed': ${e.message}")
@@ -401,11 +415,19 @@ object CloudflareHelper {
     }
 
     fun getCookieStatus(preferences: SharedPreferences): String {
+        val cfClearanceMissing = !PersistentCookieJar.hasCfClearance()
+        val isBlocked = isBlocked(preferences)
+        
         return when {
-            isBlocked(preferences) -> {
+            isBlocked && cfClearanceMissing -> {
+                val blockInfo = getLastBlockInfo(preferences)
+                "❌ Blocked + Missing cf_clearance"
+            }
+            isBlocked -> {
                 val blockInfo = getLastBlockInfo(preferences)
                 "❌ Blocked: ${blockInfo?.type ?: "Unknown"}"
             }
+            cfClearanceMissing -> "⚠ Missing cf_clearance cookie"
             getCookieCount() == 0 -> "⚠ No cookies - Import required"
             else -> "✅ ${getCookieCount()} cookies active"
         }
@@ -433,23 +455,28 @@ object CloudflareHelper {
 object PersistentCookieJar : okhttp3.CookieJar {
     private val cookieStore = mutableMapOf<String, MutableList<Cookie>>()
 
-    override fun saveFromResponse(url: okhttp3.HttpUrl, cookies: List<Cookie>) {
-        val host = url.host
-        cookieStore[host] = cookies.toMutableList()
+    override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+        val key = keyFor(url)
+        val existing = cookieStore.getOrPut(key) { mutableListOf() }
+        cookies.forEach { new ->
+            existing.removeAll { it.name == new.name }
+            existing.add(new)
+        }
         saveToPreferences()
     }
 
-    override fun loadForRequest(url: okhttp3.HttpUrl): List<Cookie> {
-        return cookieStore[url.host] ?: emptyList()
+    override fun loadForRequest(url: HttpUrl): List<Cookie> {
+        val matchingKeys = cookieStore.keys.filter { key ->
+            url.host.endsWith(key) || key.endsWith(url.host)
+        }
+        return matchingKeys.flatMap { cookieStore[it] ?: emptyList() }
     }
 
-    fun saveCookie(url: okhttp3.HttpUrl, cookie: Cookie) {
-        val host = url.host
-        val cookies = cookieStore.getOrPut(host) { mutableListOf() }
-
-        cookies.removeAll { it.name == cookie.name }
-        cookies.add(cookie)
-
+    fun saveCookie(url: HttpUrl, cookie: Cookie) {
+        val key = keyFor(url)
+        val existing = cookieStore.getOrPut(key) { mutableListOf() }
+        existing.removeAll { it.name == cookie.name }
+        existing.add(cookie)
         saveToPreferences()
     }
 
@@ -462,13 +489,33 @@ object PersistentCookieJar : okhttp3.CookieJar {
         return cookieStore.values.sumOf { it.size }
     }
 
+    fun hasCfClearance(): Boolean {
+        return cookieStore.values.any { cookies ->
+            cookies.any { it.name == "cf_clearance" }
+        }
+    }
+
+    private fun keyFor(url: HttpUrl): String {
+        val host = url.host
+        return if (host.contains("hanime1.me")) {
+            if (host.startsWith("www.")) {
+                host.substring(4)
+            } else {
+                host
+            }
+        } else {
+            host
+        }
+    }
+
     private fun saveToPreferences() {
         val preferences = CloudflareHelper.getPreferences() ?: return
 
         val serializedCookies = mutableMapOf<String, String>()
         cookieStore.forEach { (host, cookies) ->
             val cookieStrings = cookies.map { cookie ->
-                "${cookie.name}=${cookie.value}; Domain=${cookie.domain}; Path=${cookie.path}; Secure=${cookie.secure}; HttpOnly=${cookie.httpOnly()}"
+                "${cookie.name}=${cookie.value}; Domain=${cookie.domain}; Path=${cookie.path}; " +
+                    "Secure=${cookie.secure}; HttpOnly=${cookie.httpOnly()}"
             }
             serializedCookies[host] = cookieStrings.joinToString("||")
         }
@@ -502,23 +549,35 @@ object PersistentCookieJar : okhttp3.CookieJar {
 
     private fun parseCookieString(cookieStr: String): Cookie? {
         return try {
-            val parts = cookieStr.split("; ").associate { part ->
-                val keyValue = part.split("=", limit = 2)
-                if (keyValue.size == 2) keyValue[0] to keyValue[1] else keyValue[0] to ""
+            val segments = cookieStr.split("; ")
+            val nameValue = segments[0].split("=", limit = 2)
+            if (nameValue.size != 2) return null
+
+            val name = nameValue[0]
+            val value = nameValue[1]
+
+            var domain = ".hanime1.me"
+            var path = "/"
+            var secure = false
+            var httpOnly = false
+
+            segments.drop(1).forEach {
+                when {
+                    it.startsWith("Domain=", true) -> domain = it.substringAfter("=")
+                    it.startsWith("Path=", true) -> path = it.substringAfter("=")
+                    it.equals("Secure", true) -> secure = true
+                    it.equals("HttpOnly", true) -> httpOnly = true
+                }
             }
 
             Cookie.Builder()
-                .name(parts["name"] ?: return null)
-                .value(parts["value"] ?: return null)
-                .domain(parts["Domain"] ?: ".hanime1.me")
-                .path(parts["Path"] ?: "/")
+                .name(name)
+                .value(value)
+                .domain(domain)
+                .path(path)
                 .apply {
-                    if ((parts["Secure"] ?: "false").toBooleanStrictOrNull() == true) {
-                        secure()
-                    }
-                    if ((parts["HttpOnly"] ?: "false").toBooleanStrictOrNull() == true) {
-                        httpOnly()
-                    }
+                    if (secure) secure()
+                    if (httpOnly) httpOnly()
                 }
                 .build()
         } catch (e: Exception) {
