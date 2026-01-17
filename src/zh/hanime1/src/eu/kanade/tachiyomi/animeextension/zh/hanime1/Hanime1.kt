@@ -198,7 +198,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     currentVideoDate = runCatching {
                         uploadDateFormat.parse(date)?.time
                     }.getOrNull() ?: 0L
-                }
+            }
             } catch (e: Exception) {
                 Log.e(name, "Failed to parse upload date: ${e.message}")
             }
@@ -565,7 +565,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         val statusHeader = Preference(screen.context)
         statusHeader.key = "status_header"
         statusHeader.title = "🔍 Connection Status"
-        statusHeader.setSelectable(false)
         screen.addPreference(statusHeader)
 
         val cookieStatus = Preference(screen.context)
@@ -595,7 +594,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         val cookieHeader = Preference(screen.context)
         cookieHeader.key = "cookie_header"
         cookieHeader.title = "🔑 Cookie Management"
-        cookieHeader.setSelectable(false)
         screen.addPreference(cookieHeader)
 
         val clearCookies = Preference(screen.context)
@@ -648,7 +646,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         val videoHeader = Preference(screen.context)
         videoHeader.key = "video_header"
         videoHeader.title = "🎥 Video Settings"
-        videoHeader.setSelectable(false)
         screen.addPreference(videoHeader)
 
         val videoQuality = ListPreference(screen.context)
@@ -679,7 +676,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         val helpHeader = Preference(screen.context)
         helpHeader.key = "help_header"
         helpHeader.title = "❓ Help & Troubleshooting"
-        helpHeader.setSelectable(false)
         screen.addPreference(helpHeader)
 
         val showHelp = Preference(screen.context)
