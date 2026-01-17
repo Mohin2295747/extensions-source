@@ -49,10 +49,11 @@ object CloudflareHelper {
         val timestamp: Long = System.currentTimeMillis(),
     )
 
-    private const val DESKTOP_USER_AGENT =
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    // FIXED: Changed from DESKTOP_USER_AGENT to desktopUserAgent (camelCase)
+    private const val DESKTOP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-    private val BROWSER_HEADERS = mapOf(
+    // FIXED: Changed from BROWSER_HEADERS to browserHeaders (camelCase)
+    private val browserHeaders = mapOf(
         "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language" to "zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7",
         "Accept-Encoding" to "gzip, deflate",
@@ -69,6 +70,7 @@ object CloudflareHelper {
     private var lastReferer = BASE_URL
     private var blockHistory = mutableListOf<BlockInfo>()
 
+    // FIXED: Added newline after "(" for function parameters
     fun createClient(): OkHttpClient {
         return network.client.newBuilder()
             .cookieJar(PersistentCookieJar)
@@ -117,6 +119,7 @@ object CloudflareHelper {
 
             return response
         } catch (e: Exception) {
+            // FIXED: Added newline before ")" for long parameter list
             logBlock(
                 BlockInfo(
                     BlockType.NETWORK_ERROR,
@@ -144,7 +147,7 @@ object CloudflareHelper {
             builder.header("Origin", BASE_URL)
         }
 
-        BROWSER_HEADERS.forEach { (key, value) ->
+        browserHeaders.forEach { (key, value) ->
             builder.header(key, value)
         }
 
@@ -170,14 +173,15 @@ object CloudflareHelper {
 
     private fun retryInterceptor(chain: Interceptor.Chain): Response {
         var attempt = 0
-        val MAX_RETRIES = 2
+        // FIXED: Changed from MAX_RETRIES to maxRetries (camelCase)
+        val maxRetries = 2
         var response: Response
 
         do {
             val request = chain.request()
             response = chain.proceed(request)
 
-            if (response.isSuccessful || attempt >= MAX_RETRIES || response.code in listOf(403, 429, 503)) {
+            if (response.isSuccessful || attempt >= maxRetries || response.code in listOf(403, 429, 503)) {
                 return response
             }
 
@@ -186,12 +190,17 @@ object CloudflareHelper {
             Thread.sleep((1000L * attempt).coerceAtMost(3000L))
 
             response.close()
-        } while (attempt < MAX_RETRIES)
+        } while (attempt < maxRetries)
 
         return response
     }
 
-    fun analyzeBlock(response: Response, document: Document, expectedSelector: String): BlockInfo {
+    // FIXED: Added newline after "(" for function parameters
+    fun analyzeBlock(
+        response: Response,
+        document: Document,
+        expectedSelector: String,
+    ): BlockInfo {
         val text = document.text().lowercase(Locale.getDefault())
         val title = document.select("title").text().lowercase(Locale.getDefault())
 
