@@ -251,13 +251,16 @@ object CloudflareHelper {
         val hasValidContent = hasVideo || hasJsonLd || hasExpected
 
         val blocked = response.code in listOf(403, 429, 503) ||
-            (!hasValidContent && (
-                document.text().contains("Cloudflare", ignoreCase = true) ||
-                    document.text().contains("Verify you are human", ignoreCase = true) ||
-                    document.text().contains("Age Verification", ignoreCase = true) ||
-                    document.select("title").text().contains("Cloudflare", ignoreCase = true) ||
-                    document.select("div.cf-error-details").isNotEmpty()
-                ))
+            (
+                !hasValidContent &&
+                    (
+                        document.text().contains("Cloudflare", ignoreCase = true) ||
+                            document.text().contains("Verify you are human", ignoreCase = true) ||
+                            document.text().contains("Age Verification", ignoreCase = true) ||
+                            document.select("title").text().contains("Cloudflare", ignoreCase = true) ||
+                            document.select("div.cf-error-details").isNotEmpty()
+                    )
+            )
 
         if (blocked) {
             val blockInfo = analyzeBlock(response, document, expectedSelector)
@@ -423,7 +426,6 @@ object CloudflareHelper {
     fun getCookieStatus(preferences: SharedPreferences): String {
         val cfClearanceMissing = !PersistentCookieJar.hasCfClearance()
         val isBlocked = isBlocked(preferences)
-        
         return when {
             isBlocked && cfClearanceMissing -> {
                 val blockInfo = getLastBlockInfo(preferences)
