@@ -563,7 +563,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         val context = screen.context
-    
+
         val statusHeader = Preference(context)
         statusHeader.key = "status_header"
         statusHeader.title = "🔍 Connection Status"
