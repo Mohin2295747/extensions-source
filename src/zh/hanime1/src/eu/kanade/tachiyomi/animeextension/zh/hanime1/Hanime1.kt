@@ -742,7 +742,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     companion object {
         const val PREF_KEY_VIDEO_QUALITY = "PREF_KEY_VIDEO_QUALITY"
         const val PREF_KEY_LANG = "PREF_KEY_LANG"
-        const val PREF_KEY_USE_ENGLISH = "PREF_KEY_USE_ENGLISH
+        const val PREF_KEY_USE_ENGLISH = "PREF_KEY_USE_ENGLISH"
         const val PREF_KEY_GENRE_LIST = "PREF_KEY_GENRE_LIST"
         const val PREF_KEY_SORT_LIST = "PREF_KEY_SORT_LIST"
         const val PREF_KEY_YEAR_LIST = "PREF_KEY_YEAR_LIST"
