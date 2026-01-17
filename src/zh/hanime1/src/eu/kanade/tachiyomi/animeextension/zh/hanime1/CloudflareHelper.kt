@@ -49,14 +49,10 @@ object CloudflareHelper {
         val timestamp: Long = System.currentTimeMillis(),
     )
 
-    // FIXED LINE 31: Use const val
-    private const val DESKTOP_USER_AGENT = 
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    private const val DESKTOP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-    // FIXED LINE 60: Use const val
     private const val MAX_RETRIES = 2
 
-    // FIXED LINE 53: No trailing space
     private val browserHeaders = mapOf(
         "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language" to "zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7",
@@ -122,7 +118,6 @@ object CloudflareHelper {
 
             return response
         } catch (e: Exception) {
-            // FIXED LINES 257-263: Proper newlines
             logBlock(
                 BlockInfo(
                     BlockType.NETWORK_ERROR,
