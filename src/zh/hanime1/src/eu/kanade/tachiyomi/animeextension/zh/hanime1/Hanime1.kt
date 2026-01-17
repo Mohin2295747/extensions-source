@@ -32,9 +32,6 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import okhttp3.Cookie
-import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.Interceptor
 import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.nodes.Document
@@ -53,7 +50,7 @@ enum class FilterUpdateState {
 
 class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override val baseUrl: String
-        get() = CloudflareHelper.baseUrl
+        get() = CloudflareHelper.BASE_URL
     override val lang: String
         get() = "zh"
     override val name: String
@@ -309,8 +306,8 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             val blockInfo = CloudflareHelper.getLastBlockInfo(preferences)
             throw Exception(
                 "🔒 Access Blocked\n\nIssue: ${blockInfo?.message ?: "Cloudflare protection"}\n\n" +
-                "Solution: ${blockInfo?.solution ?: "Please re-import fresh cookies"}\n\n" +
-                "⚠️ How to fix:\n1. Open Hanime1 in WebView\n2. Log in/complete verification\n3. Import cookies\n4. Retry"
+                    "Solution: ${blockInfo?.solution ?: "Please re-import fresh cookies"}\n\n" +
+                    "⚠️ How to fix:\n1. Open Hanime1 in WebView\n2. Log in/complete verification\n3. Import cookies\n4. Retry",
             )
         }
         return searchAnimeParseFromDocument(jsoup)
@@ -356,7 +353,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             val blockInfo = CloudflareHelper.getLastBlockInfo(preferences)
             throw Exception(
                 "⚠️ Access Blocked\n\nReason: ${blockInfo?.message ?: "Cloudflare protection"}\n\n" +
-                "Steps to fix:\n1. Go to Extension Settings\n2. Clear Cookies\n3. Import fresh cookies\n4. Retry search"
+                    "Steps to fix:\n1. Go to Extension Settings\n2. Clear Cookies\n3. Import fresh cookies\n4. Retry search",
             )
         }
 
@@ -570,9 +567,9 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     key = "status_header"
                     title = "🔍 Connection Status"
                     isSelectable = false
-                }
+                },
             )
-            
+
             addPreference(
                 Preference(context).apply {
                     key = "cookie_status_detailed"
@@ -580,42 +577,41 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     summaryProvider = Preference.SummaryProvider<Preference> {
                         CloudflareHelper.getCookieStatus(preferences)
                     }
-                }
+                },
             )
-            
+
             addPreference(
                 Preference(context).apply {
                     key = "block_history"
                     title = "Recent Blocks"
                     summaryProvider = Preference.SummaryProvider<Preference> {
                         val history = CloudflareHelper.getBlockHistory()
-                        if (history.isEmpty()) "No recent blocks"
-                        else "${history.size} block(s) - Tap to view"
+                        if (history.isEmpty()) "No recent blocks" else "${history.size} block(s) - Tap to view"
                     }
                     setOnPreferenceClickListener {
                         showBlockHistoryDialog(context)
                         true
                     }
-                }
+                },
             )
-            
+
             addPreference(
                 SwitchPreferenceCompat(context).apply {
                     key = PREF_KEY_USE_ENGLISH
                     title = "🌐 Use English filters"
                     summary = "Show filter names in English (also affects tags in anime details)"
                     setDefaultValue(true)
-                }
+                },
             )
-            
+
             addPreference(
                 Preference(context).apply {
                     key = "cookie_header"
                     title = "🔑 Cookie Management"
                     isSelectable = false
-                }
+                },
             )
-            
+
             addPreference(
                 Preference(context).apply {
                     key = "clear_cookies"
@@ -626,9 +622,9 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         it.summary = "Cookies cleared - Ready for fresh import"
                         true
                     }
-                }
+                },
             )
-            
+
             addPreference(
                 EditTextPreference(context).apply {
                     key = PREF_KEY_IMPORTED_COOKIES
@@ -641,7 +637,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         preferences.edit()
                             .putBoolean(PREF_KEY_COOKIE_INVALID, false)
                             .apply()
-                        
+
                         summary = if (value.isNotEmpty()) {
                             val cookies = CloudflareHelper.parseCookies(value)
                             "✅ ${cookies.size} cookie(s) imported"
@@ -650,9 +646,9 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         }
                         true
                     }
-                }
+                },
             )
-            
+
             addPreference(
                 EditTextPreference(context).apply {
                     key = PREF_KEY_CUSTOM_UA
@@ -666,17 +662,17 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         }
                         true
                     }
-                }
+                },
             )
-            
+
             addPreference(
                 Preference(context).apply {
                     key = "video_header"
                     title = "🎥 Video Settings"
                     isSelectable = false
-                }
+                },
             )
-            
+
             addPreference(
                 ListPreference(context).apply {
                     key = PREF_KEY_VIDEO_QUALITY
@@ -685,9 +681,9 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     entryValues = entries
                     setDefaultValue(DEFAULT_QUALITY)
                     summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
-                }
+                },
             )
-            
+
             addPreference(
                 ListPreference(context).apply {
                     key = PREF_KEY_LANG
@@ -699,17 +695,17 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         CloudflareHelper.setLanguageCookie(newValue as String)
                         true
                     }
-                }
+                },
             )
-            
+
             addPreference(
                 Preference(context).apply {
                     key = "help_header"
                     title = "❓ Help & Troubleshooting"
                     isSelectable = false
-                }
+                },
             )
-            
+
             addPreference(
                 Preference(context).apply {
                     key = "show_help"
@@ -719,9 +715,9 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         showHelpDialog(context)
                         true
                     }
-                }
+                },
             )
-            
+
             addPreference(
                 Preference(context).apply {
                     key = "test_connection"
@@ -731,7 +727,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                         testConnection()
                         true
                     }
-                }
+                },
             )
         }
     }
@@ -764,7 +760,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 val request = GET(testUrl)
                 val response = client.newCall(request).execute()
                 val doc = response.asJsoup()
-                
+
                 CloudflareHelper.checkAndHandleBlock(response, doc, "div.search-doujin-videos", preferences)
             } catch (e: Exception) {
                 Log.e("Hanime1", "Connection test failed: ${e.message}")
