@@ -60,7 +60,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     // CRITICAL: Use cloudflareClient instead of creating our own
     override val client = CloudflareHelper.createClient()
-    
     private val preferences: SharedPreferences by lazy {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
     }
@@ -77,18 +76,16 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     private suspend fun safeRequest(request: Request): Response {
         return try {
             val response = client.newCall(request).await()
-            
             // Check response for blocks
             if (!response.isSuccessful || isBlockedResponse(response)) {
                 throw CloudflareHelper.BlockedException(
                     CloudflareHelper.BlockInfo(
                         CloudflareHelper.BlockType.CLOUDFLARE_CHALLENGE,
                         "Access blocked (HTTP ${response.code})",
-                        "Open Hanime1 in AniYomi WebView to solve Cloudflare"
-                    )
+                        "Open Hanime1 in AniYomi WebView to solve Cloudflare",
+                    ),
                 )
             }
-            
             response
         } catch (e: CloudflareHelper.BlockedException) {
             // Re-throw Cloudflare blocks
@@ -97,7 +94,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             throw Exception("Network error: ${e.message}", e)
         }
     }
-    
     private fun isBlockedResponse(response: Response): Boolean {
         return when (response.code) {
             403, 429, 503 -> true
@@ -106,8 +102,8 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                 if (contentType?.contains("text/html") == true) {
                     val body = response.peekBody(1024).string()
                     body.contains("Cloudflare", ignoreCase = true) ||
-                    body.contains("verify you are human", ignoreCase = true) ||
-                    body.contains("Checking your browser", ignoreCase = true)
+                        body.contains("verify you are human", ignoreCase = true) ||
+                        body.contains("Checking your browser", ignoreCase = true)
                 } else {
                     false
                 }
@@ -118,14 +114,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     private suspend fun safeParse(request: Request, selector: String = "div.search-doujin-videos"): Document {
         val response = safeRequest(request)
         val doc = response.asJsoup()
-        
         // Check for Cloudflare/block in the document
         val blockInfo = CloudflareHelper.checkDocumentForBlock(doc, selector)
         if (blockInfo != null) {
             CloudflareHelper.saveBlockInfo(preferences, blockInfo)
             throw CloudflareHelper.BlockedException(blockInfo)
         }
-        
         // Success - clear block status
         CloudflareHelper.clearBlockStatus(preferences)
         return doc
@@ -328,14 +322,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun latestUpdatesParse(response: Response): AnimesPage {
         val doc = response.asJsoup()
-        
         // Check for Cloudflare/block in the document
         val blockInfo = CloudflareHelper.checkDocumentForBlock(doc, "div.search-doujin-videos")
         if (blockInfo != null) {
             CloudflareHelper.saveBlockInfo(preferences, blockInfo)
             throw CloudflareHelper.BlockedException(blockInfo)
         }
-        
         // Success - clear block status
         CloudflareHelper.clearBlockStatus(preferences)
         return searchAnimeParseFromDocument(doc)
@@ -345,14 +337,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun popularAnimeParse(response: Response): AnimesPage {
         val doc = response.asJsoup()
-        
         // Check for Cloudflare/block in the document
         val blockInfo = CloudflareHelper.checkDocumentForBlock(doc, "div.search-doujin-videos")
         if (blockInfo != null) {
             CloudflareHelper.saveBlockInfo(preferences, blockInfo)
             throw CloudflareHelper.BlockedException(blockInfo)
         }
-        
         // Success - clear block status
         CloudflareHelper.clearBlockStatus(preferences)
         return searchAnimeParseFromDocument(doc)
@@ -374,14 +364,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun searchAnimeParse(response: Response): AnimesPage {
         val jsoup = response.asJsoup()
-        
         // Check for Cloudflare/block in the document
         val blockInfo = CloudflareHelper.checkDocumentForBlock(jsoup, "div.search-doujin-videos")
         if (blockInfo != null) {
             CloudflareHelper.saveBlockInfo(preferences, blockInfo)
             throw CloudflareHelper.BlockedException(blockInfo)
         }
-        
         // Success - clear block status
         CloudflareHelper.clearBlockStatus(preferences)
         return searchAnimeParseFromDocument(jsoup)
@@ -774,7 +762,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             key = "test_connection"
             title = "🔧 Test Connection"
             summary = "Check if extension can access Hanime1"
-            
             setOnPreferenceClickListener {
                 coroutineScope.launch {
                     try {
@@ -841,7 +828,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             **Need More Help?**
             Contact extension maintainer or check AniYomi Discord.
         """.trimIndent()
-        
         android.app.AlertDialog.Builder(context)
             .setTitle("Hanime1 Extension Help")
             .setMessage(helpText)
