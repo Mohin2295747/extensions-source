@@ -82,7 +82,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             if (!response.isSuccessful || isBlockedResponse(response)) {
                 throw CloudflareHelper.BlockedException(
                     CloudflareHelper.BlockInfo(
-                        CloudflareHelper.BlockType.CLOUDFLARE,
+                        CloudflareHelper.BlockType.CLOUDFLARE_CHALLENGE,
                         "Access blocked (HTTP ${response.code})",
                         "Open Hanime1 in AniYomi WebView to solve Cloudflare"
                     )
@@ -257,7 +257,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     currentVideoDate = runCatching {
                         uploadDateFormat.parse(date)?.time
                     }.getOrNull() ?: 0L
-            }
+                }
             } catch (e: Exception) {
                 Log.e(name, "Failed to parse upload date: ${e.message}")
             }
@@ -865,3 +865,23 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         const val SEPARATOR = "|||"
     }
 }
+
+// Filter classes - Add these at the end of the file or in a separate file
+abstract class QueryFilter(val key: String, val values: Array<String>) : AnimeFilter.Select<String>(key, values)
+
+class GenreFilter(values: Array<String>) : QueryFilter("genre", values)
+class SortFilter(values: Array<String>) : QueryFilter("sort", values)
+class YearFilter(values: Array<String>) : QueryFilter("year", values)
+class MonthFilter(values: Array<String>) : QueryFilter("month", values)
+
+class DateFilter(val yearFilter: YearFilter, val monthFilter: MonthFilter) : 
+    AnimeFilter.Group<AnimeFilter>("日期", listOf(yearFilter, monthFilter))
+
+class BroadMatchFilter : AnimeFilter.CheckBox("模糊匹配")
+
+class TagFilter(key: String, val name: String) : AnimeFilter.CheckBox(name)
+
+class CategoryFilter(val categoryName: String, val tags: List<TagFilter>) : 
+    AnimeFilter.Group<AnimeFilter>(categoryName, tags)
+
+class TagsFilter(val filters: List<AnimeFilter<out Any>>) : AnimeFilter.Group<AnimeFilter>("標籤", filters)
