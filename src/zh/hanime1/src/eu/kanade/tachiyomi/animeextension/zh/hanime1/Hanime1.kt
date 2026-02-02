@@ -860,14 +860,14 @@ class SortFilter(values: Array<String>) : QueryFilter("sort", values)
 class YearFilter(values: Array<String>) : QueryFilter("year", values)
 class MonthFilter(values: Array<String>) : QueryFilter("month", values)
 
-class DateFilter(val yearFilter: YearFilter, val monthFilter: MonthFilter) : 
+class DateFilter(val yearFilter: YearFilter, val monthFilter: MonthFilter) :
     AnimeFilter.Group<AnimeFilter>("日期", listOf(yearFilter, monthFilter))
 
 class BroadMatchFilter : AnimeFilter.CheckBox("模糊匹配")
 
 class TagFilter(key: String, val name: String) : AnimeFilter.CheckBox(name)
 
-class CategoryFilter(val categoryName: String, val tags: List<TagFilter>) : 
+class CategoryFilter(val categoryName: String, val tags: List<TagFilter>) :
     AnimeFilter.Group<AnimeFilter>(categoryName, tags)
 
 class TagsFilter(val filters: List<AnimeFilter<out Any>>) : AnimeFilter.Group<AnimeFilter>("標籤", filters)
