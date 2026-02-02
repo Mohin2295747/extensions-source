@@ -58,8 +58,9 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     override val supportsLatest: Boolean
         get() = true
 
+    // CRITICAL: Use cloudflareClient instead of creating our own
     override val client = CloudflareHelper.createClient()
-
+    
     private val preferences: SharedPreferences by lazy {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
     }
@@ -71,6 +72,64 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
     private var filterUpdateJob: Job? = null
+
+    // Add this function for proper error handling
+    private suspend fun safeRequest(request: Request): Response {
+        return try {
+            val response = client.newCall(request).await()
+            
+            // Check response for blocks
+            if (!response.isSuccessful || isBlockedResponse(response)) {
+                throw CloudflareHelper.BlockedException(
+                    CloudflareHelper.BlockInfo(
+                        CloudflareHelper.BlockType.CLOUDFLARE,
+                        "Access blocked (HTTP ${response.code})",
+                        "Open Hanime1 in AniYomi WebView to solve Cloudflare"
+                    )
+                )
+            }
+            
+            response
+        } catch (e: CloudflareHelper.BlockedException) {
+            // Re-throw Cloudflare blocks
+            throw e
+        } catch (e: Exception) {
+            throw Exception("Network error: ${e.message}", e)
+        }
+    }
+    
+    private fun isBlockedResponse(response: Response): Boolean {
+        return when (response.code) {
+            403, 429, 503 -> true
+            else -> {
+                val contentType = response.header("Content-Type", "")
+                if (contentType?.contains("text/html") == true) {
+                    val body = response.peekBody(1024).string()
+                    body.contains("Cloudflare", ignoreCase = true) ||
+                    body.contains("verify you are human", ignoreCase = true) ||
+                    body.contains("Checking your browser", ignoreCase = true)
+                } else {
+                    false
+                }
+            }
+        }
+    }
+
+    private suspend fun safeParse(request: Request, selector: String = "div.search-doujin-videos"): Document {
+        val response = safeRequest(request)
+        val doc = response.asJsoup()
+        
+        // Check for Cloudflare/block in the document
+        val blockInfo = CloudflareHelper.checkDocumentForBlock(doc, selector)
+        if (blockInfo != null) {
+            CloudflareHelper.saveBlockInfo(preferences, blockInfo)
+            throw CloudflareHelper.BlockedException(blockInfo)
+        }
+        
+        // Success - clear block status
+        CloudflareHelper.clearBlockStatus(preferences)
+        return doc
+    }
 
     private fun cleanListTitle(rawTitle: String): String {
         return rawTitle
@@ -198,7 +257,7 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
                     currentVideoDate = runCatching {
                         uploadDateFormat.parse(date)?.time
                     }.getOrNull() ?: 0L
-                }
+            }
             } catch (e: Exception) {
                 Log.e(name, "Failed to parse upload date: ${e.message}")
             }
@@ -269,24 +328,34 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun latestUpdatesParse(response: Response): AnimesPage {
         val doc = response.asJsoup()
-        val blocked = CloudflareHelper.checkAndHandleBlock(response, doc, "div.search-doujin-videos", preferences)
-        return if (blocked) {
-            AnimesPage(emptyList(), false)
-        } else {
-            searchAnimeParseFromDocument(doc)
+        
+        // Check for Cloudflare/block in the document
+        val blockInfo = CloudflareHelper.checkDocumentForBlock(doc, "div.search-doujin-videos")
+        if (blockInfo != null) {
+            CloudflareHelper.saveBlockInfo(preferences, blockInfo)
+            throw CloudflareHelper.BlockedException(blockInfo)
         }
+        
+        // Success - clear block status
+        CloudflareHelper.clearBlockStatus(preferences)
+        return searchAnimeParseFromDocument(doc)
     }
 
     override fun latestUpdatesRequest(page: Int) = searchAnimeRequest(page, "", AnimeFilterList())
 
     override fun popularAnimeParse(response: Response): AnimesPage {
         val doc = response.asJsoup()
-        val blocked = CloudflareHelper.checkAndHandleBlock(response, doc, "div.search-doujin-videos", preferences)
-        return if (blocked) {
-            AnimesPage(emptyList(), false)
-        } else {
-            searchAnimeParseFromDocument(doc)
+        
+        // Check for Cloudflare/block in the document
+        val blockInfo = CloudflareHelper.checkDocumentForBlock(doc, "div.search-doujin-videos")
+        if (blockInfo != null) {
+            CloudflareHelper.saveBlockInfo(preferences, blockInfo)
+            throw CloudflareHelper.BlockedException(blockInfo)
         }
+        
+        // Success - clear block status
+        CloudflareHelper.clearBlockStatus(preferences)
+        return searchAnimeParseFromDocument(doc)
     }
 
     override fun popularAnimeRequest(page: Int): Request {
@@ -305,14 +374,16 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun searchAnimeParse(response: Response): AnimesPage {
         val jsoup = response.asJsoup()
-        if (CloudflareHelper.checkAndHandleBlock(response, jsoup, "div.search-doujin-videos", preferences)) {
-            val blockInfo = CloudflareHelper.getLastBlockInfo(preferences)
-            throw Exception(
-                "🔒 Access Blocked\n\nIssue: ${blockInfo?.message ?: "Cloudflare protection"}\n\n" +
-                    "Solution: ${blockInfo?.solution ?: "Please re-import fresh cookies"}\n\n" +
-                    "⚠️ How to fix:\n1. Open Hanime1 in WebView\n2. Log in/complete verification\n3. Import cookies\n4. Retry",
-            )
+        
+        // Check for Cloudflare/block in the document
+        val blockInfo = CloudflareHelper.checkDocumentForBlock(jsoup, "div.search-doujin-videos")
+        if (blockInfo != null) {
+            CloudflareHelper.saveBlockInfo(preferences, blockInfo)
+            throw CloudflareHelper.BlockedException(blockInfo)
         }
+        
+        // Success - clear block status
+        CloudflareHelper.clearBlockStatus(preferences)
         return searchAnimeParseFromDocument(jsoup)
     }
 
@@ -352,12 +423,13 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
-        if (CloudflareHelper.isBlocked(preferences)) {
-            val blockInfo = CloudflareHelper.getLastBlockInfo(preferences)
-            throw Exception(
-                "⚠️ Access Blocked\n\nReason: ${blockInfo?.message ?: "Cloudflare protection"}\n\n" +
-                    "Steps to fix:\n1. Go to Extension Settings\n2. Clear Cookies\n3. Import fresh cookies\n4. Retry search",
-            )
+        // Check for previous blocks (optional - can be removed if you want fresh attempts each time)
+        val lastBlock = CloudflareHelper.getLastBlockInfo(preferences)
+        if (lastBlock != null) {
+            // If blocked less than 5 minutes ago, throw exception
+            if (System.currentTimeMillis() - lastBlock.timestamp < 5 * 60 * 1000L) {
+                throw CloudflareHelper.BlockedException(lastBlock)
+            }
         }
 
         val searchUrl = baseUrl.toHttpUrl().newBuilder().addPathSegment("search")
@@ -570,30 +642,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
         }
         screen.addPreference(statusHeader)
 
-        val cookieStatus = Preference().apply {
-            key = "cookie_status_detailed"
-            title = "Current Status"
-            summary = CloudflareHelper.getCookieStatus(preferences)
+        val connectionStatus = Preference().apply {
+            key = "connection_status"
+            title = "🌐 Connection Status"
+            summary = "Tap 'Test Connection' to check"
         }
-        screen.addPreference(cookieStatus)
-
-        val blockHistory = Preference().apply {
-            key = "block_history"
-            title = "Recent Blocks"
-            val history = CloudflareHelper.getBlockHistory()
-            summary =
-                if (history.isEmpty()) {
-                    "No recent blocks"
-                } else {
-                    "${history.size} block(s) - Tap to view"
-                }
-
-            setOnPreferenceClickListener {
-                showBlockHistoryDialog(context)
-                true
-            }
-        }
-        screen.addPreference(blockHistory)
+        screen.addPreference(connectionStatus)
 
         val englishFilter = SwitchPreferenceCompat(context).apply {
             key = PREF_KEY_USE_ENGLISH
@@ -608,19 +662,6 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             title = "🔑 Cookie Management"
         }
         screen.addPreference(cookieHeader)
-
-        val clearCookies = Preference().apply {
-            key = "clear_cookies"
-            title = "🗑️ Clear All Cookies"
-            summary = "Clear current cookies before importing fresh ones"
-
-            setOnPreferenceClickListener {
-                CloudflareHelper.clearAllCookies(preferences)
-                summary = "Cookies cleared - Ready for fresh import"
-                true
-            }
-        }
-        screen.addPreference(clearCookies)
 
         val importCookies = EditTextPreference(context).apply {
             key = PREF_KEY_IMPORTED_COOKIES
@@ -642,8 +683,12 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
                 summary =
                     if (value.isNotEmpty()) {
-                        val cookies = CloudflareHelper.parseCookies(value)
-                        "✅ ${cookies.size} cookie(s) imported"
+                        try {
+                            val cookies = CloudflareHelper.parseCookies(value)
+                            "✅ ${cookies.size} cookie(s) imported"
+                        } catch (e: Exception) {
+                            "⚠ Failed to import cookies: ${e.message}"
+                        }
                     } else {
                         "⚠ No cookies - Import required"
                     }
@@ -729,49 +774,79 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
             key = "test_connection"
             title = "🔧 Test Connection"
             summary = "Check if extension can access Hanime1"
-
+            
             setOnPreferenceClickListener {
-                testConnection()
+                coroutineScope.launch {
+                    try {
+                        val testUrl = "$baseUrl/search"
+                        val request = GET(testUrl)
+                        val response = safeRequest(request)
+                        android.app.AlertDialog.Builder(context)
+                            .setTitle("✅ Connection Successful")
+                            .setMessage("Successfully connected to Hanime1")
+                            .setPositiveButton("OK", null)
+                            .show()
+                    } catch (e: CloudflareHelper.BlockedException) {
+                        android.app.AlertDialog.Builder(context)
+                            .setTitle("⚠️ Cloudflare Detected")
+                            .setMessage("${e.message}\n\nOpen Hanime1 in WebView to solve.")
+                            .setPositiveButton("OK", null)
+                            .show()
+                    } catch (e: Exception) {
+                        android.app.AlertDialog.Builder(context)
+                            .setTitle("❌ Connection Failed")
+                            .setMessage("Failed to connect: ${e.message}")
+                            .setPositiveButton("OK", null)
+                            .show()
+                    }
+                }
                 true
             }
         }
         screen.addPreference(testConnection)
     }
 
-    private fun showBlockHistoryDialog(context: Context) {
-        val history = CloudflareHelper.formatBlockHistory()
-        android.app.AlertDialog.Builder(context)
-            .setTitle("Recent Blocks")
-            .setMessage(history)
-            .setPositiveButton("Clear History") { _, _ ->
-                CloudflareHelper.clearBlockHistory()
-            }
-            .setNegativeButton("Close", null)
-            .show()
-    }
-
     private fun showHelpDialog(context: Context) {
-        val helpText = CloudflareHelper.getDetailedHelp(context)
+        val helpText = """
+            ℹ️ **Hanime1 Extension Help**
+            
+            **Common Issues & Solutions:**
+            
+            1. **Cloudflare Blocked (403/503)**
+               - Open Hanime1 in AniYomi WebView
+               - Complete any CAPTCHA/verification
+               - The app will handle cookies automatically
+            
+            2. **Age Verification Required**
+               - Visit hanime1.me in browser first
+               - Complete age verification
+               - Then use the extension
+            
+            3. **Rate Limited (429)**
+               - Wait 5-10 minutes
+               - Avoid rapid searches
+               - Use Popular/Latest tabs
+            
+            4. **Content Not Loading**
+               - Try clearing app cache
+               - Restart AniYomi
+               - Update extension
+            
+            **Tips:**
+            • Let AniYomi handle Cloudflare automatically
+            • Use English filters if Chinese fails
+            • Try 'Broad Match' in search filters
+            • Check network connection
+            
+            **Need More Help?**
+            Contact extension maintainer or check AniYomi Discord.
+        """.trimIndent()
+        
         android.app.AlertDialog.Builder(context)
             .setTitle("Hanime1 Extension Help")
             .setMessage(helpText)
             .setPositiveButton("Got it", null)
             .show()
-    }
-
-    private fun testConnection() {
-        coroutineScope.launch {
-            try {
-                val testUrl = "$baseUrl/search"
-                val request = GET(testUrl)
-                val response = client.newCall(request).execute()
-                val doc = response.asJsoup()
-
-                CloudflareHelper.checkAndHandleBlock(response, doc, "div.search-doujin-videos", preferences)
-            } catch (e: Exception) {
-                Log.e("Hanime1", "Connection test failed: ${e.message}")
-            }
-        }
     }
 
     companion object {
