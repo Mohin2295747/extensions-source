@@ -134,8 +134,15 @@ class Hanime1 : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun popularAnimeParse(response: Response): AnimesPage = searchAnimeParse(response)
 
-    override fun popularAnimeRequest(page: Int) =
-        searchAnimeRequest(page, "", AnimeFilterList(SortFilter(arrayOf("他們在看")).apply { state = 1 }))
+    override fun popularAnimeRequest(page: Int): Request {
+        val url = baseUrl.toHttpUrl().newBuilder()
+            .addPathSegment("search")
+            .addQueryParameter("sort", "他們在看")
+        if (page > 1) {
+            url.addQueryParameter("page", "$page")
+        }
+        return GET(url.build())
+    }
 
     private fun String.appendInvisibleChar(): String {
         return "${this}\u200B"
