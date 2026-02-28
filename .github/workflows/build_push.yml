@@ -40,6 +40,7 @@ jobs:
           set -x
           projects=(src/*/*)
           echo "NUM_INDIVIDUAL_MODULES=${#projects[@]}" >> "$GITHUB_ENV"
+
       - id: generate-matrices
         name: Create output matrices
         uses: actions/github-script@v7
@@ -52,6 +53,7 @@ jobs:
             console.log(`Individual modules: ${numIndividualModules} (${numIndividualChunks} chunks of ${chunkSize})`);
             
             core.setOutput('individualMatrix', JSON.stringify({ chunk: [...Array(numIndividualChunks).keys()] }));
+
   build_individual:
     name: Build individual modules
     needs: prepare
@@ -73,16 +75,6 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Restore build cache
-        uses: actions/cache/restore@v3
-        with:
-          path: |
-            src/**/build
-            !src/**/build/outputs
-          key: build-cache-${{ github.sha }}-${{ matrix.chunk }}
-          restore-keys: |
-            build-cache-${{ github.sha }}-
-            build-cache-
       - name: Build extensions (chunk ${{ matrix.chunk }})
         env:
           CI_CHUNK_NUM: ${{ matrix.chunk }}
@@ -93,6 +85,7 @@ jobs:
           echo "systemProp.https.agent=Mozilla/5.0" >> gradle.properties
           
           ./gradlew -p src assembleDebug --no-parallel
+
       - name: Store build cache
         uses: actions/cache/save@v3
         with:
@@ -120,7 +113,7 @@ jobs:
           
       - name: Create unified APK directory
         run: mkdir -p all_apks
-        
+          
       - name: Gather all APKs
         run: |
           find downloaded-artifacts -name "*.apk" -type f -exec cp -v {} all_apks/ \;
