@@ -26,10 +26,6 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
     override val lang = "en"
     override val supportsLatest = true
 
-    private var authCookie: String? = null
-    private var sessionToken: String? = null
-    private var userLicense: String? = null
-
     private val preferences: SharedPreferences by lazy {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
     }
@@ -85,13 +81,31 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
     override fun videoListRequest(episode: SEpisode) = GET(episode.url)
 
     override suspend fun getVideoList(episode: SEpisode): List<Video> {
-        setAuthCookie()
+        val (authCookie, sessionToken, userLicense) = getFreshAuthCookies()
         val videos = if (authCookie != null && sessionToken != null && userLicense != null) {
-            VideoFetcher.fetchVideoListPremium(episode, client, headers, authCookie!!, sessionToken!!, userLicense!!)
+            VideoFetcher.fetchVideoListPremium(episode, client, headers, authCookie, sessionToken, userLicense)
         } else {
             VideoFetcher.fetchVideoListGuest(episode, client, headers)
         }
         return videos
+    }
+
+    private fun getFreshAuthCookies(): Triple<String?, String?, String?> {
+        val cookieList = client.cookieJar.loadForRequest(baseUrl.toHttpUrl())
+        var authCookie: String? = null
+        var sessionToken: String? = null
+        var userLicense: String? = null
+        
+        cookieList.firstOrNull { it.name == "htv3session" }?.let {
+            authCookie = "${it.name}=${it.value}"
+            sessionToken = it.value
+        }
+        val licenseCookie = cookieList.firstOrNull { it.name == "x-user-license" }
+        if (licenseCookie != null) {
+            userLicense = licenseCookie.value
+        }
+        
+        return Triple(authCookie, sessionToken, userLicense)
     }
 
     override fun videoListParse(response: Response): List<Video> = emptyList()
@@ -99,20 +113,6 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
     override fun List<Video>.sort(): List<Video> = VideoSorter.sortVideos(this, preferences)
 
     override fun getFilterList() = FilterProvider.getFilterList()
-
-    private fun setAuthCookie() {
-        if (authCookie == null) {
-            val cookieList = client.cookieJar.loadForRequest(baseUrl.toHttpUrl())
-            cookieList.firstOrNull { it.name == "htv3session" }?.let {
-                authCookie = "${it.name}=${it.value}"
-                sessionToken = it.value
-            }
-            val licenseCookie = cookieList.firstOrNull { it.name == "x-user-license" }
-            if (licenseCookie != null) {
-                userLicense = licenseCookie.value
-            }
-        }
-    }
 
     companion object {
         const val PREF_QUALITY_KEY = "preferred_quality"
