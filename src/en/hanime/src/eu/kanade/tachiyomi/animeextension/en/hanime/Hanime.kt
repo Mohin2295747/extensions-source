@@ -95,7 +95,6 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
         var authCookie: String? = null
         var sessionToken: String? = null
         var userLicense: String? = null
-        
         cookieList.firstOrNull { it.name == "htv3session" }?.let {
             authCookie = "${it.name}=${it.value}"
             sessionToken = it.value
@@ -104,7 +103,6 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
         if (licenseCookie != null) {
             userLicense = licenseCookie.value
         }
-        
         return Triple(authCookie, sessionToken, userLicense)
     }
 
