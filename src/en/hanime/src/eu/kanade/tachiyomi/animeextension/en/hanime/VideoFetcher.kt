@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.animeextension.en.hanime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.util.parseAs
+import okhttp3.CookieJar
 import okhttp3.Headers
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -64,6 +65,10 @@ object VideoFetcher {
         val time = floor(System.currentTimeMillis() / 1000.0).toLong()
         val signature = generateSignature(time, null)
 
+        val guestClient = client.newBuilder()
+            .cookieJar(CookieJar.NO_COOKIES)
+            .build()
+
         val manifestHeaders = Headers.Builder()
             .add("authority", "cached.freeanimehentai.net")
             .add("accept", "application/json")
@@ -82,7 +87,7 @@ object VideoFetcher {
             .get()
             .build()
 
-        val response = client.newCall(request).execute()
+        val response = guestClient.newCall(request).execute()
         val responseString = response.body.string()
 
         return try {
