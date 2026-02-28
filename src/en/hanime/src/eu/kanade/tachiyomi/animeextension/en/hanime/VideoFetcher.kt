@@ -24,8 +24,8 @@ object VideoFetcher {
 
         val manifestHeaders = Headers.Builder()
             .add("authority", "h.freeanimehentai.net")
-            .add("accept", "application/json")
-            .add("accept-language", "en-GB,en-US;q=0.9,en;q=0.8")
+            .add("accept", "application/json, text/plain, */*")
+            .add("accept-language", "en-US,en;q=0.9")
             .add("origin", "https://hanime.tv")
             .add("referer", "https://hanime.tv/")
             .add("cookie", authCookie)
@@ -34,7 +34,13 @@ object VideoFetcher {
             .add("x-signature-version", "web2")
             .add("x-time", time.toString())
             .add("x-user-license", userLicense)
-            .add("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36")
+            .add("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            .add("sec-ch-ua", "\"Not_A Brand\";v=\"8\", \"Chromium\";v=\"120\", \"Google Chrome\";v=\"120\"")
+            .add("sec-ch-ua-mobile", "?0")
+            .add("sec-ch-ua-platform", "\"Windows\"")
+            .add("sec-fetch-dest", "empty")
+            .add("sec-fetch-mode", "cors")
+            .add("sec-fetch-site", "cross-site")
             .build()
 
         val request = Request.Builder()
@@ -46,17 +52,21 @@ object VideoFetcher {
         val response = client.newCall(request).execute()
         val responseString = response.body.string()
 
-        return try {
-            val videoModel = responseString.parseAs<VideoModel>()
-            videoModel.videosManifest?.servers
-                ?.flatMap { server ->
-                    server.streams
-                        .map { stream ->
-                            Video(stream.url, "Premium - ${server.name ?: "Server"} - ${stream.height}p", stream.url)
-                        }
-                }?.distinctBy { it.url } ?: emptyList()
-        } catch (e: Exception) {
+        return if (responseString.startsWith("<")) {
             emptyList()
+        } else {
+            try {
+                val videoModel = responseString.parseAs<VideoModel>()
+                videoModel.videosManifest?.servers
+                    ?.flatMap { server ->
+                        server.streams
+                            .map { stream ->
+                                Video(stream.url, "Premium - ${server.name ?: "Server"} - ${stream.height}p", stream.url)
+                            }
+                    }?.distinctBy { it.url } ?: emptyList()
+            } catch (e: Exception) {
+                emptyList()
+            }
         }
     }
 
@@ -71,14 +81,20 @@ object VideoFetcher {
 
         val manifestHeaders = Headers.Builder()
             .add("authority", "cached.freeanimehentai.net")
-            .add("accept", "application/json")
-            .add("accept-language", "en-GB,en-US;q=0.9,en;q=0.8")
+            .add("accept", "application/json, text/plain, */*")
+            .add("accept-language", "en-US,en;q=0.9")
             .add("origin", "https://hanime.tv")
             .add("referer", "https://hanime.tv/")
             .add("x-signature", signature)
             .add("x-signature-version", "web2")
             .add("x-time", time.toString())
-            .add("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36")
+            .add("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            .add("sec-ch-ua", "\"Not_A Brand\";v=\"8\", \"Chromium\";v=\"120\", \"Google Chrome\";v=\"120\"")
+            .add("sec-ch-ua-mobile", "?0")
+            .add("sec-ch-ua-platform", "\"Windows\"")
+            .add("sec-fetch-dest", "empty")
+            .add("sec-fetch-mode", "cors")
+            .add("sec-fetch-site", "cross-site")
             .build()
 
         val request = Request.Builder()
@@ -90,18 +106,22 @@ object VideoFetcher {
         val response = guestClient.newCall(request).execute()
         val responseString = response.body.string()
 
-        return try {
-            val videoModel = responseString.parseAs<VideoModel>()
-            videoModel.videosManifest?.servers
-                ?.flatMap { server ->
-                    server.streams
-                        .filter { it.isGuestAllowed == true }
-                        .map { stream ->
-                            Video(stream.url, "${server.name ?: "Server"} - ${stream.height}p", stream.url)
-                        }
-                }?.distinctBy { it.url } ?: emptyList()
-        } catch (e: Exception) {
+        return if (responseString.startsWith("<")) {
             emptyList()
+        } else {
+            try {
+                val videoModel = responseString.parseAs<VideoModel>()
+                videoModel.videosManifest?.servers
+                    ?.flatMap { server ->
+                        server.streams
+                            .filter { it.isGuestAllowed == true }
+                            .map { stream ->
+                                Video(stream.url, "${server.name ?: "Server"} - ${stream.height}p", stream.url)
+                            }
+                    }?.distinctBy { it.url } ?: emptyList()
+            } catch (e: Exception) {
+                emptyList()
+            }
         }
     }
 }
