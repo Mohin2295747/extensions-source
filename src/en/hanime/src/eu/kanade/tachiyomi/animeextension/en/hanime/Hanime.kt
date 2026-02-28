@@ -82,10 +82,16 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
 
     override suspend fun getVideoList(episode: SEpisode): List<Video> {
         val (authCookie, sessionToken, userLicense) = getFreshAuthCookies()
-        val videos = if (authCookie != null && sessionToken != null && userLicense != null) {
-            VideoFetcher.fetchVideoListPremium(episode, client, headers, authCookie, sessionToken, userLicense)
-        } else {
-            VideoFetcher.fetchVideoListGuest(episode, client, headers)
+        var videos = emptyList<Video>()
+        if (authCookie != null && sessionToken != null && userLicense != null) {
+            videos = try {
+                VideoFetcher.fetchVideoListPremium(episode, client, headers, authCookie, sessionToken, userLicense)
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+        if (videos.isEmpty()) {
+            videos = VideoFetcher.fetchVideoListGuest(episode, client, headers)
         }
         return videos
     }
