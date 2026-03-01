@@ -11,74 +11,16 @@ import java.security.MessageDigest
 import kotlin.math.floor
 
 object VideoFetcher {
-    private fun generateSignature(time: Long, sessionToken: String?, userLicense: String?): String {
-        val base = if (sessionToken != null && userLicense != null && sessionToken.isNotBlank() && userLicense.isNotBlank()) {
-            "c1{$time}{$sessionToken}{$userLicense}"
-        } else {
-            "c1{$time}"
-        }
+    private fun generateSignature(time: Long): String {
+        val base = "c1{$time}"
         val bytes = MessageDigest.getInstance("SHA-256").digest(base.toByteArray())
         return bytes.joinToString("") { "%02x".format(it) }
-    }
-
-    fun fetchVideoListPremium(episode: SEpisode, client: OkHttpClient, headers: Headers, authCookie: String, sessionToken: String, userLicense: String): List<Video> {
-        val videoId = episode.url.substringAfter("?id=")
-        val time = floor(System.currentTimeMillis() / 1000.0).toLong()
-        val signature = generateSignature(time, sessionToken, userLicense)
-
-        val manifestHeaders = Headers.Builder()
-            .add("authority", "h.freeanimehentai.net")
-            .add("accept", "application/json")
-            .add("accept-language", "en-GB,en-US;q=0.9,en;q=0.8")
-            .add("origin", "https://hanime.tv")
-            .add("referer", "https://hanime.tv/")
-            .add("sec-ch-ua", "\"Chromium\";v=\"137\", \"Not/A)Brand\";v=\"24\"")
-            .add("sec-ch-ua-mobile", "?1")
-            .add("sec-ch-ua-platform", "\"Android\"")
-            .add("sec-fetch-dest", "empty")
-            .add("sec-fetch-mode", "cors")
-            .add("sec-fetch-site", "cross-site")
-            .add("x-csrf-token", "")
-            .add("x-license", "")
-            .add("x-session-token", sessionToken)
-            .add("x-signature", signature)
-            .add("x-signature-version", "web2")
-            .add("x-time", time.toString())
-            .add("x-user-license", userLicense)
-            .add("user-agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36")
-            .build()
-
-        val request = Request.Builder()
-            .url("https://h.freeanimehentai.net/api/v8/member/videos/$videoId/manifest")
-            .headers(manifestHeaders)
-            .get()
-            .build()
-
-        return try {
-            val response = client.newCall(request).execute()
-            val responseString = response.body.string()
-
-            if (responseString.startsWith("<") || responseString.contains("error") || responseString.contains("401")) {
-                emptyList()
-            } else {
-                val videoModel = responseString.parseAs<VideoModel>()
-                videoModel.videosManifest?.servers
-                    ?.flatMap { server ->
-                        server.streams
-                            .map { stream ->
-                                Video(stream.url, "Premium - ${server.name ?: "Server"} - ${stream.height}p", stream.url)
-                            }
-                    }?.distinctBy { it.url } ?: emptyList()
-            }
-        } catch (e: Exception) {
-            emptyList()
-        }
     }
 
     fun fetchVideoListGuest(episode: SEpisode, client: OkHttpClient, headers: Headers): List<Video> {
         val videoId = episode.url.substringAfter("?id=")
         val time = floor(System.currentTimeMillis() / 1000.0).toLong()
-        val signature = generateSignature(time, null, null)
+        val signature = generateSignature(time)
 
         val guestClient = client.newBuilder()
             .cookieJar(CookieJar.NO_COOKIES)

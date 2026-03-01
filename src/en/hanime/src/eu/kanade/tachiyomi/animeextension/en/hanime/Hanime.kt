@@ -14,7 +14,6 @@ import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
 import okhttp3.Headers
-import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
 import uy.kohesive.injekt.Injekt
@@ -81,57 +80,7 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
     override fun videoListRequest(episode: SEpisode) = GET(episode.url)
 
     override suspend fun getVideoList(episode: SEpisode): List<Video> {
-        var videos = emptyList<Video>()
-        var retryCount = 0
-        val maxRetries = 3
-
-        while (videos.isEmpty() && retryCount < maxRetries) {
-            val (authCookie, sessionToken, userLicense) = getFreshAuthCookies()
-
-            if (authCookie != null && sessionToken != null && userLicense != null) {
-                videos = try {
-                    VideoFetcher.fetchVideoListPremium(episode, client, headers, authCookie, sessionToken, userLicense)
-                } catch (e: Exception) {
-                    emptyList()
-                }
-            }
-
-            if (videos.isEmpty()) {
-                videos = VideoFetcher.fetchVideoListGuest(episode, client, headers)
-            }
-
-            if (videos.isEmpty()) {
-                retryCount++
-                if (retryCount < maxRetries) {
-                    Thread.sleep((1000L * retryCount))
-                }
-            }
-        }
-
-        return videos
-    }
-
-    private fun getFreshAuthCookies(): Triple<String?, String?, String?> {
-        val cookieJar = client.cookieJar
-        val url = baseUrl.toHttpUrl()
-        val cookies = cookieJar.loadForRequest(url)
-
-        var authCookie: String? = null
-        var sessionToken: String? = null
-        var userLicense: String? = null
-
-        val sessionCookie = cookies.firstOrNull { it.name == "htv3session" }
-        if (sessionCookie != null) {
-            authCookie = "${sessionCookie.name}=${sessionCookie.value}"
-            sessionToken = sessionCookie.value
-        }
-
-        val licenseCookie = cookies.firstOrNull { it.name == "x-user-license" }
-        if (licenseCookie != null) {
-            userLicense = licenseCookie.value
-        }
-
-        return Triple(authCookie, sessionToken, userLicense)
+        return VideoFetcher.fetchVideoListGuest(episode, client, headers)
     }
 
     override fun videoListParse(response: Response): List<Video> = emptyList()
