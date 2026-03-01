@@ -12,7 +12,7 @@ import kotlin.math.floor
 
 object VideoFetcher {
     private fun generateSignature(time: Long, sessionToken: String?, userLicense: String?): String {
-        val base = if (sessionToken != null && userLicense != null) {
+        val base = if (sessionToken != null && userLicense != null && sessionToken.isNotBlank() && userLicense.isNotBlank()) {
             "c1{$time}{$sessionToken}{$userLicense}"
         } else {
             "c1{$time}"
@@ -54,18 +54,22 @@ object VideoFetcher {
             .get()
             .build()
 
-        val response = client.newCall(request).execute()
-        val responseString = response.body.string()
-
         return try {
-            val videoModel = responseString.parseAs<VideoModel>()
-            videoModel.videosManifest?.servers
-                ?.flatMap { server ->
-                    server.streams
-                        .map { stream ->
-                            Video(stream.url, "Premium - ${server.name ?: "Server"} - ${stream.height}p", stream.url)
-                        }
-                }?.distinctBy { it.url } ?: emptyList()
+            val response = client.newCall(request).execute()
+            val responseString = response.body.string()
+            
+            if (responseString.startsWith("<") || responseString.contains("error") || responseString.contains("401")) {
+                emptyList()
+            } else {
+                val videoModel = responseString.parseAs<VideoModel>()
+                videoModel.videosManifest?.servers
+                    ?.flatMap { server ->
+                        server.streams
+                            .map { stream ->
+                                Video(stream.url, "Premium - ${server.name ?: "Server"} - ${stream.height}p", stream.url)
+                            }
+                    }?.distinctBy { it.url } ?: emptyList()
+            }
         } catch (e: Exception) {
             emptyList()
         }
@@ -108,19 +112,23 @@ object VideoFetcher {
             .get()
             .build()
 
-        val response = guestClient.newCall(request).execute()
-        val responseString = response.body.string()
-
         return try {
-            val videoModel = responseString.parseAs<VideoModel>()
-            videoModel.videosManifest?.servers
-                ?.flatMap { server ->
-                    server.streams
-                        .filter { it.isGuestAllowed == true }
-                        .map { stream ->
-                            Video(stream.url, "${server.name ?: "Server"} - ${stream.height}p", stream.url)
-                        }
-                }?.distinctBy { it.url } ?: emptyList()
+            val response = guestClient.newCall(request).execute()
+            val responseString = response.body.string()
+            
+            if (responseString.startsWith("<") || responseString.contains("error") || responseString.contains("401")) {
+                emptyList()
+            } else {
+                val videoModel = responseString.parseAs<VideoModel>()
+                videoModel.videosManifest?.servers
+                    ?.flatMap { server ->
+                        server.streams
+                            .filter { it.isGuestAllowed == true }
+                            .map { stream ->
+                                Video(stream.url, "${server.name ?: "Server"} - ${stream.height}p", stream.url)
+                            }
+                    }?.distinctBy { it.url } ?: emptyList()
+            }
         } catch (e: Exception) {
             emptyList()
         }
