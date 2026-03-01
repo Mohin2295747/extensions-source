@@ -26,12 +26,20 @@ object VideoFetcher {
             return cachedToken!!
         }
 
-        val request = Request.Builder()
+        val tokenRequest = Request.Builder()
             .url("https://hanime-cdn.com/vhtv2/61b74ab.js")
-            .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36")
+            .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            .addHeader("Accept", "application/javascript, */*;q=0.8")
+            .addHeader("Accept-Language", "en-US,en;q=0.9")
+            .addHeader("Referer", "https://hanime.tv/")
+            .addHeader("Origin", "https://hanime.tv")
+            .addHeader("Connection", "keep-alive")
+            .addHeader("Sec-Fetch-Dest", "script")
+            .addHeader("Sec-Fetch-Mode", "no-cors")
+            .addHeader("Sec-Fetch-Site", "cross-site")
             .build()
 
-        val response = client.newCall(request).execute()
+        val response = client.newCall(tokenRequest).execute()
         val jsContent = response.body.string()
 
         val tokenRegex = "[a-f0-9]{32}".toRegex()
