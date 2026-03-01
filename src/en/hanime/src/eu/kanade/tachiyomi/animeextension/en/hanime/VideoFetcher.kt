@@ -11,18 +11,43 @@ import java.security.MessageDigest
 import kotlin.math.floor
 
 object VideoFetcher {
-    private const val TOKEN = "033afe4831c6415399baba9a25ef2c01"
+    private var cachedToken: String? = null
+    private var tokenFetchTime: Long = 0
+    private val TOKEN_CACHE_DURATION = 24 * 60 * 60 * 1000
     
-    private fun generateSignature(time: Long): String {
-        val base = "c1{$time}$TOKEN"
+    private fun generateSignature(time: Long, token: String): String {
+        val base = "c1{$time}$token"
         val bytes = MessageDigest.getInstance("SHA-256").digest(base.toByteArray())
         return bytes.joinToString("") { "%02x".format(it) }
     }
+    
+    private suspend fun fetchToken(client: OkHttpClient): String {
+        if (cachedToken != null && System.currentTimeMillis() - tokenFetchTime < TOKEN_CACHE_DURATION) {
+            return cachedToken!!
+        }
+        
+        val request = Request.Builder()
+            .url("https://hanime-cdn.com/vhtv2/61b74ab.js")
+            .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36")
+            .build()
+            
+        val response = client.newCall(request).execute()
+        val jsContent = response.body.string()
+        
+        val tokenRegex = "[a-f0-9]{32}".toRegex()
+        val token = tokenRegex.find(jsContent)?.value
+        
+        cachedToken = token ?: throw Exception("Could not extract token from JavaScript")
+        tokenFetchTime = System.currentTimeMillis()
+        
+        return cachedToken!!
+    }
 
-    fun fetchVideoListGuest(episode: SEpisode, client: OkHttpClient, headers: Headers): List<Video> {
+    suspend fun fetchVideoListGuest(episode: SEpisode, client: OkHttpClient, headers: Headers): List<Video> {
         val videoId = episode.url.substringAfter("?id=")
         val time = floor(System.currentTimeMillis() / 1000.0).toLong()
-        val signature = generateSignature(time)
+        val token = fetchToken(client)
+        val signature = generateSignature(time, token)
 
         val guestClient = client.newBuilder()
             .cookieJar(CookieJar.NO_COOKIES)
@@ -41,7 +66,7 @@ object VideoFetcher {
             .add("sec-fetch-mode", "cors")
             .add("sec-fetch-site", "cross-site")
             .add("user-agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36")
-            .add("x-csrf-token", TOKEN)
+            .add("x-csrf-token", token)
             .add("x-license", "")
             .add("x-session-token", "")
             .add("x-signature", signature)
