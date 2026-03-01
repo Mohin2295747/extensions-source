@@ -11,8 +11,12 @@ import java.security.MessageDigest
 import kotlin.math.floor
 
 object VideoFetcher {
-    private fun generateSignature(time: Long, sessionToken: String?): String {
-        val base = "c1{$time}{$sessionToken}"
+    private fun generateSignature(time: Long, sessionToken: String?, userLicense: String?): String {
+        val base = if (sessionToken != null && userLicense != null) {
+            "c1$time$sessionToken$userLicense"
+        } else {
+            "c1$time"
+        }
         val bytes = MessageDigest.getInstance("SHA-256").digest(base.toByteArray())
         return bytes.joinToString("") { "%02x".format(it) }
     }
@@ -20,7 +24,7 @@ object VideoFetcher {
     fun fetchVideoListPremium(episode: SEpisode, client: OkHttpClient, headers: Headers, authCookie: String, sessionToken: String, userLicense: String): List<Video> {
         val videoId = episode.url.substringAfter("?id=")
         val time = floor(System.currentTimeMillis() / 1000.0).toLong()
-        val signature = generateSignature(time, sessionToken)
+        val signature = generateSignature(time, sessionToken, userLicense)
 
         val manifestHeaders = Headers.Builder()
             .add("authority", "h.freeanimehentai.net")
@@ -52,7 +56,7 @@ object VideoFetcher {
         val response = client.newCall(request).execute()
         val responseString = response.body.string()
 
-        return if (responseString.startsWith("<")) {
+        return if (responseString.startsWith("<") || responseString.contains("error") || responseString.contains("401")) {
             emptyList()
         } else {
             try {
@@ -73,7 +77,7 @@ object VideoFetcher {
     fun fetchVideoListGuest(episode: SEpisode, client: OkHttpClient, headers: Headers): List<Video> {
         val videoId = episode.url.substringAfter("?id=")
         val time = floor(System.currentTimeMillis() / 1000.0).toLong()
-        val signature = generateSignature(time, null)
+        val signature = generateSignature(time, null, null)
 
         val guestClient = client.newBuilder()
             .cookieJar(CookieJar.NO_COOKIES)
@@ -106,7 +110,7 @@ object VideoFetcher {
         val response = guestClient.newCall(request).execute()
         val responseString = response.body.string()
 
-        return if (responseString.startsWith("<")) {
+        return if (responseString.startsWith("<") || responseString.contains("error") || responseString.contains("401")) {
             emptyList()
         } else {
             try {
