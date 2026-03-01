@@ -11,51 +11,18 @@ import java.security.MessageDigest
 import kotlin.math.floor
 
 object VideoFetcher {
-    private var cachedToken: String? = null
-    private var tokenFetchTime: Long = 0
-    private val TOKEN_CACHE_DURATION = 24 * 60 * 60 * 1000
+    private const val TOKEN = "033afe4831c6415399baba9a25ef2c01"
 
-    private fun generateSignature(time: Long, token: String): String {
-        val base = "c1{$time}$token"
+    private fun generateSignature(time: Long): String {
+        val base = "c1{$time}$TOKEN"
         val bytes = MessageDigest.getInstance("SHA-256").digest(base.toByteArray())
         return bytes.joinToString("") { "%02x".format(it) }
-    }
-
-    private suspend fun fetchToken(client: OkHttpClient): String {
-        if (cachedToken != null && System.currentTimeMillis() - tokenFetchTime < TOKEN_CACHE_DURATION) {
-            return cachedToken!!
-        }
-
-        val tokenRequest = Request.Builder()
-            .url("https://hanime-cdn.com/vhtv2/61b74ab.js")
-            .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-            .addHeader("Accept", "application/javascript, */*;q=0.8")
-            .addHeader("Accept-Language", "en-US,en;q=0.9")
-            .addHeader("Referer", "https://hanime.tv/")
-            .addHeader("Origin", "https://hanime.tv")
-            .addHeader("Connection", "keep-alive")
-            .addHeader("Sec-Fetch-Dest", "script")
-            .addHeader("Sec-Fetch-Mode", "no-cors")
-            .addHeader("Sec-Fetch-Site", "cross-site")
-            .build()
-
-        val response = client.newCall(tokenRequest).execute()
-        val jsContent = response.body.string()
-
-        val tokenRegex = "[a-f0-9]{32}".toRegex()
-        val token = tokenRegex.find(jsContent)?.value
-
-        cachedToken = token ?: throw Exception("Could not extract token from JavaScript")
-        tokenFetchTime = System.currentTimeMillis()
-
-        return cachedToken!!
     }
 
     suspend fun fetchVideoListGuest(episode: SEpisode, client: OkHttpClient, headers: Headers): List<Video> {
         val videoId = episode.url.substringAfter("?id=")
         val time = floor(System.currentTimeMillis() / 1000.0).toLong()
-        val token = fetchToken(client)
-        val signature = generateSignature(time, token)
+        val signature = generateSignature(time)
 
         val guestClient = client.newBuilder()
             .cookieJar(CookieJar.NO_COOKIES)
@@ -74,7 +41,7 @@ object VideoFetcher {
             .add("sec-fetch-mode", "cors")
             .add("sec-fetch-site", "cross-site")
             .add("user-agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36")
-            .add("x-csrf-token", token)
+            .add("x-csrf-token", TOKEN)
             .add("x-license", "")
             .add("x-session-token", "")
             .add("x-signature", signature)
