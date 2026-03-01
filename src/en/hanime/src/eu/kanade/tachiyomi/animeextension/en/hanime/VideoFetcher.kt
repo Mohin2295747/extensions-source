@@ -14,32 +14,32 @@ object VideoFetcher {
     private var cachedToken: String? = null
     private var tokenFetchTime: Long = 0
     private val TOKEN_CACHE_DURATION = 24 * 60 * 60 * 1000
-    
+
     private fun generateSignature(time: Long, token: String): String {
         val base = "c1{$time}$token"
         val bytes = MessageDigest.getInstance("SHA-256").digest(base.toByteArray())
         return bytes.joinToString("") { "%02x".format(it) }
     }
-    
+
     private suspend fun fetchToken(client: OkHttpClient): String {
         if (cachedToken != null && System.currentTimeMillis() - tokenFetchTime < TOKEN_CACHE_DURATION) {
             return cachedToken!!
         }
-        
+
         val request = Request.Builder()
             .url("https://hanime-cdn.com/vhtv2/61b74ab.js")
             .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36")
             .build()
-            
+
         val response = client.newCall(request).execute()
         val jsContent = response.body.string()
-        
+
         val tokenRegex = "[a-f0-9]{32}".toRegex()
         val token = tokenRegex.find(jsContent)?.value
-        
+
         cachedToken = token ?: throw Exception("Could not extract token from JavaScript")
         tokenFetchTime = System.currentTimeMillis()
-        
+
         return cachedToken!!
     }
 
