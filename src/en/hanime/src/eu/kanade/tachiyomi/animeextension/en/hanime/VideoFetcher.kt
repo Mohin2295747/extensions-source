@@ -11,8 +11,10 @@ import java.security.MessageDigest
 import kotlin.math.floor
 
 object VideoFetcher {
+    private const val TOKEN = "033afe4831c6415399baba9a25ef2c01"
+    
     private fun generateSignature(time: Long): String {
-        val base = "c1{$time}"
+        val base = "c1{$time}$TOKEN"
         val bytes = MessageDigest.getInstance("SHA-256").digest(base.toByteArray())
         return bytes.joinToString("") { "%02x".format(it) }
     }
@@ -38,14 +40,14 @@ object VideoFetcher {
             .add("sec-fetch-dest", "empty")
             .add("sec-fetch-mode", "cors")
             .add("sec-fetch-site", "cross-site")
-            .add("x-csrf-token", "")
+            .add("user-agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36")
+            .add("x-csrf-token", TOKEN)
             .add("x-license", "")
             .add("x-session-token", "")
             .add("x-signature", signature)
             .add("x-signature-version", "web2")
             .add("x-time", time.toString())
             .add("x-user-license", "")
-            .add("user-agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36")
             .build()
 
         val request = Request.Builder()
