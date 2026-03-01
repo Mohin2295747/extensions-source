@@ -57,7 +57,7 @@ object VideoFetcher {
         return try {
             val response = client.newCall(request).execute()
             val responseString = response.body.string()
-            
+
             if (responseString.startsWith("<") || responseString.contains("error") || responseString.contains("401")) {
                 emptyList()
             } else {
@@ -115,7 +115,7 @@ object VideoFetcher {
         return try {
             val response = guestClient.newCall(request).execute()
             val responseString = response.body.string()
-            
+
             if (responseString.startsWith("<") || responseString.contains("error") || responseString.contains("401")) {
                 emptyList()
             } else {

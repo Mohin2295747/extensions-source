@@ -13,7 +13,6 @@ import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
-import okhttp3.Cookie
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
@@ -84,10 +83,10 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
         var videos = emptyList<Video>()
         var retryCount = 0
         val maxRetries = 3
-        
+
         while (videos.isEmpty() && retryCount < maxRetries) {
             val (authCookie, sessionToken, userLicense) = getFreshAuthCookies()
-            
+
             if (authCookie != null && sessionToken != null && userLicense != null) {
                 videos = try {
                     VideoFetcher.fetchVideoListPremium(episode, client, headers, authCookie, sessionToken, userLicense)
@@ -95,11 +94,11 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
                     emptyList()
                 }
             }
-            
+
             if (videos.isEmpty()) {
                 videos = VideoFetcher.fetchVideoListGuest(episode, client, headers)
             }
-            
+
             if (videos.isEmpty()) {
                 retryCount++
                 if (retryCount < maxRetries) {
@@ -107,7 +106,7 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
                 }
             }
         }
-        
+
         return videos
     }
 
@@ -115,22 +114,22 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
         val cookieJar = client.cookieJar
         val url = baseUrl.toHttpUrl()
         val cookies = cookieJar.loadForRequest(url)
-        
+
         var authCookie: String? = null
         var sessionToken: String? = null
         var userLicense: String? = null
-        
+
         val sessionCookie = cookies.firstOrNull { it.name == "htv3session" }
         if (sessionCookie != null) {
             authCookie = "${sessionCookie.name}=${sessionCookie.value}"
             sessionToken = sessionCookie.value
         }
-        
+
         val licenseCookie = cookies.firstOrNull { it.name == "x-user-license" }
         if (licenseCookie != null) {
             userLicense = licenseCookie.value
         }
-        
+
         return Triple(authCookie, sessionToken, userLicense)
     }
 
