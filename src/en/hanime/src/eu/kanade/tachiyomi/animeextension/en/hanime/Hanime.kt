@@ -13,7 +13,6 @@ import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
-import eu.kanade.tachiyomi.util.asJsoup
 import eu.kanade.tachiyomi.util.system.JsEngine
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -89,7 +88,6 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
 
         val slug = episode.url.substringAfter("?id=")
         val videoPageUrl = "$baseUrl/videos/hentai/$slug"
-        
         val jsResult = extractVideoDataWithJs(videoPageUrl)
         val signature = jsResult.optString("signature")
         val timestamp = jsResult.optLong("timestamp")
@@ -159,7 +157,6 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
                 document.head.appendChild(script);
             });
         """.trimIndent()
-        
         val result = jsEngine.evaluate(pageUrl, javascript)
         return JSONObject(result)
     }
