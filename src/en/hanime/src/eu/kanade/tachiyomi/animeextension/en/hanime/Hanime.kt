@@ -90,8 +90,14 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
         if (authCookie != null && sessionToken != null && userLicense != null) {
             videos = try {
                 VideoFetcher.fetchVideoListPremium(
-                    episode, client, headers, authCookie, sessionToken, userLicense,
-                    signatureData.signature, signatureData.timestamp
+                    episode = episode,
+                    client = client,
+                    headers = headers,
+                    authCookie = authCookie,
+                    sessionToken = sessionToken,
+                    userLicense = userLicense,
+                    signature = signatureData.signature,
+                    timestamp = signatureData.timestamp,
                 )
             } catch (e: Exception) {
                 emptyList()
@@ -100,8 +106,11 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
 
         if (videos.isEmpty()) {
             videos = VideoFetcher.fetchVideoListGuest(
-                episode, client, headers,
-                signatureData.signature, signatureData.timestamp
+                episode = episode,
+                client = client,
+                headers = headers,
+                signature = signatureData.signature,
+                timestamp = signatureData.timestamp,
             )
         }
 

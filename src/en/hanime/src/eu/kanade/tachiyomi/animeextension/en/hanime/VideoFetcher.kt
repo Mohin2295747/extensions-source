@@ -16,7 +16,7 @@ object VideoFetcher {
         sessionToken: String,
         userLicense: String,
         signature: String,
-        timestamp: Long
+        timestamp: Long,
     ): List<Video> {
         val videoId = episode.url.substringAfter("?id=")
 
@@ -47,11 +47,11 @@ object VideoFetcher {
         return try {
             val response = client.newCall(request).execute()
             val responseString = response.body.string()
-            
+
             if (responseString.isBlank() || responseString.contains("error") || responseString.contains("unauthorized")) {
                 return emptyList()
             }
-            
+
             val videoModel = responseString.parseAs<VideoModel>()
             videoModel.videosManifest?.servers
                 ?.flatMap { server ->
@@ -70,7 +70,7 @@ object VideoFetcher {
         client: OkHttpClient,
         headers: Headers,
         signature: String,
-        timestamp: Long
+        timestamp: Long,
     ): List<Video> {
         val videoId = episode.url.substringAfter("?id=")
 
@@ -98,11 +98,11 @@ object VideoFetcher {
         return try {
             val response = client.newCall(request).execute()
             val responseString = response.body.string()
-            
+
             if (responseString.isBlank() || responseString.contains("error") || responseString.contains("unauthorized")) {
                 return emptyList()
             }
-            
+
             val videoModel = responseString.parseAs<VideoModel>()
             videoModel.videosManifest?.servers
                 ?.flatMap { server ->
