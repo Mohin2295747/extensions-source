@@ -181,7 +181,7 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
                                     document.head.appendChild(script);
                                 });
                             })()
-                            """.trimIndent()
+                            """.trimIndent(),
                         ) { result ->
                             try {
                                 val json = JSONObject(result)
