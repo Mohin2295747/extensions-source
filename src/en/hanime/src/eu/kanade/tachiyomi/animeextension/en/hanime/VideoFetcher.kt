@@ -17,9 +17,8 @@ object VideoFetcher {
         userLicense: String,
         signature: String,
         timestamp: Long,
+        videoId: String,
     ): List<Video> {
-        val videoId = episode.url.substringAfter("?id=")
-
         val manifestHeaders = Headers.Builder()
             .add("Authority", "h.freeanimehentai.net")
             .add("Accept", "application/json, text/plain, */*")
@@ -71,9 +70,8 @@ object VideoFetcher {
         headers: Headers,
         signature: String,
         timestamp: Long,
+        videoId: String,
     ): List<Video> {
-        val videoId = episode.url.substringAfter("?id=")
-
         val manifestHeaders = Headers.Builder()
             .add("Authority", "cached.freeanimehentai.net")
             .add("Accept", "application/json, text/plain, */*")

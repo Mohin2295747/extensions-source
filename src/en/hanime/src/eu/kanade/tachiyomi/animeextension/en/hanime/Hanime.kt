@@ -13,10 +13,13 @@ import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
+import eu.kanade.tachiyomi.util.asJsoup
+import eu.kanade.tachiyomi.util.system.JsEngine
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
+import org.json.JSONObject
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -86,55 +89,80 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
 
         val slug = episode.url.substringAfter("?id=")
         val videoPageUrl = "$baseUrl/videos/hentai/$slug"
-        val pageHtml = fetchVideoPage(videoPageUrl)
-        val signatureData = extractSignatureFromPage(pageHtml)
+        
+        val jsResult = extractVideoDataWithJs(videoPageUrl)
+        val signature = jsResult.optString("signature")
+        val timestamp = jsResult.optLong("timestamp")
+        val videoId = jsResult.optString("videoId")
 
-        if (authCookie != null && sessionToken != null && userLicense != null) {
-            videos = try {
-                VideoFetcher.fetchVideoListPremium(
+        if (signature.isNotEmpty() && timestamp > 0L) {
+            if (authCookie != null && sessionToken != null && userLicense != null) {
+                videos = try {
+                    VideoFetcher.fetchVideoListPremium(
+                        episode = episode,
+                        client = client,
+                        headers = headers,
+                        authCookie = authCookie,
+                        sessionToken = sessionToken,
+                        userLicense = userLicense,
+                        signature = signature,
+                        timestamp = timestamp,
+                        videoId = videoId,
+                    )
+                } catch (e: Exception) {
+                    emptyList()
+                }
+            }
+
+            if (videos.isEmpty()) {
+                videos = VideoFetcher.fetchVideoListGuest(
                     episode = episode,
                     client = client,
                     headers = headers,
-                    authCookie = authCookie,
-                    sessionToken = sessionToken,
-                    userLicense = userLicense,
-                    signature = signatureData.signature,
-                    timestamp = signatureData.timestamp,
+                    signature = signature,
+                    timestamp = timestamp,
+                    videoId = videoId,
                 )
-            } catch (e: Exception) {
-                emptyList()
             }
-        }
-
-        if (videos.isEmpty()) {
-            videos = VideoFetcher.fetchVideoListGuest(
-                episode = episode,
-                client = client,
-                headers = headers,
-                signature = signatureData.signature,
-                timestamp = signatureData.timestamp,
-            )
         }
 
         return videos
     }
 
-    private fun fetchVideoPage(pageUrl: String): String {
-        val request = GET(pageUrl, headers)
-        return client.newCall(request).execute().body.string()
+    private fun extractVideoDataWithJs(pageUrl: String): JSONObject {
+        val jsEngine = JsEngine()
+        val javascript = """
+            new Promise((resolve) => {
+                const result = {};
+                
+                // Load the main JS file that sets window.ssignature
+                const script = document.createElement('script');
+                script.src = 'https://hanime-cdn.com/vhtv2/40c99ce.js';
+                script.onload = () => {
+                    // Wait for window.ssignature and window.stime to be set
+                    const checkInterval = setInterval(() => {
+                        if (window.ssignature && window.stime) {
+                            clearInterval(checkInterval);
+                            result.signature = window.ssignature;
+                            result.timestamp = window.stime;
+                            
+                            // Extract video ID from the page
+                            const videoIdMatch = document.documentElement.innerHTML.match(/\/api\/v8\/video\?id=([^"&\s]+)/);
+                            if (videoIdMatch) {
+                                result.videoId = videoIdMatch[1];
+                            }
+                            
+                            resolve(JSON.stringify(result));
+                        }
+                    }, 100);
+                };
+                document.head.appendChild(script);
+            });
+        """.trimIndent()
+        
+        val result = jsEngine.evaluate(pageUrl, javascript)
+        return JSONObject(result)
     }
-
-    private fun extractSignatureFromPage(html: String): SignatureData {
-        val signatureRegex = """window\.ssignature\s*=\s*"([^"]*)"""".toRegex()
-        val timeRegex = """window\.stime\s*=\s*(\d+)""".toRegex()
-
-        val signature = signatureRegex.find(html)?.groupValues?.get(1) ?: ""
-        val timestamp = timeRegex.find(html)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
-
-        return SignatureData(signature, timestamp)
-    }
-
-    private data class SignatureData(val signature: String, val timestamp: Long)
 
     private fun getFreshAuthCookies(): Triple<String?, String?, String?> {
         val cookieList = client.cookieJar.loadForRequest(baseUrl.toHttpUrl())
