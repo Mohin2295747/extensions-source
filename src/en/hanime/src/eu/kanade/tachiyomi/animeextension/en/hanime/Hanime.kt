@@ -84,20 +84,46 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
         val (authCookie, sessionToken, userLicense) = getFreshAuthCookies()
         var videos = emptyList<Video>()
 
+        val pageHtml = fetchVideoPage(episode.url.substringAfter("?id="))
+        val signatureData = extractSignatureFromPage(pageHtml)
+
         if (authCookie != null && sessionToken != null && userLicense != null) {
             videos = try {
-                VideoFetcher.fetchVideoListPremium(episode, client, headers, authCookie, sessionToken, userLicense)
+                VideoFetcher.fetchVideoListPremium(
+                    episode, client, headers, authCookie, sessionToken, userLicense,
+                    signatureData.signature, signatureData.timestamp
+                )
             } catch (e: Exception) {
                 emptyList()
             }
         }
 
         if (videos.isEmpty()) {
-            videos = VideoFetcher.fetchVideoListGuest(episode, client, headers)
+            videos = VideoFetcher.fetchVideoListGuest(
+                episode, client, headers,
+                signatureData.signature, signatureData.timestamp
+            )
         }
 
         return videos
     }
+
+    private fun fetchVideoPage(videoId: String): String {
+        val request = GET("$baseUrl/api/v8/video?id=$videoId", headers)
+        return client.newCall(request).execute().body.string()
+    }
+
+    private fun extractSignatureFromPage(html: String): SignatureData {
+        val signatureRegex = """window\.ssignature\s*=\s*"([^"]*)"""".toRegex()
+        val timeRegex = """window\.stime\s*=\s*(\d+)""".toRegex()
+
+        val signature = signatureRegex.find(html)?.groupValues?.get(1) ?: ""
+        val timestamp = timeRegex.find(html)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+
+        return SignatureData(signature, timestamp)
+    }
+
+    private data class SignatureData(val signature: String, val timestamp: Long)
 
     private fun getFreshAuthCookies(): Triple<String?, String?, String?> {
         val cookieList = client.cookieJar.loadForRequest(baseUrl.toHttpUrl())
