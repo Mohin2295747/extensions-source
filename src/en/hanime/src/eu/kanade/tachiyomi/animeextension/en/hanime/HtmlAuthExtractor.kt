@@ -4,9 +4,10 @@ import android.util.Base64
 import java.util.regex.Pattern
 
 object HtmlAuthExtractor {
+    
     fun extractAuthTokens(html: String, videoId: String): Pair<String, Long> {
         val timestamp = extractTimestampFromNuxt(html)
-        val signature = generateGuestSignature(timestamp, videoId)
+        val signature = generateSignature(timestamp, videoId)
         return Pair(signature, timestamp)
     }
     
@@ -34,7 +35,7 @@ object HtmlAuthExtractor {
         return 0L
     }
     
-    private fun generateGuestSignature(timestamp: Long, videoId: String): String {
+    private fun generateSignature(timestamp: Long, videoId: String): String {
         val data = "$timestamp:guest:$videoId"
         return Base64.encodeToString(data.toByteArray(), Base64.NO_WRAP)
     }

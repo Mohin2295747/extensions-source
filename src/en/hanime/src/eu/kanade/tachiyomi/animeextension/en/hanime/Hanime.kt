@@ -88,28 +88,22 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
 
         val (signature, timestamp) = extractTokensFromPage(videoPageUrl, videoId)
 
-        if (signature.isNotEmpty() && timestamp > 0L) {
-            val videos = VideoFetcher.fetchVideoListGuest(
-                episode = episode,
-                client = client,
-                headers = headers,
-                signature = signature,
-                timestamp = timestamp,
-                videoId = videoId,
-            )
-            if (videos.isNotEmpty()) return videos
+        if (signature.isEmpty() || timestamp == 0L) {
+            return emptyList()
         }
 
         val (authCookie, sessionToken, userLicense) = getFreshAuthCookies()
-        if (authCookie != null && sessionToken != null && userLicense != null) {
+        val isPremiumUser = authCookie != null && sessionToken != null && userLicense != null
+
+        if (isPremiumUser) {
             try {
                 val videos = VideoFetcher.fetchVideoListPremium(
                     episode = episode,
                     client = client,
                     headers = headers,
-                    authCookie = authCookie,
-                    sessionToken = sessionToken,
-                    userLicense = userLicense,
+                    authCookie = authCookie!!,
+                    sessionToken = sessionToken!!,
+                    userLicense = userLicense!!,
                     signature = signature,
                     timestamp = timestamp,
                     videoId = videoId,
@@ -117,6 +111,16 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
                 if (videos.isNotEmpty()) return videos
             } catch (_: Exception) { }
         }
+
+        val videos = VideoFetcher.fetchVideoListGuest(
+            episode = episode,
+            client = client,
+            headers = headers,
+            signature = signature,
+            timestamp = timestamp,
+            videoId = videoId,
+        )
+        if (videos.isNotEmpty()) return videos
 
         return emptyList()
     }
@@ -127,19 +131,7 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
                 val request = GET(pageUrl, headers)
                 val response = client.newCall(request).execute()
                 val html = response.body.string()
-                
-                val (sig, ts) = HtmlAuthExtractor.extractAuthTokens(html, videoId)
-                
-                if (sig.isNotEmpty() && ts > 0L) {
-                    Pair(sig, ts)
-                } else {
-                    try {
-                        val (sig2, ts2) = JsExtractor.extractAuthTokens(pageUrl)
-                        Pair(sig2, ts2)
-                    } catch (e: Exception) {
-                        Pair("", 0L)
-                    }
-                }
+                HtmlAuthExtractor.extractAuthTokens(html, videoId)
             } catch (e: Exception) {
                 Pair("", 0L)
             }

@@ -24,21 +24,7 @@ object JsExtractor {
             val html = response.body.string()
 
             val videoId = extractVideoId(html) ?: ""
-            val (sig, ts) = HtmlAuthExtractor.extractAuthTokens(html, videoId)
-            
-            if (sig.isNotEmpty() && ts > 0L) {
-                Pair(sig, ts)
-            } else {
-                val scriptUrl = extractScriptUrl(html)
-                if (scriptUrl != null) {
-                    val scriptContent = fetchScriptContent(scriptUrl)
-                    val signature = extractSignature(scriptContent)
-                    val timestamp = extractTimestamp(scriptContent)
-                    Pair(signature, timestamp)
-                } else {
-                    Pair("", 0L)
-                }
-            }
+            HtmlAuthExtractor.extractAuthTokens(html, videoId)
         } catch (e: Exception) {
             Pair("", 0L)
         }
@@ -58,71 +44,5 @@ object JsExtractor {
             }
         }
         return null
-    }
-
-    private fun extractScriptUrl(html: String): String? {
-        val pattern = Pattern.compile("<script[^>]*src=\"([^\"]*vhtv[^\"]*\\.js)\"[^>]*>")
-        val matcher = pattern.matcher(html)
-
-        return if (matcher.find()) {
-            var url = matcher.group(1)
-            if (url.startsWith("//")) {
-                url = "https:$url"
-            } else if (url.startsWith("/")) {
-                url = "https://hanime.tv$url"
-            }
-            url
-        } else {
-            null
-        }
-    }
-
-    private fun fetchScriptContent(scriptUrl: String): String {
-        return try {
-            val request = Request.Builder()
-                .url(scriptUrl)
-                .addHeader(
-                    "User-Agent",
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                )
-                .build()
-
-            val response = CLIENT.newCall(request).execute()
-            response.body.string()
-        } catch (e: Exception) {
-            ""
-        }
-    }
-
-    private fun extractSignature(scriptContent: String): String {
-        val patterns = listOf(
-            Pattern.compile("window\\.ssignature\\s*=\\s*['\"]([^'\"]+)['\"]"),
-            Pattern.compile("ssignature[:\"]\\s*['\"]([^'\"]+)['\"]"),
-            Pattern.compile("signature[:\"]\\s*['\"]([^'\"]+)['\"]"),
-        )
-
-        patterns.forEach { pattern ->
-            val matcher = pattern.matcher(scriptContent)
-            if (matcher.find()) {
-                return matcher.group(1)
-            }
-        }
-        return ""
-    }
-
-    private fun extractTimestamp(scriptContent: String): Long {
-        val patterns = listOf(
-            Pattern.compile("window\\.stime\\s*=\\s*(\\d+)"),
-            Pattern.compile("stime[:\"]\\s*(\\d+)"),
-            Pattern.compile("timestamp[:\"]\\s*(\\d+)"),
-        )
-
-        patterns.forEach { pattern ->
-            val matcher = pattern.matcher(scriptContent)
-            if (matcher.find()) {
-                return matcher.group(1).toLongOrNull() ?: 0L
-            }
-        }
-        return 0L
     }
 }
