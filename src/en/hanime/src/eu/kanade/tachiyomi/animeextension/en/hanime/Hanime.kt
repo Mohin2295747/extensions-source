@@ -89,8 +89,7 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
 
         val (signature, timestamp) = withContext(Dispatchers.Main) {
             try {
-                val (sig, ts, _) = WebViewExtractor.extractVideoData(context, slug)
-                Pair(sig, ts)
+                WebViewExtractor.extractAuthTokens(context, slug)
             } catch (e: Exception) {
                 val (sig, ts, _) = JsExtractor.extractVideoData("$baseUrl/videos/hentai/$videoId")
                 Pair(sig, ts)

@@ -10,7 +10,7 @@ object JsExtractor {
         .followSslRedirects(true)
         .build()
 
-    fun extractVideoData(pageUrl: String): Triple<String, Long, String> {
+    fun extractAuthTokens(pageUrl: String): Pair<String, Long> {
         return try {
             val request = Request.Builder()
                 .url(pageUrl)
@@ -23,37 +23,19 @@ object JsExtractor {
             val response = CLIENT.newCall(request).execute()
             val html = response.body.string()
 
-            val videoId = extractVideoId(html) ?: ""
-
             val scriptUrl = extractScriptUrl(html)
             if (scriptUrl != null) {
                 val scriptContent = fetchScriptContent(scriptUrl)
                 val signature = extractSignature(scriptContent)
                 val timestamp = extractTimestamp(scriptContent)
 
-                Triple(signature, timestamp, videoId)
+                Pair(signature, timestamp)
             } else {
-                Triple("", 0L, videoId)
+                Pair("", 0L)
             }
         } catch (e: Exception) {
-            Triple("", 0L, "")
+            Pair("", 0L)
         }
-    }
-
-    private fun extractVideoId(html: String): String? {
-        val patterns = listOf(
-            Pattern.compile("/api/v8/video\\?id=([^\"'&\\s]+)"),
-            Pattern.compile("video_id[:\"']\\s*[\"']([^\"']+)[\"']"),
-            Pattern.compile("data-video-id=[\"']([^\"']+)[\"']"),
-        )
-
-        patterns.forEach { pattern ->
-            val matcher = pattern.matcher(html)
-            if (matcher.find()) {
-                return matcher.group(1)
-            }
-        }
-        return null
     }
 
     private fun extractScriptUrl(html: String): String? {

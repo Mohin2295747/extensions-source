@@ -3,7 +3,6 @@ package eu.kanade.tachiyomi.animeextension.en.hanime
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
-import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -14,7 +13,7 @@ object WebViewExtractor {
 
     private const val TIMEOUT_MS = 15000L
 
-    suspend fun extractVideoData(context: Context, videoSlug: String): Triple<String, Long, String> {
+    suspend fun extractAuthTokens(context: Context, videoSlug: String): Pair<String, Long> {
         return withTimeout(TIMEOUT_MS) {
             suspendCancellableCoroutine { continuation ->
                 val webView = WebView(context)
@@ -39,8 +38,7 @@ object WebViewExtractor {
                                     (function() {
                                         return {
                                             signature: window.ssignature || '',
-                                            timestamp: window.stime || 0,
-                                            videoId: window.video_id || ''
+                                            timestamp: window.stime || 0
                                         };
                                     })();
                                     """.trimIndent(),
@@ -49,15 +47,14 @@ object WebViewExtractor {
                                         val json = org.json.JSONObject(result)
                                         val signature = json.optString("signature", "")
                                         val timestamp = json.optLong("timestamp", 0L)
-                                        val videoId = json.optString("videoId", videoSlug)
 
                                         if (signature.isNotEmpty() && timestamp > 0L) {
-                                            continuation.resume(Triple(signature, timestamp, videoId))
+                                            continuation.resume(Pair(signature, timestamp))
                                         } else {
-                                            continuation.resume(Triple("", 0L, videoId))
+                                            continuation.resume(Pair("", 0L))
                                         }
                                     } catch (e: Exception) {
-                                        continuation.resume(Triple("", 0L, videoSlug))
+                                        continuation.resume(Pair("", 0L))
                                     } finally {
                                         mainHandler.post { webView.destroy() }
                                     }
