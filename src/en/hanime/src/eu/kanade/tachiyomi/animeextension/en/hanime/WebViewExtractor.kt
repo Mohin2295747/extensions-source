@@ -43,7 +43,7 @@ object WebViewExtractor {
                                             videoId: window.video_id || ''
                                         };
                                     })();
-                                    """.trimIndent()
+                                    """.trimIndent(),
                                 ) { result ->
                                     try {
                                         val json = org.json.JSONObject(result)
