@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.animeextension.en.hanime
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -25,7 +26,7 @@ object WebViewExtractor {
                     userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
                     loadWithOverviewMode = true
                     useWideViewPort = true
-                    cacheMode = WebView.LOAD_DEFAULT
+                    cacheMode = WebSettings.LOAD_DEFAULT
                 }
 
                 webView.webViewClient = object : WebViewClient() {

@@ -91,7 +91,7 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
             try {
                 WebViewExtractor.extractAuthTokens(context, slug)
             } catch (e: Exception) {
-                val (sig, ts, _) = JsExtractor.extractVideoData("$baseUrl/videos/hentai/$videoId")
+                val (sig, ts) = JsExtractor.extractAuthTokens("$baseUrl/videos/hentai/$videoId")
                 Pair(sig, ts)
             }
         }
