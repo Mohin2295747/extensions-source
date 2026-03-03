@@ -128,30 +128,25 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
 
     private fun extractVideoDataWithJs(pageUrl: String): Triple<String, Long, String> {
         val jsEngine = JavaScriptEngine()
-        
+
         val javascript = """
             (function() {
                 return new Promise((resolve) => {
                     const result = { signature: '', timestamp: 0, videoId: '' };
-                    
                     const checkExisting = () => {
                         if (window.ssignature && window.stime) {
                             result.signature = window.ssignature;
                             result.timestamp = window.stime;
-                            
                             const videoIdMatch = document.documentElement.innerHTML.match(/\/api\/v8\/video\?id=([^"&\s]+)/);
                             if (videoIdMatch) {
                                 result.videoId = videoIdMatch[1];
                             }
-                            
                             resolve(JSON.stringify(result));
                             return true;
                         }
                         return false;
                     };
-                    
                     if (checkExisting()) return;
-                    
                     const script = document.createElement('script');
                     script.src = 'https://hanime-cdn.com/vhtv2/40c99ce.js';
                     script.onload = () => {
@@ -176,11 +171,11 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
 
         val result = jsEngine.evaluate(pageUrl, javascript, timeoutMs = 10000L)
         val json = JSONObject(result)
-        
+
         return Triple(
             json.optString("signature", ""),
             json.optLong("timestamp", 0L),
-            json.optString("videoId", "")
+            json.optString("videoId", ""),
         )
     }
 
@@ -189,17 +184,17 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
         var authCookie: String? = null
         var sessionToken: String? = null
         var userLicense: String? = null
-        
+
         cookieList.firstOrNull { it.name == "htv3session" }?.let {
             authCookie = "${it.name}=${it.value}"
             sessionToken = it.value
         }
-        
+
         val licenseCookie = cookieList.firstOrNull { it.name == "x-user-license" }
         if (licenseCookie != null) {
             userLicense = licenseCookie.value
         }
-        
+
         return Triple(authCookie, sessionToken, userLicense)
     }
 
