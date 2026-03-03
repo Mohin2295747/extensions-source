@@ -84,7 +84,9 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
         val (authCookie, sessionToken, userLicense) = getFreshAuthCookies()
         var videos = emptyList<Video>()
 
-        val pageHtml = fetchVideoPage(episode.url.substringAfter("?id="))
+        val slug = episode.url.substringAfter("?id=")
+        val videoPageUrl = "$baseUrl/videos/hentai/$slug"
+        val pageHtml = fetchVideoPage(videoPageUrl)
         val signatureData = extractSignatureFromPage(pageHtml)
 
         if (authCookie != null && sessionToken != null && userLicense != null) {
@@ -117,8 +119,8 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
         return videos
     }
 
-    private fun fetchVideoPage(videoId: String): String {
-        val request = GET("$baseUrl/api/v8/video?id=$videoId", headers)
+    private fun fetchVideoPage(pageUrl: String): String {
+        val request = GET(pageUrl, headers)
         return client.newCall(request).execute().body.string()
     }
 
