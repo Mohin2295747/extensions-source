@@ -133,7 +133,7 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
         return withTimeout(15000L) {
             suspendCancellableCoroutine { continuation ->
                 val webView = WebView(Injekt.get<Application>())
-                
+
                 webView.settings.javaScriptEnabled = true
                 webView.settings.domStorageEnabled = true
                 webView.settings.loadWithOverviewMode = true
@@ -147,7 +147,6 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
                             (function() {
                                 return new Promise((resolve) => {
                                     const result = { signature: '', timestamp: 0, videoId: '' };
-                                    
                                     const checkExisting = () => {
                                         if (window.ssignature && window.stime) {
                                             result.signature = window.ssignature;
@@ -161,9 +160,7 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
                                         }
                                         return false;
                                     };
-                                    
                                     if (checkExisting()) return;
-                                    
                                     const script = document.createElement('script');
                                     script.src = 'https://hanime-cdn.com/vhtv2/40c99ce.js';
                                     script.onload = () => {
@@ -188,11 +185,13 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
                         ) { result ->
                             try {
                                 val json = JSONObject(result)
-                                continuation.resume(Triple(
-                                    json.optString("signature", ""),
-                                    json.optLong("timestamp", 0L),
-                                    json.optString("videoId", ""),
-                                ))
+                                continuation.resume(
+                                    Triple(
+                                        json.optString("signature", ""),
+                                        json.optLong("timestamp", 0L),
+                                        json.optString("videoId", ""),
+                                    ),
+                                )
                             } catch (e: Exception) {
                                 continuation.resume(Triple("", 0L, ""))
                             } finally {
