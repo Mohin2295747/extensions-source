@@ -23,19 +23,41 @@ object JsExtractor {
             val response = CLIENT.newCall(request).execute()
             val html = response.body.string()
 
-            val scriptUrl = extractScriptUrl(html)
-            if (scriptUrl != null) {
-                val scriptContent = fetchScriptContent(scriptUrl)
-                val signature = extractSignature(scriptContent)
-                val timestamp = extractTimestamp(scriptContent)
-
-                Pair(signature, timestamp)
+            val videoId = extractVideoId(html) ?: ""
+            val (sig, ts) = HtmlAuthExtractor.extractAuthTokens(html, videoId)
+            
+            if (sig.isNotEmpty() && ts > 0L) {
+                Pair(sig, ts)
             } else {
-                Pair("", 0L)
+                val scriptUrl = extractScriptUrl(html)
+                if (scriptUrl != null) {
+                    val scriptContent = fetchScriptContent(scriptUrl)
+                    val signature = extractSignature(scriptContent)
+                    val timestamp = extractTimestamp(scriptContent)
+                    Pair(signature, timestamp)
+                } else {
+                    Pair("", 0L)
+                }
             }
         } catch (e: Exception) {
             Pair("", 0L)
         }
+    }
+
+    private fun extractVideoId(html: String): String? {
+        val patterns = listOf(
+            Pattern.compile("/api/v8/video\\?id=([^\"'&\\s]+)"),
+            Pattern.compile("video_id[:\"']\\s*[\"']([^\"']+)[\"']"),
+            Pattern.compile("data-video-id=[\"']([^\"']+)[\"']"),
+        )
+
+        patterns.forEach { pattern ->
+            val matcher = pattern.matcher(html)
+            if (matcher.find()) {
+                return matcher.group(1)
+            }
+        }
+        return null
     }
 
     private fun extractScriptUrl(html: String): String? {

@@ -83,18 +83,10 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
     override fun videoListRequest(episode: SEpisode) = GET(episode.url)
 
     override suspend fun getVideoList(episode: SEpisode): List<Video> {
-        val context = Injekt.get<Application>()
         val videoId = episode.url.substringAfter("?id=").substringBefore("&")
-        val slug = "eroge-sex-game-make-sexy-games-2"
+        val videoPageUrl = "$baseUrl/videos/hentai/$videoId"
 
-        val (signature, timestamp) = withContext(Dispatchers.Main) {
-            try {
-                WebViewExtractor.extractAuthTokens(context, slug)
-            } catch (e: Exception) {
-                val (sig, ts) = JsExtractor.extractAuthTokens("$baseUrl/videos/hentai/$videoId")
-                Pair(sig, ts)
-            }
-        }
+        val (signature, timestamp) = extractTokensFromPage(videoPageUrl, videoId)
 
         if (signature.isNotEmpty() && timestamp > 0L) {
             val videos = VideoFetcher.fetchVideoListGuest(
@@ -127,6 +119,31 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
         }
 
         return emptyList()
+    }
+
+    private suspend fun extractTokensFromPage(pageUrl: String, videoId: String): Pair<String, Long> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val request = GET(pageUrl, headers)
+                val response = client.newCall(request).execute()
+                val html = response.body.string()
+                
+                val (sig, ts) = HtmlAuthExtractor.extractAuthTokens(html, videoId)
+                
+                if (sig.isNotEmpty() && ts > 0L) {
+                    Pair(sig, ts)
+                } else {
+                    try {
+                        val (sig2, ts2) = JsExtractor.extractAuthTokens(pageUrl)
+                        Pair(sig2, ts2)
+                    } catch (e: Exception) {
+                        Pair("", 0L)
+                    }
+                }
+            } catch (e: Exception) {
+                Pair("", 0L)
+            }
+        }
     }
 
     private fun getFreshAuthCookies(): Triple<String?, String?, String?> {
