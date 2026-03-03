@@ -2,8 +2,6 @@ package eu.kanade.tachiyomi.animeextension.en.hanime
 
 import android.app.Application
 import android.content.SharedPreferences
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
@@ -21,7 +19,6 @@ import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
-import org.json.JSONObject
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import kotlin.coroutines.resume
@@ -93,7 +90,7 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
         val slug = episode.url.substringAfter("?id=")
         val videoPageUrl = "$baseUrl/videos/hentai/$slug"
 
-        val (signature, timestamp, videoId) = extractVideoDataWithWebView(videoPageUrl)
+        val (signature, timestamp, videoId) = extractVideoData(videoPageUrl)
 
         if (signature.isNotEmpty() && timestamp > 0L) {
             if (authCookie != null && sessionToken != null && userLicense != null) {
@@ -129,80 +126,11 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
         return videos
     }
 
-    private suspend fun extractVideoDataWithWebView(pageUrl: String): Triple<String, Long, String> {
-        return withTimeout(15000L) {
-            suspendCancellableCoroutine { continuation ->
-                val webView = WebView(Injekt.get<Application>())
-
-                webView.settings.javaScriptEnabled = true
-                webView.settings.domStorageEnabled = true
-                webView.settings.loadWithOverviewMode = true
-                webView.settings.useWideViewPort = true
-                webView.settings.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-
-                webView.webViewClient = object : WebViewClient() {
-                    override fun onPageFinished(view: WebView?, url: String?) {
-                        webView.evaluateJavascript(
-                            """
-                            (function() {
-                                return new Promise((resolve) => {
-                                    const result = { signature: '', timestamp: 0, videoId: '' };
-                                    const checkExisting = () => {
-                                        if (window.ssignature && window.stime) {
-                                            result.signature = window.ssignature;
-                                            result.timestamp = window.stime;
-                                            const videoIdMatch = document.documentElement.innerHTML.match(/\/api\/v8\/video\?id=([^"&\s]+)/);
-                                            if (videoIdMatch) {
-                                                result.videoId = videoIdMatch[1];
-                                            }
-                                            resolve(JSON.stringify(result));
-                                            return true;
-                                        }
-                                        return false;
-                                    };
-                                    if (checkExisting()) return;
-                                    const script = document.createElement('script');
-                                    script.src = 'https://hanime-cdn.com/vhtv2/40c99ce.js';
-                                    script.onload = () => {
-                                        let attempts = 0;
-                                        const checkInterval = setInterval(() => {
-                                            attempts++;
-                                            if (checkExisting() || attempts > 50) {
-                                                clearInterval(checkInterval);
-                                                if (attempts > 50 && !result.signature) {
-                                                    resolve(JSON.stringify(result));
-                                                }
-                                            }
-                                        }, 100);
-                                    };
-                                    script.onerror = () => {
-                                        resolve(JSON.stringify(result));
-                                    };
-                                    document.head.appendChild(script);
-                                });
-                            })()
-                            """.trimIndent(),
-                        ) { result ->
-                            try {
-                                val json = JSONObject(result)
-                                continuation.resume(
-                                    Triple(
-                                        json.optString("signature", ""),
-                                        json.optLong("timestamp", 0L),
-                                        json.optString("videoId", ""),
-                                    ),
-                                )
-                            } catch (e: Exception) {
-                                continuation.resume(Triple("", 0L, ""))
-                            } finally {
-                                webView.destroy()
-                            }
-                        }
-                    }
-                }
-
-                webView.loadUrl(pageUrl)
-            }
+    private fun extractVideoData(pageUrl: String): Triple<String, Long, String> {
+        return try {
+            JsExtractor.extractVideoData(pageUrl)
+        } catch (e: Exception) {
+            Triple("", 0L, "")
         }
     }
 
