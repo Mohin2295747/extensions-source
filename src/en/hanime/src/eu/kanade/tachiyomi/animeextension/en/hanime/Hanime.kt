@@ -13,6 +13,8 @@ import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
@@ -81,54 +83,51 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
     override fun videoListRequest(episode: SEpisode) = GET(episode.url)
 
     override suspend fun getVideoList(episode: SEpisode): List<Video> {
-        val (authCookie, sessionToken, userLicense) = getFreshAuthCookies()
-        var videos = emptyList<Video>()
-
+        val context = Injekt.get<Application>()
         val videoId = episode.url.substringAfter("?id=").substringBefore("&")
-        val videoPageUrl = "$baseUrl/videos/hentai/$videoId"
+        val slug = "eroge-sex-game-make-sexy-games-2"
 
-        val (signature, timestamp, _) = extractVideoData(videoPageUrl)
+        val (signature, timestamp) = withContext(Dispatchers.Main) {
+            try {
+                val (sig, ts, _) = WebViewExtractor.extractVideoData(context, slug)
+                Pair(sig, ts)
+            } catch (e: Exception) {
+                val (sig, ts, _) = JsExtractor.extractVideoData("$baseUrl/videos/hentai/$videoId")
+                Pair(sig, ts)
+            }
+        }
 
         if (signature.isNotEmpty() && timestamp > 0L) {
-            if (authCookie != null && sessionToken != null && userLicense != null) {
-                videos = try {
-                    VideoFetcher.fetchVideoListPremium(
-                        episode = episode,
-                        client = client,
-                        headers = headers,
-                        authCookie = authCookie,
-                        sessionToken = sessionToken,
-                        userLicense = userLicense,
-                        signature = signature,
-                        timestamp = timestamp,
-                        videoId = videoId,
-                    )
-                } catch (e: Exception) {
-                    emptyList()
-                }
-            }
+            val videos = VideoFetcher.fetchVideoListGuest(
+                episode = episode,
+                client = client,
+                headers = headers,
+                signature = signature,
+                timestamp = timestamp,
+                videoId = videoId,
+            )
+            if (videos.isNotEmpty()) return videos
+        }
 
-            if (videos.isEmpty()) {
-                videos = VideoFetcher.fetchVideoListGuest(
+        val (authCookie, sessionToken, userLicense) = getFreshAuthCookies()
+        if (authCookie != null && sessionToken != null && userLicense != null) {
+            try {
+                val videos = VideoFetcher.fetchVideoListPremium(
                     episode = episode,
                     client = client,
                     headers = headers,
+                    authCookie = authCookie,
+                    sessionToken = sessionToken,
+                    userLicense = userLicense,
                     signature = signature,
                     timestamp = timestamp,
                     videoId = videoId,
                 )
-            }
+                if (videos.isNotEmpty()) return videos
+            } catch (_: Exception) { }
         }
 
-        return videos
-    }
-
-    private fun extractVideoData(pageUrl: String): Triple<String, Long, String> {
-        return try {
-            JsExtractor.extractVideoData(pageUrl)
-        } catch (e: Exception) {
-            Triple("", 0L, "")
-        }
+        return emptyList()
     }
 
     private fun getFreshAuthCookies(): Triple<String?, String?, String?> {
