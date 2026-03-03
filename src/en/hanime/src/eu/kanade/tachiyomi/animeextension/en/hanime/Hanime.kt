@@ -84,10 +84,10 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
         val (authCookie, sessionToken, userLicense) = getFreshAuthCookies()
         var videos = emptyList<Video>()
 
-        val slug = episode.url.substringAfter("?id=")
-        val videoPageUrl = "$baseUrl/videos/hentai/$slug"
+        val videoId = episode.url.substringAfter("?id=").substringBefore("&")
+        val videoPageUrl = "$baseUrl/videos/hentai/$videoId"
 
-        val (signature, timestamp, videoId) = extractVideoData(videoPageUrl)
+        val (signature, timestamp, _) = extractVideoData(videoPageUrl)
 
         if (signature.isNotEmpty() && timestamp > 0L) {
             if (authCookie != null && sessionToken != null && userLicense != null) {
