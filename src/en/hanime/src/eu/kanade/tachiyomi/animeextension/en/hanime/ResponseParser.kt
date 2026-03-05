@@ -6,9 +6,9 @@ import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.util.parseAs
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.jsonArray
 import okhttp3.Response
 
 object ResponseParser {
@@ -37,7 +37,7 @@ object ResponseParser {
     fun parseAnimeDetails(response: Response, source: Hanime): SAnime {
         val html = response.body.string()
         val nuxtJson = extractNuxtJson(html)
-        
+
         return SAnime.create().apply {
             if (nuxtJson != null) {
                 try {
@@ -45,18 +45,18 @@ object ResponseParser {
                     val data = state["data"]?.jsonObject ?: return@apply
                     val video = data["video"]?.jsonObject ?: return@apply
                     val hentaiVideo = video["hentai_video"]?.jsonObject ?: return@apply
-                    
+
                     title = hentaiVideo["name"]?.jsonPrimitive?.content ?: ""
                     thumbnail_url = hentaiVideo["poster_url"]?.jsonPrimitive?.content
                     author = video["brand"]?.jsonObject?.get("title")?.jsonPrimitive?.content
                     description = hentaiVideo["description"]?.jsonPrimitive?.content?.replace(Regex("<[^>]*>"), "")
                     status = SAnime.UNKNOWN
-                    
+
                     val tags = video["hentai_tags"]?.jsonArray
                         ?.mapNotNull { it.jsonObject["text"]?.jsonPrimitive?.content }
                         ?.joinToString { it }
                     genre = tags
-                    
+
                     url = "/videos/hentai/" + (hentaiVideo["slug"]?.jsonPrimitive?.content ?: "")
                 } catch (e: Exception) {
                 }
@@ -79,7 +79,7 @@ object ResponseParser {
     fun parseEpisodeList(response: Response, baseUrl: String): List<SEpisode> {
         val responseString = response.body.string()
         if (responseString.isEmpty()) return emptyList()
-        
+
         return try {
             responseString.parseAs<VideoModel>().hentaiFranchiseHentaiVideos
                 ?.mapIndexed { idx, it ->
@@ -93,13 +93,13 @@ object ResponseParser {
         } catch (e: Exception) {
             val html = responseString
             val nuxtJson = extractNuxtJson(html) ?: return emptyList()
-            
+
             try {
                 val state = nuxtJson["state"]?.jsonObject ?: return emptyList()
                 val data = state["data"]?.jsonObject ?: return emptyList()
                 val video = data["video"]?.jsonObject ?: return emptyList()
                 val franchiseVideos = video["hentai_franchise_hentai_videos"]?.jsonArray ?: return emptyList()
-                
+
                 franchiseVideos.mapIndexed { idx, jsonElement ->
                     val episodeJson = jsonElement.jsonObject
                     SEpisode.create().apply {

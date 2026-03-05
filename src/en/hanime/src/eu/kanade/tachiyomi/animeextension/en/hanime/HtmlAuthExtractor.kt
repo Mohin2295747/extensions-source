@@ -15,7 +15,7 @@ object HtmlAuthExtractor {
 
     private fun extractTimestampFromNuxt(html: String): Long {
         val pattern = """window\.__NUXT__\s*=\s*(\{.*?\});""".toRegex(RegexOption.DOT_MATCHES_ALL)
-        
+
         return pattern.find(html)?.groupValues?.get(1)?.let { jsonStr ->
             try {
                 val json = Json.parseToJsonElement(jsonStr).jsonObject
