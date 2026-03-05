@@ -1,7 +1,9 @@
 package eu.kanade.tachiyomi.animeextension.en.hanime
 
 import android.util.Base64
-import java.util.regex.Pattern
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 object HtmlAuthExtractor {
 
@@ -12,27 +14,22 @@ object HtmlAuthExtractor {
     }
 
     private fun extractTimestampFromNuxt(html: String): Long {
-        val nuxtPattern = Pattern.compile("window\\.__NUXT__\\s*=\\s*(\\{.*?\\});", Pattern.DOTALL)
-        val nuxtMatcher = nuxtPattern.matcher(html)
-
-        if (nuxtMatcher.find()) {
-            val nuxtJson = nuxtMatcher.group(1)
-            val stimePattern = Pattern.compile("\"stime\"\\s*:\\s*(\\d+)")
-            val stimeMatcher = stimePattern.matcher(nuxtJson)
-
-            if (stimeMatcher.find()) {
-                return stimeMatcher.group(1).toLongOrNull() ?: 0L
+        val pattern = """window\.__NUXT__\s*=\s*(\{.*?\});""".toRegex(RegexOption.DOT_MATCHES_ALL)
+        
+        return pattern.find(html)?.groupValues?.get(1)?.let { jsonStr ->
+            try {
+                val json = Json.parseToJsonElement(jsonStr).jsonObject
+                json["state"]?.jsonObject?.let { state ->
+                    state["data"]?.jsonObject?.let { data ->
+                        data["video"]?.jsonObject?.let { video ->
+                            video["stime"]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L
+                        } ?: 0L
+                    }
+                } ?: 0L
+            } catch (e: Exception) {
+                0L
             }
-        }
-
-        val directPattern = Pattern.compile("window\\.stime\\s*=\\s*(\\d+);")
-        val directMatcher = directPattern.matcher(html)
-
-        if (directMatcher.find()) {
-            return directMatcher.group(1).toLongOrNull() ?: 0L
-        }
-
-        return 0L
+        } ?: 0L
     }
 
     private fun generateSignature(timestamp: Long, videoId: String): String {

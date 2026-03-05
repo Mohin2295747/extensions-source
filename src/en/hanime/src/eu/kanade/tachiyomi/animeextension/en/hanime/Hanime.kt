@@ -71,6 +71,10 @@ class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
 
     override fun latestUpdatesParse(response: Response) = ResponseParser.parseSearchJson(response, this)
 
+    override fun animeDetailsRequest(anime: SAnime): Request {
+        return GET("$baseUrl${anime.url}", headers)
+    }
+
     override fun animeDetailsParse(response: Response): SAnime = ResponseParser.parseAnimeDetails(response, this)
 
     override fun episodeListRequest(anime: SAnime): Request {
