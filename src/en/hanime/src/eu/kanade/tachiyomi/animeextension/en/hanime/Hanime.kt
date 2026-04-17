@@ -159,27 +159,27 @@ class Hanime :
         val nuxtJson = scriptData.substringAfter("__NUXT__=").substringBeforeLast(";")
         val parsed = nuxtJson.parseAs<WindowNuxt>()
 
-    val videoHeaders = Headers.headersOf(
-        "Referer",
-        "https://hanime.tv/",
-        "Accept",
-        "*/*",
-        "Accept-Language", "en-US,en;q=0.5"
-    )
-    return parsed.state.data.video?.videos_manifest?.servers?.flatMap { server ->
-        server.streams.mapNotNull { stream ->
-            val url = stream.url ?: return@mapNotNull null
-            val height = stream.height ?: return@mapNotNull null
-            Video(url, "${height}p", url, videoHeaders)
-        }
-    } ?: emptyList()
+        val videoHeaders = Headers.headersOf(
+            "Referer",
+            "https://hanime.tv/",
+            "Accept",
+            "*/*",
+            "Accept-Language", "en-US,en;q=0.5"
+        )
+        return parsed.state.data.video?.videos_manifest?.servers?.flatMap { server ->
+            server.streams.mapNotNull { stream ->
+                val url = stream.url ?: return@mapNotNull null
+                val height = stream.height ?: return@mapNotNull null
+                Video(url, "${height}p", url, videoHeaders)
+            }
+        } ?: emptyList()
     }
 
     override fun videoListParse(response: Response): List<Video> {
         val responseString = response.body.string().ifEmpty { return emptyList() }
         val videoHeaders = Headers.headersOf(
             "Referer",
-        "https://hanime.tv/",
+            "https://hanime.tv/",
             "Accept", "*/*",
             "Accept-Language", "en-US,en;q=0.5"
         )
