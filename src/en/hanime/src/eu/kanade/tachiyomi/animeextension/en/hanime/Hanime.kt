@@ -164,7 +164,8 @@ class Hanime :
             "https://hanime.tv/",
             "Accept",
             "*/*",
-            "Accept-Language", "en-US,en;q=0.5"
+            "Accept-Language",
+            "en-US,en;q=0.5",
         )
         return parsed.state.data.video?.videos_manifest?.servers?.flatMap { server ->
             server.streams.mapNotNull { stream ->
@@ -180,8 +181,10 @@ class Hanime :
         val videoHeaders = Headers.headersOf(
             "Referer",
             "https://hanime.tv/",
-            "Accept", "*/*",
-            "Accept-Language", "en-US,en;q=0.5"
+            "Accept",
+            "*/*",
+            "Accept-Language",
+            "en-US,en;q=0.5",
         )
         return responseString.parseAs<VideoModel>().videosManifest?.servers?.firstOrNull()?.streams?.filter { it.kind != "premium_alert" }?.mapNotNull { stream ->
             val url = stream.url ?: return@mapNotNull null
@@ -241,7 +244,6 @@ class Hanime :
 
     override fun latestUpdatesParse(response: Response) = parseSearchJson(response)
 
-    // Filters
     override fun getFilterList(): AnimeFilterList = AnimeFilterList(
         TagList(getTags()),
         BrandList(getBrands()),
@@ -550,7 +552,6 @@ class Hanime :
 
     class SortFilter(sortables: Array<String>) : AnimeFilter.Sort("Sort", sortables, Selection(2, false))
 
-    // Preferences
     companion object {
         private const val PREF_QUALITY_KEY = "preferred_quality"
         private const val PREF_QUALITY_DEFAULT = "1080p"
