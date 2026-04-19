@@ -125,3 +125,103 @@ jobs:
           name: all-extensions-apks
           path: all_apks/
           retention-days: 1
+
+  create_release:
+    name: Create GitHub Release
+    needs: collect_apks
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required to create releases and upload assets
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all tags for version calculation
+
+      - name: Download all APKs
+        uses: actions/download-artifact@v4
+        with:
+          name: all-extensions-apks
+          path: all_apks
+
+      - name: Count APK files
+        id: count
+        run: |
+          count=$(find all_apks -name "*.apk" | wc -l)
+          echo "APK_COUNT=$count" >> $GITHUB_ENV
+          echo "Found $count APK files"
+
+      - name: Skip release if APK count > 10
+        if: env.APK_COUNT > 10
+        run: |
+          echo "APK count (${{ env.APK_COUNT }}) exceeds limit (10). Skipping release creation."
+          exit 0
+
+      - name: Compute next version tag
+        id: version
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // List all tags that match the version pattern vX.X.X.X
+            const { data: tags } = await github.rest.repos.listTags({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100
+            });
+            
+            const versionPattern = /^v\d+\.\d+\.\d+\.\d+$/;
+            const validTags = tags
+              .map(t => t.name)
+              .filter(t => versionPattern.test(t))
+              .sort((a, b) => {
+                // Sort by version components
+                const aParts = a.slice(1).split('.').map(Number);
+                const bParts = b.slice(1).split('.').map(Number);
+                for (let i = 0; i < 4; i++) {
+                  if (aParts[i] !== bParts[i]) return aParts[i] - bParts[i];
+                }
+                return 0;
+              });
+            
+            let nextVersion;
+            if (validTags.length === 0) {
+              nextVersion = "v0.0.0.1";
+            } else {
+              const latestTag = validTags[validTags.length - 1];
+              let parts = latestTag.slice(1).split('.').map(Number);
+              // Increment last part with carry-over (base 10)
+              let pos = parts.length - 1;
+              while (pos >= 0) {
+                parts[pos]++;
+                if (parts[pos] < 10) break;
+                parts[pos] = 0;
+                pos--;
+              }
+              // If first part also rolled over (unlikely), prefix with 'v'
+              nextVersion = "v" + parts.join('.');
+            }
+            
+            console.log(`Next version: ${nextVersion}`);
+            core.setOutput("tag", nextVersion);
+
+      - name: Prepare release notes (list of APK filenames)
+        id: notes
+        run: |
+          cd all_apks
+          # Generate one filename per line
+          ls -1 *.apk > ../filenames.txt
+          cd ..
+          echo "RELEASE_NOTES<<EOF" >> $GITHUB_ENV
+          cat filenames.txt >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Create GitHub Release and upload assets
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            --title "Extensions" \
+            --notes "${{ env.RELEASE_NOTES }}" \
+            --latest \
+            ./all_apks/*.apk

@@ -1,5 +1,7 @@
 package eu.kanade.tachiyomi.animeextension.en.hanime
 
+import android.app.Application
+import android.content.SharedPreferences
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
@@ -13,8 +15,7 @@ import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.util.asJsoup
-import keiyoushi.utils.getPreferencesLazy
-import keiyoushi.utils.parseAs
+import eu.kanade.tachiyomi.util.parseAs
 import kotlinx.serialization.json.Json
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -23,12 +24,12 @@ import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import java.util.Locale
 
-class Hanime :
-    AnimeHttpSource(),
-    ConfigurableAnimeSource {
+class Hanime : ConfigurableAnimeSource, AnimeHttpSource() {
 
     override val name = "hanime.tv"
 
@@ -42,15 +43,8 @@ class Hanime :
 
     private val json: Json by injectLazy()
 
-    private val preferences by getPreferencesLazy()
-
-    private fun fixThumbnailUrl(url: String?): String? {
-        if (url.isNullOrEmpty()) return null
-        return if (url.contains("hanime-cdn.com") && !url.contains("Referer=")) {
-            "$url|Referer=https://hanime.tv/"
-        } else {
-            url
-        }
+    private val preferences: SharedPreferences by lazy {
+        Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
     }
 
     private fun searchRequestBody(query: String, page: Int, filters: AnimeFilterList): RequestBody {
@@ -71,7 +65,8 @@ class Hanime :
     private val popularRequestHeaders =
         Headers.headersOf("authority", "search.htv-services.com", "accept", "application/json, text/plain, */*", "content-type", "application/json;charset=UTF-8")
 
-    override fun popularAnimeRequest(page: Int): Request = POST("https://search.htv-services.com/", popularRequestHeaders, searchRequestBody("", page, AnimeFilterList()))
+    override fun popularAnimeRequest(page: Int): Request =
+        POST("https://search.htv-services.com/", popularRequestHeaders, searchRequestBody("", page, AnimeFilterList()))
 
     override fun popularAnimeParse(response: Response) = parseSearchJson(response)
 
@@ -85,7 +80,7 @@ class Hanime :
         val animeList = array.groupBy { getTitle(it.name) }.map { (_, items) -> items.first() }.map { item ->
             SAnime.create().apply {
                 title = getTitle(item.name)
-                thumbnail_url = fixThumbnailUrl(item.coverUrl)
+                thumbnail_url = item.coverUrl
                 author = item.brand
                 description = item.description?.replace(Regex("<[^>]*>"), "")
                 status = SAnime.UNKNOWN
@@ -100,35 +95,29 @@ class Hanime :
 
     private fun isNumber(num: String) = (num.toIntOrNull() != null)
 
-    private fun getTitle(title: String): String = if (title.contains(" Ep ")) {
-        title.split(" Ep ")[0].trim()
-    } else {
-        if (isNumber(title.trim().split(" ").last())) {
-            val split = title.trim().split(" ")
-            split.slice(0..split.size - 2).joinToString(" ").trim()
+    private fun getTitle(title: String): String {
+        return if (title.contains(" Ep ")) {
+            title.split(" Ep ")[0].trim()
         } else {
-            title.trim()
+            if (isNumber(title.trim().split(" ").last())) {
+                val split = title.trim().split(" ")
+                split.slice(0..split.size - 2).joinToString(" ").trim()
+            } else {
+                title.trim()
+            }
         }
     }
 
-    override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request = POST("https://search.htv-services.com/", popularRequestHeaders, searchRequestBody(query, page, filters))
+    override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request =
+        POST("https://search.htv-services.com/", popularRequestHeaders, searchRequestBody(query, page, filters))
 
     override fun searchAnimeParse(response: Response): AnimesPage = parseSearchJson(response)
 
     override fun animeDetailsParse(response: Response): SAnime {
         val document = response.asJsoup()
-        val slug = document.location().removeSuffix("/").substringAfterLast("/")
-
-        val nuxtData = document.selectFirst("script:containsData(__NUXT__)")?.data()
-        val coverUrl = nuxtData?.let {
-            it.substringAfter("__NUXT__=").substringBeforeLast(";")
-                .parseAs<WindowNuxt>().state.data.hentai_videos
-                .firstOrNull { video -> video.slug == slug }?.coverUrl
-        }
-
         return SAnime.create().apply {
             title = getTitle(document.select("h1.tv-title").text())
-            thumbnail_url = fixThumbnailUrl(coverUrl) ?: fixThumbnailUrl(document.select("img.hvpi-cover").attr("src"))
+            thumbnail_url = document.select("img.hvpi-cover").attr("src")
             author = document.select("a.hvpimbc-text").text()
             description = document.select("div.hvpist-description p").joinToString("\n\n") { it.text() }
             status = SAnime.UNKNOWN
@@ -149,47 +138,22 @@ class Hanime :
     }
 
     private fun fetchVideoListPremium(episode: SEpisode): List<Video> {
-        val cookie = authCookie ?: return emptyList()
         val id = episode.url.substringAfter("?id=")
-        val headers = headers.newBuilder().add("cookie", cookie).build()
-        val document = client.newCall(GET("$baseUrl/videos/hentai/$id", headers = headers)).execute().asJsoup()
+        val headers = headers.newBuilder().add("cookie", authCookie!!)
+        val document = client.newCall(GET("$baseUrl/videos/hentai/$id", headers = headers.build())).execute().asJsoup()
 
-        val scriptElement = document.selectFirst("script:containsData(__NUXT__)") ?: return emptyList()
-        val scriptData = scriptElement.data()
-        val nuxtJson = scriptData.substringAfter("__NUXT__=").substringBeforeLast(";")
-        val parsed = nuxtJson.parseAs<WindowNuxt>()
+        val parsed = document.selectFirst("script:containsData(__NUXT__)")!!.data()
+            .substringAfter("__NUXT__=").substringBeforeLast(";").parseAs<WindowNuxt>()
 
-        val videoHeaders = Headers.headersOf(
-            "Referer",
-            "https://hanime.tv/",
-            "Accept",
-            "*/*",
-            "Accept-Language",
-            "en-US,en;q=0.5",
-        )
-        return parsed.state.data.video?.videos_manifest?.servers?.flatMap { server ->
-            server.streams.mapNotNull { stream ->
-                val url = stream.url ?: return@mapNotNull null
-                val height = stream.height ?: return@mapNotNull null
-                Video(url, "${height}p", url, videoHeaders)
-            }
-        } ?: emptyList()
+        return parsed.state.data.video.videos_manifest.servers.flatMap { server ->
+            server.streams.map { stream -> Video(stream.url, stream.height + "p", stream.url) }
+        }
     }
 
     override fun videoListParse(response: Response): List<Video> {
         val responseString = response.body.string().ifEmpty { return emptyList() }
-        val videoHeaders = Headers.headersOf(
-            "Referer",
-            "https://hanime.tv/",
-            "Accept",
-            "*/*",
-            "Accept-Language",
-            "en-US,en;q=0.5",
-        )
-        return responseString.parseAs<VideoModel>().videosManifest?.servers?.firstOrNull()?.streams?.filter { it.kind != "premium_alert" }?.mapNotNull { stream ->
-            val url = stream.url ?: return@mapNotNull null
-            val height = stream.height ?: return@mapNotNull null
-            Video(url, "${height}p", url, videoHeaders)
+        return responseString.parseAs<VideoModel>().videosManifest?.servers?.get(0)?.streams?.filter { it.kind != "premium_alert" }?.map {
+            Video(it.url, "${it.height}p", it.url)
         } ?: emptyList()
     }
 
@@ -229,7 +193,8 @@ class Hanime :
         }
     }
 
-    private fun latestSearchRequestBody(page: Int): RequestBody = """
+    private fun latestSearchRequestBody(page: Int): RequestBody {
+        return """
             {"search_text": "",
             "tags": [],
             "tags_mode":"AND",
@@ -238,12 +203,14 @@ class Hanime :
             "order_by": "published_at_unix",
             "ordering": "desc",
             "page": ${page - 1}}
-    """.trimIndent().toRequestBody("application/json".toMediaType())
+        """.trimIndent().toRequestBody("application/json".toMediaType())
+    }
 
     override fun latestUpdatesRequest(page: Int) = POST("https://search.htv-services.com/", popularRequestHeaders, latestSearchRequestBody(page))
 
     override fun latestUpdatesParse(response: Response) = parseSearchJson(response)
 
+    // Filters
     override fun getFilterList(): AnimeFilterList = AnimeFilterList(
         TagList(getTags()),
         BrandList(getBrands()),
@@ -270,24 +237,22 @@ class Hanime :
                     filter.state.forEach { tag ->
                         if (tag.isIncluded()) {
                             includedTags.add(
-                                "\"" + tag.id.lowercase(
+                                "\"" + tag.id.toLowerCase(
                                     Locale.US,
                                 ) + "\"",
                             )
                         } else if (tag.isExcluded()) {
                             blackListedTags.add(
-                                "\"" + tag.id.lowercase(
+                                "\"" + tag.id.toLowerCase(
                                     Locale.US,
                                 ) + "\"",
                             )
                         }
                     }
                 }
-
                 is TagInclusionMode -> {
-                    tagsMode = filter.values[filter.state].uppercase(Locale.US)
+                    tagsMode = filter.values[filter.state].toUpperCase(Locale.US)
                 }
-
                 is SortFilter -> {
                     if (filter.state != null) {
                         val query = sortableList[filter.state!!.index].second
@@ -299,19 +264,17 @@ class Hanime :
                         orderBy = query
                     }
                 }
-
                 is BrandList -> {
                     filter.state.forEach { brand ->
                         if (brand.state) {
                             brands.add(
-                                "\"" + brand.id.lowercase(
+                                "\"" + brand.id.toLowerCase(
                                     Locale.US,
                                 ) + "\"",
                             )
                         }
                     }
                 }
-
                 else -> {}
             }
         }
@@ -552,6 +515,7 @@ class Hanime :
 
     class SortFilter(sortables: Array<String>) : AnimeFilter.Sort("Sort", sortables, Selection(2, false))
 
+    // Preferences
     companion object {
         private const val PREF_QUALITY_KEY = "preferred_quality"
         private const val PREF_QUALITY_DEFAULT = "1080p"
