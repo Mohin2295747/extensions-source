@@ -23,6 +23,7 @@ import org.jsoup.nodes.Element
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
+import rx.Observable
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.regex.Pattern
@@ -74,7 +75,7 @@ class CosplayTeleVideo : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun latestUpdatesParse(response: Response): AnimesPage = searchAnimeParse(response)
 
-    override fun fetchSearchAnime(page: Int, query: String, filters: AnimeFilterList): rx.Observable<AnimesPage> {
+    override fun fetchSearchAnime(page: Int, query: String, filters: AnimeFilterList): Observable<AnimesPage> {
         if (query.startsWith("http")) {
             val url = query.toHttpUrlOrNull()
             if (url != null && (url.host == "cosplaytele.com" || url.host == "www.cosplaytele.com")) {
@@ -180,7 +181,7 @@ class CosplayTeleVideo : AnimeHttpSource(), ConfigurableAnimeSource {
                 episode_number = 1f
                 url = url
                 date_upload = dateUpload
-            }
+            },
         )
     }
 
@@ -227,10 +228,14 @@ class CosplayTeleVideo : AnimeHttpSource(), ConfigurableAnimeSource {
                 "master_360p" in url -> "360p"
                 Regex("""_(\d+)p""").find(url)?.groupValues?.get(1)?.let { "${it}p" } ?: "Unknown"
             }
-            Video(url, quality, url, headers = headers.newBuilder()
-                .add("Referer", "https://cossora.stream/")
-                .add("Origin", "https://cossora.stream")
-                .build()
+            Video(
+                url = url,
+                quality = quality,
+                videoUrl = url,
+                headers = headers.newBuilder()
+                    .add("Referer", "https://cossora.stream/")
+                    .add("Origin", "https://cossora.stream")
+                    .build(),
             )
         }
     }
