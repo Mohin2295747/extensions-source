@@ -6,10 +6,10 @@ val CATEGORIES = arrayOf(
     "All" to "",
     "Cosplay Nude" to "category/nude",
     "Cosplay Ero" to "category/no-nude",
-    "Cosplay" to "category/cosplay"
+    "Cosplay" to "category/cosplay",
 )
 
 class CategoryFilter(
     displayName: String,
-    private val vals: Array<String>
+    private val vals: Array<String>,
 ) : AnimeFilter.Select<String>(displayName, vals)
