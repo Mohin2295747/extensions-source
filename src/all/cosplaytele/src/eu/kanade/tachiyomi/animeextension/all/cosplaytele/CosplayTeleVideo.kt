@@ -80,28 +80,29 @@ class CosplayTeleVideo : AnimeHttpSource(), ConfigurableAnimeSource {
             val url = query.toHttpUrlOrNull()
             if (url != null && (url.host == "cosplaytele.com" || url.host == "www.cosplaytele.com")) {
                 val pathSegments = url.pathSegments.filter { it.isNotEmpty() }
-                if (pathSegments.isEmpty()) return super.fetchSearchAnime(page, query, filters)
-
-                if (pathSegments[0] == "category" || pathSegments[0] == "tag") {
-                    val paginatedUrl = url.newBuilder().apply {
-                        val pageIndex = url.pathSegments.indexOf("page")
-                        if (pageIndex != -1) {
-                            setPathSegment(pageIndex + 1, page.toString())
-                        } else {
-                            addPathSegment("page")
-                            addPathSegment(page.toString())
+                if (pathSegments.isNotEmpty()) {
+                    if (pathSegments[0] == "category" || pathSegments[0] == "tag") {
+                        val paginatedUrl = url.newBuilder().apply {
+                            val pageIndex = url.pathSegments.indexOf("page")
+                            if (pageIndex != -1) {
+                                setPathSegment(pageIndex + 1, page.toString())
+                            } else {
+                                addPathSegment("page")
+                                addPathSegment(page.toString())
+                            }
+                        }.build()
+                        return Observable.fromCallable {
+                            val response = client.newCall(GET(paginatedUrl, headers)).execute()
+                            searchAnimeParse(response).also { response.close() }
                         }
-                    }.build()
-                    return client.newCall(GET(paginatedUrl, headers))
-                        .asObservableSuccess()
-                        .map { response -> searchAnimeParse(response) }
-                } else {
-                    return client.newCall(GET(query, headers))
-                        .asObservableSuccess()
-                        .map { response ->
+                    } else {
+                        return Observable.fromCallable {
+                            val response = client.newCall(GET(query, headers)).execute()
                             val anime = animeDetailsParse(response).apply { setUrlWithoutDomain(query) }
+                            response.close()
                             AnimesPage(listOf(anime), false)
                         }
+                    }
                 }
             }
         }
