@@ -102,6 +102,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4 # v4
 
       - name: Restore build cache
+        if: ${{ false }}
         uses: actions/cache/restore@v3
         with:
           path: |
@@ -121,6 +122,7 @@ jobs:
         run: chmod +x ./gradlew && ./gradlew -p src assembleRelease
 
       - name: Store build cache
+        if: ${{ false }}
         uses: actions/cache/save@v3
         with:
           path: |
