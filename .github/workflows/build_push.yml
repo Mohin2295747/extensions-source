@@ -144,7 +144,6 @@ jobs:
     name: Publish repo
     needs:
       - build_individual
-    if: ${{ github.repository == 'Kohi-den/extensions-source' }}
     runs-on: ubuntu-latest
     steps:
       - name: Setup rsync
