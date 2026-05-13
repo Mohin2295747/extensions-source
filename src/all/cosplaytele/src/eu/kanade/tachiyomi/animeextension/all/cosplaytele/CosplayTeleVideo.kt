@@ -16,7 +16,6 @@ import eu.kanade.tachiyomi.util.parseAs
 import keiyoushi.utils.firstInstanceOrNull
 import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.nodes.Element
@@ -74,40 +73,6 @@ class CosplayTeleVideo : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun latestUpdatesRequest(page: Int): Request = GET("$baseUrl/page/$page/", headers)
 
     override fun latestUpdatesParse(response: Response): AnimesPage = searchAnimeParse(response)
-
-    override fun fetchSearchAnime(page: Int, query: String, filters: AnimeFilterList): Observable<AnimesPage> {
-        if (query.startsWith("http")) {
-            val url = query.toHttpUrlOrNull()
-            if (url != null && (url.host == "cosplaytele.com" || url.host == "www.cosplaytele.com")) {
-                val pathSegments = url.pathSegments.filter { it.isNotEmpty() }
-                if (pathSegments.isNotEmpty()) {
-                    if (pathSegments[0] == "category" || pathSegments[0] == "tag") {
-                        val paginatedUrl = url.newBuilder().apply {
-                            val pageIndex = url.pathSegments.indexOf("page")
-                            if (pageIndex != -1) {
-                                setPathSegment(pageIndex + 1, page.toString())
-                            } else {
-                                addPathSegment("page")
-                                addPathSegment(page.toString())
-                            }
-                        }.build()
-                        return Observable.fromCallable {
-                            val response = client.newCall(GET(paginatedUrl, headers)).execute()
-                            searchAnimeParse(response).also { response.close() }
-                        }
-                    } else {
-                        return Observable.fromCallable {
-                            val response = client.newCall(GET(query, headers)).execute()
-                            val anime = animeDetailsParse(response).apply { setUrlWithoutDomain(query) }
-                            response.close()
-                            AnimesPage(listOf(anime), false)
-                        }
-                    }
-                }
-            }
-        }
-        return super.fetchSearchAnime(page, query, filters)
-    }
 
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
         val categoryFilter = filters.firstInstanceOrNull<CategoryFilter>()
