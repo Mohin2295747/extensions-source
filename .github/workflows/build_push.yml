@@ -28,7 +28,7 @@ jobs:
       - name: Clone repo
         uses: actions/checkout@v4 # v4
         with:
-          ref: main
+          ref: cosplaytele
           token: ${{ secrets.PAT_TOKEN }}
           
       - name: Get number of modules
@@ -82,10 +82,10 @@ jobs:
     strategy:
       matrix: ${{ fromJSON(needs.prepare.outputs.individualMatrix) }}
     steps:
-      - name: Checkout main branch
+      - name: Checkout cosplaytele branch
         uses: actions/checkout@v4 # v4
         with:
-          ref: main
+          ref: cosplaytele
           token: ${{ secrets.PAT_TOKEN }}
 
       - name: Set up JDK
@@ -119,7 +119,7 @@ jobs:
           ALIAS: ${{ secrets.ALIAS }}
           KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: chmod +x ./gradlew && ./gradlew -p src :all:cosplaytele:assembleRelease
+        run: chmod +x ./gradlew && ./gradlew -p src assembleRelease
 
       - name: Store build cache
         if: ${{ false }}
@@ -163,16 +163,16 @@ jobs:
           java-version: 17
           distribution: temurin
                 
-      - name: Checkout main branch
+      - name: Checkout cosplaytele branch
         uses: actions/checkout@v4 # v4
         with:
-          ref: main
-          path: main
+          ref: cosplaytele
+          path: cosplaytele
           token: ${{ secrets.PAT_TOKEN }}
           
       - name: Create repo artifacts
         run: |
-          cd main
+          cd cosplaytele
           python ./.github/scripts/move-apks.py
           INSPECTOR_LINK="$(curl -s "https://api.github.com/repos/aniyomiorg/aniyomi-extensions-inspector/releases/latest" | jq -r '.assets[0].browser_download_url')"
           curl -L "$INSPECTOR_LINK" -o ./Inspector.jar
@@ -184,7 +184,7 @@ jobs:
         with:
           repository: Kohi-den/extensions-source  #just to initialize the folder
           token: ${{ secrets.PAT_TOKEN }}
-          ref: main
+          ref: cosplaytele
           path: repo
 
       - name: Set Forgejo remote URL
@@ -195,11 +195,11 @@ jobs:
       - name: Pull latest changes
         run: |
           cd repo
-          git pull --rebase origin main    
+          git pull --rebase origin cosplaytele    
 
       - name: Sync repo
         run: |
-          rsync -a --delete --exclude .git --exclude .gitignore main/repo/ repo --exclude README.md --exclude repo.json
+          rsync -a --delete --exclude .git --exclude .gitignore cosplaytele/repo/ repo --exclude README.md --exclude repo.json
 
       - name: Increase buffer size
         run: |
