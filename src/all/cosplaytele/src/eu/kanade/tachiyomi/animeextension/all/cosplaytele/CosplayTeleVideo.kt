@@ -82,7 +82,7 @@ class CosplayTeleVideo : AnimeHttpSource(), ConfigurableAnimeSource {
                 val pathSegments = url.pathSegments.filter { it.isNotEmpty() }
                 if (pathSegments.isEmpty()) return super.fetchSearchAnime(page, query, filters)
 
-                return if (pathSegments[0] == "category" || pathSegments[0] == "tag") {
+                if (pathSegments[0] == "category" || pathSegments[0] == "tag") {
                     val paginatedUrl = url.newBuilder().apply {
                         val pageIndex = url.pathSegments.indexOf("page")
                         if (pageIndex != -1) {
@@ -92,14 +92,16 @@ class CosplayTeleVideo : AnimeHttpSource(), ConfigurableAnimeSource {
                             addPathSegment(page.toString())
                         }
                     }.build()
-                    client.newCall(GET(paginatedUrl, headers)).asObservableSuccess().map { response ->
-                        searchAnimeParse(response)
-                    }
+                    return client.newCall(GET(paginatedUrl, headers))
+                        .asObservableSuccess()
+                        .map { response -> searchAnimeParse(response) }
                 } else {
-                    client.newCall(GET(query, headers)).asObservableSuccess().map { response ->
-                        val anime = animeDetailsParse(response).apply { setUrlWithoutDomain(query) }
-                        AnimesPage(listOf(anime), false)
-                    }
+                    return client.newCall(GET(query, headers))
+                        .asObservableSuccess()
+                        .map { response ->
+                            val anime = animeDetailsParse(response).apply { setUrlWithoutDomain(query) }
+                            AnimesPage(listOf(anime), false)
+                        }
                 }
             }
         }
