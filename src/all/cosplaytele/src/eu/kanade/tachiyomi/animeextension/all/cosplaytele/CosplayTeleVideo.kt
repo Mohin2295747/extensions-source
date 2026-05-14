@@ -209,7 +209,7 @@ class CosplayTeleVideo : AnimeHttpSource(), ConfigurableAnimeSource {
                 quality,
                 m3u8Url,
                 videoHeaders,
-            )
+            ),
         )
     }
 
