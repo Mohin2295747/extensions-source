@@ -82,27 +82,22 @@ class CosplayTeleVideo : AnimeHttpSource(), ConfigurableAnimeSource {
             }
         }
 
-        val urlBuilder = when {
+        val url = when {
             selectedCategory.isNotEmpty() -> {
-                baseUrl.toHttpUrl().newBuilder().apply {
-                    addPathSegments(selectedCategory)
-                    addPathSegment("page")
-                    addPathSegment(page.toString())
-                    if (query.isNotEmpty()) addQueryParameter("s", query)
+                if (query.isNotEmpty()) {
+                    "$baseUrl/$selectedCategory/page/$page/?s=$query"
+                } else {
+                    "$baseUrl/$selectedCategory/page/$page/"
                 }
             }
             query.isNotEmpty() -> {
-                baseUrl.toHttpUrl().newBuilder().apply {
-                    addPathSegment("page")
-                    addPathSegment(page.toString())
-                    addQueryParameter("s", query)
-                }
+                "$baseUrl/page/$page/?s=$query"
             }
             else -> {
-                latestUpdatesRequest(page).url.toHttpUrl().newBuilder()
+                "$baseUrl/page/$page/"
             }
         }
-        return GET(urlBuilder.build(), headers)
+        return GET(url, headers)
     }
 
     override fun searchAnimeParse(response: Response): AnimesPage {
