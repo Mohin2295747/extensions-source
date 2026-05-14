@@ -22,7 +22,6 @@ import org.jsoup.nodes.Element
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
-import rx.Observable
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.regex.Pattern
@@ -78,7 +77,9 @@ class CosplayTeleVideo : AnimeHttpSource(), ConfigurableAnimeSource {
         val categoryFilter = filters.firstInstanceOrNull<CategoryFilter>()
         val selectedCategory = if (categoryFilter != null && categoryFilter.state != 0) {
             CATEGORIES[categoryFilter.state].second
-        } else ""
+        } else {
+            ""
+        }
 
         val urlBuilder = when {
             selectedCategory.isNotEmpty() -> {
@@ -149,7 +150,7 @@ class CosplayTeleVideo : AnimeHttpSource(), ConfigurableAnimeSource {
                 episode_number = 1f
                 url = url
                 date_upload = dateUpload
-            }
+            },
         )
     }
 
@@ -206,7 +207,7 @@ class CosplayTeleVideo : AnimeHttpSource(), ConfigurableAnimeSource {
                 headers.newBuilder()
                     .add("Referer", "https://cossora.stream/")
                     .add("Origin", "https://cossora.stream")
-                    .build()
+                    .build(),
             )
         }
     }
