@@ -1,7 +1,7 @@
 ext {
-    extName = 'Cosplaytele'
-    extClass = '.Cosplaytele'
-    extVersionCode = 2
+    extName = 'CosplayTele (Video)'
+    extClass = '.CosplayTeleVideo'
+    extVersionCode = 1
     isNsfw = true
 }
 

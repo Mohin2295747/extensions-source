@@ -12,8 +12,6 @@ import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.util.asJsoup
-import eu.kanade.tachiyomi.util.parseAs
-import keiyoushi.utils.firstInstanceOrNull
 import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
@@ -56,7 +54,7 @@ class CosplayTeleVideo : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     override fun popularAnimeParse(response: Response): AnimesPage {
-        val result = response.parseAs<List<PopularPostDto>>()
+        val result = json.decodeFromString<List<PopularPostDto>>(response.body.string())
         val animes = result.map { item ->
             SAnime.create().apply {
                 title = item.title.rendered
@@ -74,11 +72,14 @@ class CosplayTeleVideo : AnimeHttpSource(), ConfigurableAnimeSource {
     override fun latestUpdatesParse(response: Response): AnimesPage = searchAnimeParse(response)
 
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
-        val categoryFilter = filters.firstInstanceOrNull<CategoryFilter>()
-        val selectedCategory = if (categoryFilter != null && categoryFilter.state != 0) {
-            CATEGORIES[categoryFilter.state].second
-        } else {
-            ""
+        var selectedCategory = ""
+        for (filter in filters) {
+            if (filter is CategoryFilter) {
+                if (filter.state != 0) {
+                    selectedCategory = CATEGORIES[filter.state].second
+                }
+                break
+            }
         }
 
         val urlBuilder = when {
@@ -91,9 +92,15 @@ class CosplayTeleVideo : AnimeHttpSource(), ConfigurableAnimeSource {
                 }
             }
             query.isNotEmpty() -> {
-                "$baseUrl/page/$page/".toHttpUrl().newBuilder().addQueryParameter("s", query)
+                baseUrl.toHttpUrl().newBuilder().apply {
+                    addPathSegment("page")
+                    addPathSegment(page.toString())
+                    addQueryParameter("s", query)
+                }
             }
-            else -> latestUpdatesRequest(page).url.toHttpUrl().newBuilder()
+            else -> {
+                latestUpdatesRequest(page).url.toHttpUrl().newBuilder()
+            }
         }
         return GET(urlBuilder.build(), headers)
     }
@@ -143,12 +150,20 @@ class CosplayTeleVideo : AnimeHttpSource(), ConfigurableAnimeSource {
         val document = response.asJsoup()
         val url = response.request.url.toString()
         val dateStr = document.selectFirst("time.updated")?.attr("datetime")
-        val dateUpload = DATE_FORMAT.tryParse(dateStr?.substringBefore("T")) ?: 0L
+        val dateUpload = if (dateStr != null) {
+            try {
+                DATE_FORMAT.parse(dateStr.substringBefore("T"))?.time ?: 0L
+            } catch (e: Exception) {
+                0L
+            }
+        } else {
+            0L
+        }
         return listOf(
             SEpisode.create().apply {
                 name = "Video"
                 episode_number = 1f
-                url = url
+                this.url = url
                 date_upload = dateUpload
             },
         )
@@ -222,7 +237,9 @@ class CosplayTeleVideo : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun getFilterList(): AnimeFilterList {
         val categoryEntries = CATEGORIES.map { it.first }.toTypedArray()
-        return AnimeFilterList(CategoryFilter("Category", categoryEntries))
+        val filters = mutableListOf<CategoryFilter>()
+        filters.add(CategoryFilter("Category", categoryEntries))
+        return AnimeFilterList(filters)
     }
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
