@@ -149,7 +149,7 @@ class CosplayTeleVideo : AnimeHttpSource(), ConfigurableAnimeSource {
                 episode_number = 1f
                 url = url
                 date_upload = dateUpload
-            },
+            }
         )
     }
 
@@ -178,7 +178,7 @@ class CosplayTeleVideo : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     private fun extractM3u8Videos(html: String): List<Video> {
-        val pattern = Pattern.compile("""(?:file|src)\s*:\s*"([^"]+\.m3u8\?[^"]+)"""")
+        val pattern = Pattern.compile("(?:file|src)\\s*:\\s*\"([^\"]+\\.m3u8\\?[^\"]+)\"")
         val matcher = pattern.matcher(html)
         val urls = mutableSetOf<String>()
         while (matcher.find()) {
@@ -194,23 +194,30 @@ class CosplayTeleVideo : AnimeHttpSource(), ConfigurableAnimeSource {
                 "master_720p" in url -> "720p"
                 "master_480p" in url -> "480p"
                 "master_360p" in url -> "360p"
-                Regex("""_(\d+)p""").find(url)?.groupValues?.get(1)?.let { "${it}p" } ?: "Unknown"
+                else -> {
+                    val match = Regex("_(\\d+)p").find(url)
+                    if (match != null) "${match.groupValues[1]}p" else "Unknown"
+                }
             }
             Video(
-                url = url,
-                quality = quality,
-                videoUrl = url,
-                headers = headers.newBuilder()
+                url,
+                quality,
+                url,
+                headers.newBuilder()
                     .add("Referer", "https://cossora.stream/")
                     .add("Origin", "https://cossora.stream")
-                    .build(),
+                    .build()
             )
         }
     }
 
-    override fun videoListParse(response: Response): List<Video> = throw UnsupportedOperationException("Use getVideoList")
+    override fun videoListParse(response: Response): List<Video> {
+        throw UnsupportedOperationException("Use getVideoList")
+    }
 
-    override fun videoListRequest(episode: SEpisode): Request = throw UnsupportedOperationException("Use getVideoList")
+    override fun videoListRequest(episode: SEpisode): Request {
+        throw UnsupportedOperationException("Use getVideoList")
+    }
 
     override fun getFilterList(): AnimeFilterList {
         val categoryEntries = CATEGORIES.map { it.first }.toTypedArray()
@@ -222,6 +229,6 @@ class CosplayTeleVideo : AnimeHttpSource(), ConfigurableAnimeSource {
 
     companion object {
         private val DATE_FORMAT by lazy { SimpleDateFormat("yyyy-MM-dd", Locale.US) }
-        private val TAG_PATTERN = """.*/(tag|category)/.*""".toRegex()
+        private val TAG_PATTERN = ".*/(tag|category)/.*".toRegex()
     }
 }
