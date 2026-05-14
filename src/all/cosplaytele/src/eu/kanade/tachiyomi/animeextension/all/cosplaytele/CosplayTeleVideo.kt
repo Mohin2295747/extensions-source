@@ -174,71 +174,42 @@ class CosplayTeleVideo : AnimeHttpSource(), ConfigurableAnimeSource {
         val embedUrl = iframe.attr("abs:src")
         if (embedUrl.isBlank()) return emptyList()
 
-        val embedHeaders = headers.newBuilder()
-            .add("Referer", baseUrl)
-            .add("Origin", baseUrl)
+        val videoId = embedUrl.substringAfter("/embed/").substringBefore("/")
+        if (videoId.isBlank()) return emptyList()
+
+        val apiHeaders = headers.newBuilder()
+            .add("Referer", embedUrl)
+            .add("Origin", "https://cossora.stream")
             .add("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36")
+            .add("Accept", "*/*")
             .build()
 
-        val embedResponse = client.newCall(GET(embedUrl, embedHeaders)).execute()
-        if (!embedResponse.isSuccessful) return emptyList()
-
-        val videoId = extractVideoIdFromEmbedUrl(embedUrl)
-        if (videoId == null) {
-            embedResponse.close()
+        val indexUrl = "https://cossora.stream/api-embed/$videoId/index.m3u8"
+        val indexResponse = client.newCall(GET(indexUrl, apiHeaders)).execute()
+        
+        if (!indexResponse.isSuccessful) {
+            indexResponse.close()
             return emptyList()
         }
-
-        val embedHtml = embedResponse.body?.string().orEmpty()
-        embedResponse.close()
-
-        val m3u8Url = extractM3u8Url(embedHtml, videoId)
-        if (m3u8Url == null) return emptyList()
-
-        val quality = extractQuality(m3u8Url)
-
+        
+        val indexContent = indexResponse.body?.string().orEmpty()
+        indexResponse.close()
+        
+        val masterPattern = Regex("(master_\\d+p\\.m3u8\\?token=[a-zA-Z0-9._-]+\\.[a-zA-Z0-9._-]+\\.[a-zA-Z0-9._-]+)")
+        val masterMatch = masterPattern.find(indexContent)
+        
+        if (masterMatch == null) return emptyList()
+        
+        val masterUrl = "https://cossora.stream/api-embed/$videoId/${masterMatch.value}"
+        val quality = Regex("master_(\\d+p)").find(masterUrl)?.groupValues?.get(1) ?: "1906p"
+        
         val videoHeaders = headers.newBuilder()
-            .add("Referer", "https://cossora.stream/")
+            .add("Referer", embedUrl)
             .add("Origin", "https://cossora.stream")
             .add("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36")
             .build()
 
-        return listOf(
-            Video(
-                m3u8Url,
-                quality,
-                m3u8Url,
-                videoHeaders,
-            ),
-        )
-    }
-
-    private fun extractVideoIdFromEmbedUrl(embedUrl: String): String? {
-        val pattern = Regex("/embed/([a-f0-9-]+)")
-        return pattern.find(embedUrl)?.groupValues?.get(1)
-    }
-
-    private fun extractM3u8Url(html: String, videoId: String): String? {
-        val pattern = Regex("https://cossora\\.stream/api-embed/$videoId/master_\\d+p\\.m3u8\\?token=[a-zA-Z0-9._-]+\\.[a-zA-Z0-9._-]+\\.[a-zA-Z0-9._-]+")
-        val match = pattern.find(html)
-        if (match != null) {
-            return match.value
-        }
-
-        val tokenPattern = Regex("token=([a-zA-Z0-9._-]+\\.[a-zA-Z0-9._-]+\\.[a-zA-Z0-9._-]+)")
-        val tokenMatch = tokenPattern.find(html)
-        if (tokenMatch != null) {
-            val token = tokenMatch.groupValues[1]
-            return "https://cossora.stream/api-embed/$videoId/master_1906p.m3u8?token=$token"
-        }
-
-        return null
-    }
-
-    private fun extractQuality(m3u8Url: String): String {
-        val pattern = Regex("master_(\\d+p)\\.m3u8")
-        val match = pattern.find(m3u8Url)
-        return match?.groupValues?.get(1) ?: "Unknown"
+        return listOf(Video(masterUrl, quality, masterUrl, videoHeaders))
     }
 
     override fun videoListParse(response: Response): List<Video> {
