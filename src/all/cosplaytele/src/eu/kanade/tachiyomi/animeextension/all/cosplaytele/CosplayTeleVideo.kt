@@ -195,13 +195,18 @@ class CosplayTeleVideo : AnimeHttpSource(), ConfigurableAnimeSource {
         val indexContent = indexResponse.body?.string().orEmpty()
         indexResponse.close()
 
-        val masterPattern = Regex("(master_\\d+p\\.m3u8\\?token=[a-zA-Z0-9._-]+\\.[a-zA-Z0-9._-]+\\.[a-zA-Z0-9._-]+)")
+        val masterPattern = Regex("(master_\\d+p\\.m3u8\\?token=[a-zA-Z0-9._-]+\\.[a-zA-Z0-9._-]+\\.[a-zA-Z0-9._-]+=?)")
         val masterMatch = masterPattern.find(indexContent)
 
         if (masterMatch == null) return emptyList()
 
-        val masterUrl = "https://cossora.stream/api-embed/$videoId/${masterMatch.value}"
-        val quality = Regex("master_(\\d+p)").find(masterUrl)?.groupValues?.get(1) ?: "1906p"
+        val masterUrl = if (masterMatch.value.startsWith("http")) {
+            masterMatch.value
+        } else {
+            "https://cossora.stream/api-embed/$videoId/${masterMatch.value}"
+        }
+
+        val quality = Regex("master_(\\d+p)").find(masterUrl)?.groupValues?.get(1) ?: "Unknown"
 
         val videoHeaders = headers.newBuilder()
             .add("Referer", embedUrl)
